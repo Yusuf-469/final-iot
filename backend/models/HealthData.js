@@ -1,273 +1,213 @@
 /**
- * HealthData Model
- * Stores continuous health monitoring data from sensors
+ * HealthData Model - Firestore Version
+ * Medical IoT Backend - Health monitoring data structure for Firestore
  */
 
-const mongoose = require('mongoose');
+// Firestore collection reference will be passed from service layer
+const COLLECTIONS = {
+  HEALTH_DATA: 'healthData'
+};
 
-const healthDataSchema = new mongoose.Schema({
-  patientId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  deviceId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  heartRate: {
-    value: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 250
+/**
+ * Health data validation and formatting
+ * @param {Object} healthData - Raw health data
+ * @returns {Object} - Formatted health data for Firestore
+ */
+const formatHealthData = (healthData) => {
+  const formatted = {
+    patientId: healthData.patientId || '',
+    deviceId: healthData.deviceId || '',
+    timestamp: healthData.timestamp ? new Date(healthData.timestamp) : new Date(),
+    heartRate: healthData.heartRate || {
+      value: 0,
+      unit: 'bpm',
+      quality: 'poor'
     },
-    unit: {
-      type: String,
-      default: 'bpm'
+    temperature: healthData.temperature || {
+      value: 0,
+      unit: '°C',
+      method: 'axillary'
     },
-    quality: {
-      type: String,
-      enum: ['good', 'fair', 'poor'],
-      default: 'good'
-    }
-  },
-  temperature: {
-    value: {
-      type: Number,
-      required: true,
-      min: 30,
-      max: 45
+    spo2: healthData.spo2 || {
+      value: 0,
+      unit: '%',
+      quality: 'poor'
     },
-    unit: {
-      type: String,
-      default: '°C'
+    bloodPressure: healthData.bloodPressure || {
+      systolic: 0,
+      diastolic: 0,
+      unit: 'mmHg',
+      method: 'oscillometric'
     },
-    method: {
-      type: String,
-      enum: ['oral', 'axillary', 'tympanic', 'rectal'],
-      default: 'axillary'
-    }
-  },
-  spo2: {
-    value: {
-      type: Number,
-      required: true,
-      min: 0,
-      max: 100
+    ecg: healthData.ecg || {
+      leads: [],
+      heartRate: 0,
+      rrInterval: 0,
+      prInterval: 0,
+      qtInterval: 0,
+      qrsDuration: 0
     },
-    unit: {
-      type: String,
-      default: '%'
+    respiration: healthData.respiration || {
+      rate: 0,
+      unit: 'breaths/min'
     },
-    quality: {
-      type: String,
-      enum: ['good', 'fair', 'poor'],
-      default: 'good'
-    }
-  },
-  bloodPressure: {
-    systolic: {
-      type: Number,
-      min: 60,
-      max: 250
+    device: healthData.device || {
+      batteryLevel: 0,
+      signalStrength: 0,
+      firmware: ''
     },
-    diastolic: {
-      type: Number,
-      min: 40,
-      max: 150
+    status: healthData.status || 'normal',
+    alerts: healthData.alerts || [],
+    metadata: healthData.metadata || {
+      environment: {
+        temperature: 0,
+        humidity: 0
+      },
+      patientActivity: 'resting',
+      notes: ''
     },
-    unit: {
-      type: String,
-      default: 'mmHg'
-    },
-    method: {
-      type: String,
-      enum: ['oscillometric', 'auscultatory'],
-      default: 'oscillometric'
-    }
-  },
-  ecg: {
-    leads: [{
-      lead: String,
-      data: [Number],
-      samplingRate: Number
-    }],
-    heartRate: Number,
-    rrInterval: Number,
-    prInterval: Number,
-    qtInterval: Number,
-    qrsDuration: Number
-  },
-  respiration: {
-    rate: {
-      type: Number,
-      min: 0,
-      max: 60
-    },
-    unit: {
-      type: String,
-      default: 'breaths/min'
-    }
-  },
-  device: {
-    batteryLevel: {
-      type: Number,
-      min: 0,
-      max: 100
-    },
-    signalStrength: Number,
-    firmware: String
-  },
-  status: {
-    type: String,
-    enum: ['normal', 'warning', 'critical', 'error'],
-    default: 'normal'
-  },
-  alerts: [{
-    type: {
-      type: String,
-      enum: ['heartRate', 'temperature', 'spo2', 'bloodPressure', 'ecg']
-    },
-    severity: {
-      type: String,
-      enum: ['info', 'warning', 'critical']
-    },
-    message: String,
-    timestamp: {
-      type: Date,
-      default: Date.now
-    }
-  }],
-  metadata: {
-    environment: {
-      temperature: Number,
-      humidity: Number
-    },
-    patientActivity: {
-      type: String,
-      enum: ['resting', 'walking', 'exercise', 'sleeping'],
-      default: 'resting'
-    },
-    notes: String
+    createdAt: healthData.createdAt || new Date(),
+    updatedAt: healthData.updatedAt || new Date()
+  };
+
+  // Remove null/undefined values for cleaner Firestore docs
+  return Object.fromEntries(
+    Object.entries(formatted).filter(([_, value]) => value !== null && value !== undefined)
+  );
+};
+
+/**
+ * Validate health data
+ * @param {Object} healthData - Health data to validate
+ * @returns {Object} - Validation result { isValid, errors }
+ */
+const validateHealthData = (healthData) => {
+  const errors = [];
+
+  if (!healthData.patientId || healthData.patientId.trim() === '') {
+    errors.push('Patient ID is required');
   }
-}, {
-  timestamps: true
-});
 
-// Compound index for efficient queries
-healthDataSchema.index({ patientId: 1, timestamp: -1 });
-healthDataSchema.index({ patientId: 1, deviceId: 1, timestamp: -1 });
-healthDataSchema.index({ status: 1, timestamp: -1 });
-
-// TTL index to automatically delete old data (optional)
-// healthDataSchema.index({ timestamp: 1 }, { expireAfterSeconds: 31536000 }); // 1 year
-
-// Virtual for pulse pressure
-healthDataSchema.virtual('pulsePressure').get(function() {
-  if (this.bloodPressure && this.bloodPressure.systolic && this.bloodPressure.diastolic) {
-    return this.bloodPressure.systolic - this.bloodPressure.diastolic;
+  if (!healthData.deviceId || healthData.deviceId.trim() === '') {
+    errors.push('Device ID is required');
   }
-  return null;
-});
 
-// Method to assess overall status
-healthDataSchema.methods.assessStatus = function(thresholds = {}) {
-  const defaultThresholds = {
+  // Validate heart rate if present
+  if (healthData.heartRate && healthData.heartRate.value !== undefined) {
+    const hr = healthData.heartRate.value;
+    if (typeof hr !== 'number' || hr < 0 || hr > 250) {
+      errors.push('Heart rate must be a number between 0 and 250');
+    }
+  }
+
+  // Validate temperature if present
+  if (healthData.temperature && healthData.temperature.value !== undefined) {
+    const temp = healthData.temperature.value;
+    if (typeof temp !== 'number' || temp < 30 || temp > 45) {
+      errors.push('Temperature must be a number between 30 and 45');
+    }
+  }
+
+  // Validate SpO2 if present
+  if (healthData.spo2 && healthData.spo2.value !== undefined) {
+    const spo2 = healthData.spo2.value;
+    if (typeof spo2 !== 'number' || spo2 < 0 || spo2 > 100) {
+      errors.push('SpO2 must be a number between 0 and 100');
+    }
+  }
+
+  // Validate blood pressure if present
+  if (healthData.bloodPressure) {
+    const sys = healthData.bloodPressure.systolic;
+    const dia = healthData.bloodPressure.diastolic;
+    if (sys !== undefined && (typeof sys !== 'number' || sys < 60 || sys > 250)) {
+      errors.push('Systolic blood pressure must be a number between 60 and 250');
+    }
+    if (dia !== undefined && (typeof dia !== 'number' || dia < 40 || dia > 150)) {
+      errors.push('Diastolic blood pressure must be a number between 40 and 150');
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+/**
+ * Assess overall health status based on readings
+ * @param {Object} healthData - Health data to assess
+ * @returns {Object} - Status and alerts
+ */
+const assessHealthStatus = (healthData) => {
+  const thresholds = {
     heartRate: { min: 60, max: 100, criticalMax: 120, criticalMin: 40 },
     temperature: { min: 36.1, max: 37.8, criticalMax: 38.5, criticalMin: 35 },
     spo2: { min: 95, criticalMin: 90 },
     bloodPressure: { systolicMax: 140, diastolicMax: 90, systolicCritical: 180, diastolicCritical: 120 }
   };
-  
-  const t = { ...defaultThresholds, ...thresholds };
+
   let status = 'normal';
   const alerts = [];
-  
+
   // Check heart rate
-  if (this.heartRate.value > t.heartRate.criticalMax || this.heartRate.value < t.heartRate.criticalMin) {
-    status = 'critical';
-    alerts.push({ type: 'heartRate', severity: 'critical', message: 'Critical heart rate detected' });
-  } else if (this.heartRate.value > t.heartRate.max || this.heartRate.value < t.heartRate.min) {
-    if (status !== 'critical') status = 'warning';
-    alerts.push({ type: 'heartRate', severity: 'warning', message: 'Abnormal heart rate detected' });
+  const hr = healthData.heartRate?.value;
+  if (hr !== undefined) {
+    if (hr > thresholds.heartRate.criticalMax || hr < thresholds.heartRate.criticalMin) {
+      status = 'critical';
+      alerts.push({ type: 'heartRate', severity: 'critical', message: 'Critical heart rate detected' });
+    } else if (hr > thresholds.heartRate.max || hr < thresholds.heartRate.min) {
+      if (status !== 'critical') status = 'warning';
+      alerts.push({ type: 'heartRate', severity: 'warning', message: 'Abnormal heart rate detected' });
+    }
   }
-  
+
   // Check temperature
-  if (this.temperature.value > t.temperature.criticalMax || this.temperature.value < t.temperature.criticalMin) {
-    status = 'critical';
-    alerts.push({ type: 'temperature', severity: 'critical', message: 'Critical temperature detected' });
-  } else if (this.temperature.value > t.temperature.max || this.temperature.value < t.temperature.min) {
-    if (status !== 'critical') status = 'warning';
-    alerts.push({ type: 'temperature', severity: 'warning', message: 'Abnormal temperature detected' });
+  const temp = healthData.temperature?.value;
+  if (temp !== undefined) {
+    if (temp > thresholds.temperature.criticalMax || temp < thresholds.temperature.criticalMin) {
+      status = 'critical';
+      alerts.push({ type: 'temperature', severity: 'critical', message: 'Critical temperature detected' });
+    } else if (temp > thresholds.temperature.max || temp < thresholds.temperature.min) {
+      if (status !== 'critical') status = 'warning';
+      alerts.push({ type: 'temperature', severity: 'warning', message: 'Abnormal temperature detected' });
+    }
   }
-  
+
   // Check SpO2
-  if (this.spo2.value < t.spo2.criticalMin) {
-    status = 'critical';
-    alerts.push({ type: 'spo2', severity: 'critical', message: 'Critical oxygen saturation detected' });
-  } else if (this.spo2.value < t.spo2.min) {
-    if (status !== 'critical') status = 'warning';
-    alerts.push({ type: 'spo2', severity: 'warning', message: 'Low oxygen saturation detected' });
+  const spo2 = healthData.spo2?.value;
+  if (spo2 !== undefined) {
+    if (spo2 < thresholds.spo2.criticalMin) {
+      status = 'critical';
+      alerts.push({ type: 'spo2', severity: 'critical', message: 'Critical oxygen saturation detected' });
+    } else if (spo2 < thresholds.spo2.min) {
+      if (status !== 'critical') status = 'warning';
+      alerts.push({ type: 'spo2', severity: 'warning', message: 'Low oxygen saturation detected' });
+    }
   }
-  
+
   // Check blood pressure
-  if (this.bloodPressure) {
-    if (this.bloodPressure.systolic > t.bloodPressure.systolicCritical || 
-        this.bloodPressure.diastolic > t.bloodPressure.diastolicCritical) {
+  const bp = healthData.bloodPressure;
+  if (bp) {
+    const sys = bp.systolic;
+    const dia = bp.diastolic;
+    if ((sys !== undefined && (sys > thresholds.bloodPressure.systolicCritical || sys < 60)) ||
+        (dia !== undefined && (dia > thresholds.bloodPressure.diastolicCritical || dia < 40))) {
       status = 'critical';
       alerts.push({ type: 'bloodPressure', severity: 'critical', message: 'Critical blood pressure detected' });
-    } else if (this.bloodPressure.systolic > t.bloodPressure.systolicMax || 
-               this.bloodPressure.diastolic > t.bloodPressure.diastolicMax) {
+    } else if ((sys !== undefined && sys > thresholds.bloodPressure.systolicMax) ||
+               (dia !== undefined && dia > thresholds.bloodPressure.diastolicMax)) {
       if (status !== 'critical') status = 'warning';
       alerts.push({ type: 'bloodPressure', severity: 'warning', message: 'High blood pressure detected' });
     }
   }
-  
-  this.status = status;
-  this.alerts = alerts;
+
   return { status, alerts };
 };
 
-// Static method for time series aggregation
-healthDataSchema.statics.getTimeSeries = async function(patientId, startTime, endTime, interval = '1h') {
-  const groupByInterval = {
-    day: '%Y-%m-%d',
-    hour: '%Y-%m-%d %H:00',
-    minute: '%Y-%m-%d %H:%M'
-  };
-  
-  return this.aggregate([
-    {
-      $match: {
-        patientId,
-        timestamp: { $gte: startTime, $lte: endTime }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          $dateToString: { format: groupByInterval[interval] || '%Y-%m-%d %H:%M', date: '$timestamp' }
-        },
-        avgHeartRate: { $avg: '$heartRate.value' },
-        avgTemperature: { $avg: '$temperature.value' },
-        avgSpo2: { $avg: '$spo2.value' },
-        avgSystolic: { $avg: '$bloodPressure.systolic' },
-        avgDiastolic: { $avg: '$bloodPressure.diastolic' },
-        minHeartRate: { $min: '$heartRate.value' },
-        maxHeartRate: { $max: '$heartRate.value' },
-        readings: { $sum: 1 },
-        firstTimestamp: { $first: '$timestamp' }
-      }
-    },
-    { $sort: { firstTimestamp: 1 } }
-  ]);
+module.exports = {
+  COLLECTIONS,
+  formatHealthData,
+  validateHealthData,
+  assessHealthStatus
 };
-
-module.exports = mongoose.model('HealthData', healthDataSchema);

@@ -9,7 +9,7 @@ let alertChart = null;
 let patientCharts = {};
 
 // Chart.js default configuration
-Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+Chart.defaults.font.family = '\'Segoe UI\', Tahoma, Geneva, Verdana, sans-serif';
 Chart.defaults.color = '#6b7280';
 Chart.defaults.plugins.legend.labels.usePointStyle = true;
 

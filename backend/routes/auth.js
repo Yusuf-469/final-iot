@@ -1,13 +1,13 @@
 /**
- * Authentication Routes
- * Login, signup, and token management - PostgreSQL version
+ * Authentication Routes - Firestore Version
+ * Medical IoT Backend - Login, signup, and token management
  */
 
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { query } = require('../database');
+const { db, COLLECTIONS } = require('../database');
 const { logger } = require('../utils/logger');
 
 // JWT secret
@@ -29,19 +29,55 @@ const generateToken = (user) => {
 
 // Helper to get user by email
 const getUserByEmail = async (email) => {
-  const result = await query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
-  return result.rows[0] || null;
+  const usersRef = db.collection(COLLECTIONS.USERS);
+  const snapshot = await usersRef.where('email', '==', email.toLowerCase()).limit(1).get();
+  
+  if (snapshot.empty) {
+    return null;
+  }
+  
+  const doc = snapshot.docs[0];
+  const userData = doc.data();
+  return {
+    id: doc.id,
+    ...userData,
+    createdAt: userData.createdAt ? userData.createdAt.toDate().toISOString() : null
+  };
 };
 
 // Helper to create user
 const createUser = async (userData) => {
   const { email, password, firstName, lastName, role, status, isDemo } = userData;
-  const result = await query(`
-    INSERT INTO users (email, password, first_name, last_name, role, status, is_demo)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
-    RETURNING id, email, first_name, last_name, role, status, is_demo, created_at
-  `, [email.toLowerCase(), password, firstName, lastName, role || 'viewer', status || 'active', isDemo || false]);
-  return result.rows[0];
+  
+  // Hash password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+  
+  const userDoc = {
+    email: email.toLowerCase(),
+    password: hashedPassword,
+    firstName,
+    lastName,
+    role: role || 'viewer',
+    status: status || 'active',
+    isDemo: isDemo || false,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  
+  // Add to Firestore
+  const docRef = await db.collection(COLLECTIONS.USERS).add(userDoc);
+  
+  return {
+    id: docRef.id,
+    email: userDoc.email,
+    firstName: userDoc.firstName,
+    lastName: userDoc.lastName,
+    role: userDoc.role,
+    status: userDoc.status,
+    isDemo: userDoc.isDemo,
+    createdAt: userDoc.createdAt.toISOString()
+  };
 };
 
 // Demo user credentials
@@ -88,10 +124,10 @@ router.post('/login', async (req, res) => {
         user: {
           id: user.id,
           email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
+          firstName: user.firstName,
+          lastName: user.lastName,
           role: user.role,
-          isDemo: user.is_demo
+          isDemo: user.isDemo
         }
       });
     }
@@ -127,10 +163,10 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         role: user.role,
-        isDemo: user.is_demo
+        isDemo: user.isDemo
       }
     });
 
@@ -188,8 +224,8 @@ router.post('/signup', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         role: user.role
       }
     });
@@ -208,16 +244,16 @@ router.get('/me', async (req, res) => {
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
-
+    
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await query('SELECT id, email, first_name, last_name, role, status, is_demo, created_at FROM users WHERE id = $1', [decoded.id]);
-
-    if (!user.rows[0]) {
+    const user = await getUserByEmail(decoded.email); // We'll get by email since we don't store id in token payload the same way
+    
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-
-    res.json({ user: user.rows[0] });
-
+    
+    res.json({ user });
+    
   } catch (error) {
     logger.error('Auth check error:', error);
     res.status(401).json({ error: 'Invalid token' });

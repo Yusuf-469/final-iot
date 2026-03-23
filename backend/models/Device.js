@@ -1,215 +1,224 @@
 /**
- * Device Model
- * Stores IoT device information and configuration
+ * Device Model - Firestore Version
+ * Medical IoT Backend - IoT device information structure for Firestore
  */
 
-const mongoose = require('mongoose');
-
-const deviceSchema = new mongoose.Schema({
-  deviceId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['ESP32', 'Arduino', 'RaspberryPi', 'custom'],
-    default: 'ESP32'
-  },
-  patientId: {
-    type: String,
-    index: true
-  },
-  status: {
-    type: String,
-    enum: ['online', 'offline', 'maintenance', 'retired'],
-    default: 'offline',
-    index: true
-  },
-  firmware: {
-    version: String,
-    lastUpdated: Date,
-    updateAvailable: Boolean
-  },
-  sensors: [{
-    type: {
-      type: String,
-      enum: ['heartRate', 'temperature', 'spo2', 'bloodPressure', 'ecg', 'respiration', 'accelerometer']
-    },
-    model: String,
-    enabled: Boolean,
-    calibration: {
-      offset: Number,
-      scale: Number,
-      lastCalibrated: Date
-    }
-  }],
-  connectivity: {
-    network: {
-      type: String,
-      enum: ['wifi', 'gsm', 'lora', 'bluetooth'],
-      default: 'wifi'
-    },
-    wifi: {
-      ssid: String,
-      signalStrength: Number,
-      ip: String
-    },
-    gsm: {
-      imei: String,
-      signalStrength: Number,
-      operator: String
-    }
-  },
-  power: {
-    source: {
-      type: String,
-      enum: ['battery', ' mains', 'solar'],
-      default: 'battery'
-    },
-    batteryLevel: {
-      type: Number,
-      min: 0,
-      max: 100
-    },
-    batteryHealth: {
-      type: Number,
-      min: 0,
-      max: 100
-    },
-    lastCharged: Date,
-    estimatedBatteryLife: Number // in hours
-  },
-  location: {
-    lat: Number,
-    lng: Number,
-    address: String,
-    lastUpdated: Date
-  },
-  settings: {
-    samplingRate: {
-      type: Number,
-      default: 1 // samples per second
-    },
-    dataTransmissionInterval: {
-      type: Number,
-      default: 5 // seconds
-    },
-    alertThreshold: {
-      heartRate: { min: Number, max: Number },
-      temperature: { min: Number, max: Number },
-      spo2: { min: Number }
-    },
-    storage: {
-      enabled: Boolean,
-      maxEntries: Number
-    }
-  },
-  lastSeen: {
-    type: Date,
-    default: Date.now
-  },
-  lastData: {
-    timestamp: Date,
-    heartRate: Number,
-    temperature: Number,
-    spo2: Number
-  },
-  maintenance: {
-    lastMaintenance: Date,
-    nextMaintenance: Date,
-    maintenanceHistory: [{
-      date: Date,
-      type: String,
-      description: String,
-      performedBy: String
-    }]
-  },
-  metadata: {
-    manufacturer: String,
-    model: String,
-    serialNumber: String,
-    purchaseDate: Date,
-    warrantyExpiry: Date,
-    notes: String
-  }
-}, {
-  timestamps: true
-});
-
-// Indexes
-deviceSchema.index({ patientId: 1, status: 1 });
-deviceSchema.index({ status: 1, lastSeen: -1 });
-deviceSchema.index({ 'sensors.type': 1 });
-
-// Method to update device status
-deviceSchema.methods.updateStatus = function(status) {
-  this.status = status;
-  this.lastSeen = new Date();
-  return this.save();
+// Firestore collection reference will be passed from service layer
+const COLLECTIONS = {
+  DEVICES: 'devices'
 };
 
-// Method to update heartbeat
-deviceSchema.methods.heartbeat = function() {
-  this.status = 'online';
-  this.lastSeen = new Date();
-  return this.save();
-};
-
-// Method to check if device is online
-deviceSchema.methods.isOnline = function() {
-  const offlineThreshold = 5 * 60 * 1000; // 5 minutes
-  return this.status === 'online' && 
-         (new Date() - this.lastSeen) < offlineThreshold;
-};
-
-// Method to update battery level
-deviceSchema.methods.updateBattery = function(level) {
-  this.power.batteryLevel = level;
-  this.lastSeen = new Date();
-  
-  // Add alert if battery is low
-  if (level < 20 && this.power.batteryLevel >= 20) {
-    return this.sendLowBatteryAlert();
-  }
-  
-  return this.save();
-};
-
-// Method to add data reading
-deviceSchema.methods.addReading = function(data) {
-  this.lastData = {
-    timestamp: new Date(),
-    ...data
+/**
+ * Device validation and formatting
+ * @param {Object} deviceData - Raw device data
+ * @returns {Object} - Formatted device data for Firestore
+ */
+const formatDeviceData = (deviceData) => {
+  const formatted = {
+    deviceId: deviceData.deviceId || '',
+    name: deviceData.name || 'Unknown Device',
+    type: deviceData.type || 'ESP32',
+    patientId: deviceData.patientId || '',
+    status: deviceData.status || 'offline',
+    firmware: deviceData.firmware || {
+      version: '',
+      lastUpdated: null,
+      updateAvailable: false
+    },
+    sensors: deviceData.sensors || [
+      { type: 'heartRate', model: '', enabled: true, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'temperature', model: '', enabled: true, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'spo2', model: '', enabled: true, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'bloodPressure', model: '', enabled: true, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'ecg', model: '', enabled: false, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'respiration', model: '', enabled: false, calibration: { offset: 0, scale: 1, lastCalibrated: null } },
+      { type: 'accelerometer', model: '', enabled: false, calibration: { offset: 0, scale: 1, lastCalibrated: null } }
+    ],
+    connectivity: deviceData.connectivity || {
+      network: 'wifi',
+      wifi: { ssid: '', signalStrength: 0, ip: '' },
+      gsm: { imei: '', signalStrength: 0, operator: '' }
+    },
+    power: deviceData.power || {
+      source: 'battery',
+      batteryLevel: 100,
+      batteryHealth: 100,
+      lastCharged: null,
+      estimatedBatteryLife: 24
+    },
+    location: deviceData.location || {
+      lat: 0,
+      lng: 0,
+      address: '',
+      lastUpdated: null
+    },
+    settings: deviceData.settings || {
+      samplingRate: 1,
+      dataTransmissionInterval: 5,
+      alertThreshold: {
+        heartRate: { min: 60, max: 100 },
+        temperature: { min: 36.1, max: 37.8 },
+        spo2: { min: 95 }
+      },
+      storage: { enabled: false, maxEntries: 1000 }
+    },
+    lastSeen: deviceData.lastSeen ? new Date(deviceData.lastSeen) : null,
+    lastData: deviceData.lastData || {
+      timestamp: null,
+      heartRate: null,
+      temperature: null,
+      spo2: null
+    },
+    maintenance: deviceData.maintenance || {
+      lastMaintenance: null,
+      nextMaintenance: null,
+      maintenanceHistory: []
+    },
+    metadata: deviceData.metadata || {
+      manufacturer: '',
+      model: '',
+      serialNumber: '',
+      purchaseDate: null,
+      warrantyExpiry: null,
+      notes: ''
+    },
+    createdAt: deviceData.createdAt ? new Date(deviceData.createdAt) : new Date(),
+    updatedAt: deviceData.updatedAt ? new Date(deviceData.updatedAt) : new Date()
   };
-  this.lastSeen = new Date();
-  this.status = 'online';
-  return this.save();
+
+  // Remove null/undefined values for cleaner Firestore docs
+  return Object.fromEntries(
+    Object.entries(formatted).filter(([_, value]) => value !== null && value !== undefined)
+  );
 };
 
-// Static method to find online devices
-deviceSchema.statics.findOnlineDevices = function() {
-  const offlineThreshold = 5 * 60 * 1000;
-  const threshold = new Date(Date.now() - offlineThreshold);
-  return this.find({
+/**
+ * Validate device data
+ * @param {Object} deviceData - Device data to validate
+ * @returns {Object} - Validation result { isValid, errors }
+ */
+const validateDevice = (deviceData) => {
+  const errors = [];
+
+  if (!deviceData.deviceId || deviceData.deviceId.trim() === '') {
+    errors.push('Device ID is required');
+  }
+
+  if (!deviceData.name || deviceData.name.trim() === '') {
+    errors.push('Device name is required');
+  }
+
+  const validTypes = ['ESP32', 'Arduino', 'RaspberryPi', 'custom'];
+  if (!deviceData.type || !validTypes.includes(deviceData.type)) {
+    errors.push('Device type must be ESP32, Arduino, RaspberryPi, or custom');
+  }
+
+  const validStatuses = ['online', 'offline', 'maintenance', 'retired'];
+  if (!deviceData.status || !validStatuses.includes(deviceData.status)) {
+    errors.push('Device status must be online, offline, maintenance, or retired');
+  }
+
+  // Validate battery level if present
+  if (deviceData.power && deviceData.power.batteryLevel !== undefined) {
+    const level = deviceData.power.batteryLevel;
+    if (typeof level !== 'number' || level < 0 || level > 100) {
+      errors.push('Battery level must be a number between 0 and 100');
+    }
+  }
+
+  // Validate battery health if present
+  if (deviceData.power && deviceData.power.batteryHealth !== undefined) {
+    const health = deviceData.power.batteryHealth;
+    if (typeof health !== 'number' || health < 0 || health > 100) {
+      errors.push('Battery health must be a number between 0 and 100');
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+/**
+ * Check if device is online based on last seen timestamp
+ * @param {Object} device - Device document data
+ * @param {number} thresholdMinutes - Minutes threshold for offline (default: 5)
+ * @returns {boolean} - True if device is online
+ */
+const isDeviceOnline = (device, thresholdMinutes = 5) => {
+  if (!device.lastSeen) return false;
+  
+  const lastSeen = new Date(device.lastSeen);
+  const now = new Date();
+  const diffMinutes = (now - lastSeen) / (1000 * 60);
+  
+  return device.status === 'online' && diffMinutes < thresholdMinutes;
+};
+
+/**
+ * Update device status
+ * @param {Object} device - Device document data
+ * @param {string} status - New status
+ * @returns {Object} - Updated device data
+ */
+const updateDeviceStatus = (device, status) => {
+  return {
+    ...device,
+    status,
+    lastSeen: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+};
+
+/**
+ * Update device heartbeat (sets status to online)
+ * @param {Object} device - Device document data
+ * @returns {Object} - Updated device data
+ */
+const deviceHeartbeat = (device) => {
+  return {
+    ...device,
     status: 'online',
-    lastSeen: { $gte: threshold }
-  });
+    lastSeen: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
 };
 
-// Static method to get devices needing maintenance
-deviceSchema.statics.getMaintenanceDue = function() {
-  return this.find({
-    $or: [
-      { 'maintenance.nextMaintenance': { $lte: new Date() } },
-      { 'power.batteryHealth': { $lt: 70 } }
-    ]
-  });
+/**
+ * Update device battery level
+ * @param {Object} device - Device document data
+ * @param {number} level - Battery level (0-100)
+ * @returns {Object} - Updated device data
+ */
+const updateDeviceBattery = (device, level) => {
+  const updated = {
+    ...device,
+    power: {
+      ...device.power,
+      batteryLevel: Math.max(0, Math.min(100, level))
+    },
+    lastSeen: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  // Check if low battery alert should be triggered
+  const wasLow = device.power.batteryLevel < 20;
+  const isLow = updated.power.batteryLevel < 20;
+  
+  // Return additional info for alert triggering
+  return {
+    device: updated,
+    shouldTriggerLowBatteryAlert: !wasLow && isLow
+  };
 };
 
-module.exports = mongoose.model('Device', deviceSchema);
+module.exports = {
+  COLLECTIONS,
+  formatDeviceData,
+  validateDevice,
+  isDeviceOnline,
+  updateDeviceStatus,
+  deviceHeartbeat,
+  updateDeviceBattery
+};

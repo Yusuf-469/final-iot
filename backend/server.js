@@ -12,8 +12,8 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 
-// Database
-const { connectDB, getDbConnected, query, pool } = require('./database');
+// Database (now Firebase)
+const { connectDB, getDbConnected } = require('./database');
 
 // Logger
 const logger = require('./utils/logger');
@@ -22,21 +22,21 @@ const logger = require('./utils/logger');
 const app = express();
 const server = http.createServer(app);
 
-// ============================================
-// MIDDLEWARE SETUP
-// ============================================
+  // ============================================
+  // MIDDLEWARE SETUP
+  // ============================================
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true
-}));
+  // CORS configuration
+  app.use(cors({
+    origin: process.env.FRONTEND_URL || '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    credentials: true
+  }));
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+  // Body parsing middleware
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true }));
 
 // Request logging (simple)
 app.use((req, res, next) => {
@@ -67,7 +67,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    database: pool ? 'configured' : 'not configured',
+    database: getDbConnected() ? 'connected' : 'disconnected',
     memory: process.memoryUsage()
   });
 });
@@ -102,6 +102,14 @@ app.get('/api', (req, res) => {
       devices: '/api/devices'
     }
   });
+});
+
+// Test route for debugging body parsing
+app.post('/api/test-body', (req, res) => {
+  console.log('Request body:', req.body);
+  console.log('Request headers:', req.headers);
+  console.log('Raw body (if available):', req._rawBody || 'Not available');
+  res.json({ received: req.body, headers: req.headers });
 });
 
 // Mount routes
@@ -185,22 +193,21 @@ const HOST = '0.0.0.0';
 // Start server immediately (don't wait for database)
 server.listen(PORT, HOST, () => {
   console.log(`
-╔═══════════════════════════════════════════════════╗
+╔════════════════════════════════════════════════════╗
 ║     Medical IoT Backend Server                    ║
-╠═══════════════════════════════════════════════════╣
+╠════════════════════════════════════════════════════╣
 ║  Server running on: http://${HOST}:${PORT}                    ║
 ║  Environment: ${process.env.NODE_ENV || 'production'}                        ║
 ║  Health check: http://${HOST}:${PORT}/health               ║
 ║  Ping endpoint: http://${HOST}:${PORT}/ping                ║
-╚═══════════════════════════════════════════════════╝
+╚════════════════════════════════════════════════════╝
   `);
   
-  // Connect to database in background (non-blocking)
+  // Connect to database (required for production)
   connectDB().then(dbReady => {
-    if (dbReady) {
-      console.log('✓ Database connected and migrations complete');
-    } else {
-      console.log('⚠ Database connection in progress...');
+    if (!dbReady) {
+      console.error('✗ Firebase connection failed - shutting down');
+      process.exit(1);
     }
   });
 });
@@ -210,14 +217,7 @@ process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
   server.close(() => {
     console.log('Server closed');
-    if (pool) {
-      pool.end(() => {
-        console.log('Database pool closed');
-        process.exit(0);
-      });
-    } else {
-      process.exit(0);
-    }
+    process.exit(0);
   });
 });
 
@@ -227,4 +227,4 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Export for testing
-module.exports = { app, server, pool };
+module.exports = { app, server };

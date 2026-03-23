@@ -1,11 +1,11 @@
 /**
- * Predictions Routes
- * AI-based health risk predictions - PostgreSQL version
+ * Predictions Routes - Firestore Version
+ * Medical IoT Backend - AI-based health risk predictions
  */
 
 const express = require('express');
 const router = express.Router();
-const { query } = require('../database');
+const { db, COLLECTIONS } = require('../database');
 const { logger } = require('../utils/logger');
 
 // Simple risk prediction based on health data
@@ -81,43 +81,49 @@ router.post('/risk', async (req, res) => {
       return res.status(400).json({ error: 'Patient ID is required' });
     }
     
-    // Get latest health data
-    const latestResult = await query(`
-      SELECT * FROM health_data 
-      WHERE patient_id = $1 
-      ORDER BY timestamp DESC 
-      LIMIT 1
-    `, [patientId]);
+    // Get latest health data from Firestore
+    const latestSnapshot = await db.collection(COLLECTIONS.HEALTH_DATA)
+      .where('patientId', '==', patientId)
+      .orderBy('timestamp', 'desc')
+      .limit(1)
+      .get();
     
-    if (latestResult.rows.length === 0) {
+    if (latestSnapshot.empty) {
       return res.status(404).json({ error: 'No health data found for patient' });
     }
     
-    const latestData = latestResult.rows[0];
-    const healthData = {
-      heartRate: latestData.heart_rate,
-      temperature: latestData.temperature,
-      spo2: latestData.spo2,
-      bloodPressure: latestData.blood_pressure_systolic ? {
-        systolic: latestData.blood_pressure_systolic,
-        diastolic: latestData.blood_pressure_diastolic
+    const latestDoc = latestSnapshot.docs[0];
+    const healthData = latestDoc.data();
+    
+    // Format health data for risk calculation
+    const formattedHealthData = {
+      heartRate: healthData.heartRate?.value || 0,
+      temperature: healthData.temperature?.value || 0,
+      spo2: healthData.spo2?.value || 0,
+      bloodPressure: healthData.bloodPressure ? {
+        systolic: healthData.bloodPressure.systolic || 0,
+        diastolic: healthData.bloodPressure.diastolic || 0
       } : null
     };
     
     // Calculate risk
-    const risk = calculateRiskScore(healthData);
+    const risk = calculateRiskScore(formattedHealthData);
     
     // Get patient info
-    const patientResult = await query(
-      'SELECT first_name, last_name FROM patients WHERE patient_id = $1',
-      [patientId]
-    );
+    const patientSnapshot = await db.collection(COLLECTIONS.PATIENTS)
+      .doc(patientId)
+      .get();
+    
+    let patientName = 'Unknown';
+    if (patientSnapshot.exists) {
+      const patientData = patientSnapshot.data();
+      patientName = `${patientData.firstName || ''} ${patientData.lastName || ''}`.trim();
+      if (!patientName) patientName = 'Unknown';
+    }
     
     const prediction = {
       patientId,
-      patientName: patientResult.rows[0] 
-        ? `${patientResult.rows[0].first_name} ${patientResult.rows[0].last_name}`
-        : 'Unknown',
+      patientName: patientName || 'Unknown',
       timestamp: new Date().toISOString(),
       risk: {
         score: risk.score,
@@ -125,7 +131,7 @@ router.post('/risk', async (req, res) => {
         factors: risk.factors,
         recommendation: getRecommendation(risk.level)
       },
-      latestData: healthData
+      latestData: formattedHealthData
     };
     
     logger.info(`Risk prediction for ${patientId}: ${risk.level}`);
@@ -144,50 +150,52 @@ router.get('/:patientId/history', async (req, res) => {
     const { patientId } = req.params;
     const { limit = 50 } = req.query;
     
-    // Get recent predictions (we store them temporarily)
-    // For now, calculate from recent health data
-    const result = await query(`
-      SELECT 
-        timestamp,
-        heart_rate,
-        temperature,
-        spo2,
-        blood_pressure_systolic,
-        blood_pressure_diastolic,
-        status
-      FROM health_data 
-      WHERE patient_id = $1 
-      ORDER BY timestamp DESC 
-      LIMIT $2
-    `, [patientId, parseInt(limit)]);
+    // Get recent health data from Firestore
+    const healthDataSnapshot = await db.collection(COLLECTIONS.HEALTH_DATA)
+      .where('patientId', '==', patientId)
+      .orderBy('timestamp', 'desc')
+      .limit(parseInt(limit))
+      .get();
     
-    const predictions = result.rows.map(row => {
-      const healthData = {
-        heartRate: row.heart_rate,
-        temperature: row.temperature,
-        spo2: row.spo2,
-        bloodPressure: row.blood_pressure_systolic ? {
-          systolic: row.blood_pressure_systolic,
-          diastolic: row.blood_pressure_diastolic
+    if (healthDataSnapshot.empty) {
+      return res.json({
+        patientId,
+        predictions: [],
+        count: 0
+      });
+    }
+    
+    const predictions = [];
+    healthDataSnapshot.forEach(doc => {
+      const healthData = doc.data();
+      
+      // Format health data for risk calculation
+      const formattedHealthData = {
+        heartRate: healthData.heartRate?.value || 0,
+        temperature: healthData.temperature?.value || 0,
+        spo2: healthData.spo2?.value || 0,
+        bloodPressure: healthData.bloodPressure ? {
+          systolic: healthData.bloodPressure.systolic || 0,
+          diastolic: healthData.bloodPressure.diastolic || 0
         } : null
       };
       
-      const risk = calculateRiskScore(healthData);
+      const risk = calculateRiskScore(formattedHealthData);
       
-      return {
+      predictions.push({
         patientId,
-        timestamp: row.timestamp,
+        timestamp: healthData.timestamp ? healthData.timestamp.toDate().toISOString() : new Date().toISOString(),
         risk: {
           score: risk.score,
           level: risk.level
         },
-        healthData
-      };
+        healthData: formattedHealthData
+      });
     });
     
     res.json({
       patientId,
-      predictions: predictions.reverse(),
+      predictions: predictions.reverse(), // Most recent first
       count: predictions.length
     });
     

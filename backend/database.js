@@ -1,187 +1,78 @@
 /**
- * PostgreSQL Database Connection
- * Optimized for Railway PostgreSQL
+ * Firebase Firestore Database Service
+ * Medical IoT Backend - Firestore Database
  */
 
-const { Pool } = require('pg');
-require('dotenv').config();
+const { db, COLLECTIONS, convertTimestamps, dbInitialized } = require('./firebase-config');
 
-// Database configuration
-const connectionString = process.env.DATABASE_URL;
-
-// Pool configuration
-const poolConfig = connectionString ? {
-  connectionString: connectionString,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 5,
-  idleTimeoutMillis: 10000,
-  connectionTimeoutMillis: 10000,
-  keepAlive: true,
-} : null;
-
-console.log('Database config:', connectionString ? 'Connection string present' : 'No connection string');
-
-let pool = null;
-let dbConnected = false;
-let connectPromise = null;
-
-// Only create pool if we have a connection string
-if (poolConfig) {
-  pool = new Pool(poolConfig);
-  
-  pool.on('error', (err) => {
-    console.error('Unexpected database pool error:', err.message);
-  });
-}
-
-// Connect to database (non-blocking)
+/**
+ * Initialize database connection
+ * @returns {Promise<boolean>} - True if successful
+ */
 const connectDB = async () => {
-  if (!connectionString) {
-    console.log('No DATABASE_URL configured - running without database');
-    return false;
+  // If db is not initialized (no credentials), throw error to prevent demo mode
+  if (!dbInitialized || !db) {
+    throw new Error('Firebase not initialized. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
   }
-  
-  // Return existing connection promise if already connecting
-  if (connectPromise) {
-    return connectPromise;
-  }
-  
-  connectPromise = (async () => {
-    try {
-      console.log('Connecting to database...');
-      const client = await pool.connect();
-      
-      // Test connection
-      const result = await client.query('SELECT NOW()');
-      console.log('Database connected successfully at:', result.rows[0].now);
-      
-      client.release();
-      dbConnected = true;
-      
-      // Run migrations
-      await runMigrations();
-      
-      console.log('Database ready!');
-      return true;
-    } catch (error) {
-      console.error('Database connection error:', error.message);
-      dbConnected = false;
-      // Don't retry here - let it fail silently so server can start
-      return false;
-    }
-  })();
-  
-  return connectPromise;
-};
-
-// Run database migrations
-const runMigrations = async () => {
-  if (!pool) return false;
   
   try {
-    const client = await pool.connect();
-    
-    // Create tables
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        first_name VARCHAR(100) NOT NULL,
-        last_name VARCHAR(100) NOT NULL,
-        role VARCHAR(50) DEFAULT 'viewer',
-        status VARCHAR(50) DEFAULT 'pending',
-        is_demo BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS patients (
-        id SERIAL PRIMARY KEY,
-        patient_id VARCHAR(50) UNIQUE NOT NULL,
-        first_name VARCHAR(100) NOT NULL,
-        last_name VARCHAR(100) NOT NULL,
-        email VARCHAR(255),
-        phone VARCHAR(50),
-        date_of_birth DATE,
-        gender VARCHAR(20),
-        status VARCHAR(50) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS devices (
-        id SERIAL PRIMARY KEY,
-        device_id VARCHAR(50) UNIQUE NOT NULL,
-        patient_id VARCHAR(50),
-        type VARCHAR(50) DEFAULT 'ESP32',
-        status VARCHAR(50) DEFAULT 'offline',
-        firmware VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS health_data (
-        id SERIAL PRIMARY KEY,
-        patient_id VARCHAR(50) NOT NULL,
-        device_id VARCHAR(50),
-        heart_rate INTEGER,
-        temperature DECIMAL(4,1),
-        spo2 INTEGER,
-        blood_pressure_systolic INTEGER,
-        blood_pressure_diastolic INTEGER,
-        status VARCHAR(50) DEFAULT 'normal',
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS alerts (
-        id SERIAL PRIMARY KEY,
-        alert_id VARCHAR(50) UNIQUE NOT NULL,
-        patient_id VARCHAR(50) NOT NULL,
-        device_id VARCHAR(50),
-        type VARCHAR(50) NOT NULL,
-        severity VARCHAR(20) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        message TEXT,
-        status VARCHAR(50) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
-    client.release();
-    console.log('Database migrations completed');
+    // Test Firestore connection by attempting to read from a collection
+    const testDoc = await db.collection(COLLECTIONS.PATIENTS).limit(1).get();
+    console.log('✅ Firebase Firestore connected successfully');
     return true;
   } catch (error) {
-    console.error('Migration error:', error.message);
+    console.error('❌ Firebase connection error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get database connection status
+ * @returns {boolean} - True if connected
+ */
+const getDbConnected = () => {
+  try {
+    // Simple check - if db exists and is initialized, we assume connected
+    return !!db && dbInitialized;
+  } catch (error) {
     return false;
   }
 };
 
-// Query helper
-const query = async (text, params) => {
-  if (!pool || !dbConnected) {
-    throw new Error('Database not connected');
-  }
-  
-  const start = Date.now();
-  const result = await pool.query(text, params);
-  const duration = Date.now() - start;
-  
-  if (duration > 100) {
-    console.log('Slow query:', text.substring(0, 50), duration + 'ms');
-  }
-  
-  return result;
+/**
+ * Get Firestore instance
+ * @returns {FirebaseFirestore.Firestore|null} - Firestore instance or null
+ */
+const getDb = () => dbInitialized ? db : null;
+
+/**
+ * Collection reference helper
+ * @param {string} collectionName - Name of the collection
+ * @returns {FirebaseFirestore.CollectionReference|null} - Collection reference or null
+ */
+const collection = (collectionName) => {
+  if (!dbInitialized || !db) return null;
+  return db.collection(collectionName);
 };
 
-// Get client
-const getClient = () => pool ? pool.connect() : null;
+/**
+ * Document reference helper
+ * @param {string} collectionName - Name of the collection
+ * @param {string} docId - Document ID
+ * @returns {FirebaseFirestore.DocumentReference|null} - Document reference or null
+ */
+const doc = (collectionName, docId) => {
+  if (!dbInitialized || !db) return null;
+  return db.collection(collectionName).doc(docId);
+};
 
 module.exports = {
-  pool,
-  query,
-  getClient,
+  db,
+  COLLECTIONS,
   connectDB,
-  runMigrations,
-  getDbConnected: () => dbConnected
+  getDbConnected,
+  getDb,
+  collection,
+  doc,
+  convertTimestamps
 };

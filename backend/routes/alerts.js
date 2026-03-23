@@ -1,87 +1,91 @@
 /**
- * Alerts Routes
- * API endpoints for alerts management - PostgreSQL version
+ * Alerts Routes - Firestore Version
+ * Medical IoT Backend - Alerts management endpoints
  */
 
 const express = require('express');
 const router = express.Router();
-const { query } = require('../database');
+const { db, COLLECTIONS } = require('../database');
+const { formatAlertData, validateAlert, acknowledgeAlert, resolveAlert, escalateAlert } = require('../models/Alert');
 const { logger } = require('../utils/logger');
 
-// Helper to format alert from DB row
-const formatAlert = (row) => ({
-  id: row.id,
-  alertId: row.alert_id,
-  patientId: row.patient_id,
-  deviceId: row.device_id,
-  type: row.type,
-  severity: row.severity,
-  title: row.title,
-  message: row.message,
-  status: row.status,
-  acknowledgedBy: row.acknowledged_by,
-  acknowledgedAt: row.acknowledged_at,
-  resolvedBy: row.resolved_by,
-  resolvedAt: row.resolved_at,
-  resolutionMethod: row.resolution_method,
-  resolutionNotes: row.resolution_notes,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at
-});
+// Helper to format alert document from Firestore
+const formatAlertDoc = (doc) => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    ...data,
+    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
+    updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
+    acknowledgedAt: data.acknowledgedAt ? data.acknowledgedAt.toDate().toISOString() : null,
+    resolvedAt: data.resolvedAt ? data.resolvedAt.toDate().toISOString() : null,
+    escalatedAt: data.escalation?.escalatedAt ? data.escalation.escalatedAt.toDate().toISOString() : null
+  };
+};
 
 // GET /api/alerts - Get all alerts
 router.get('/', async (req, res) => {
   try {
     const { status, severity, patientId, limit = 100, skip = 0 } = req.query;
     
-    let sql = 'SELECT * FROM alerts WHERE 1=1';
-    const params = [];
-    let paramIndex = 1;
+    let query = db.collection(COLLECTIONS.ALERTS);
     
+    // Apply filters
     if (status) {
-      sql += ` AND status = $${paramIndex++}`;
-      params.push(status);
+      query = query.where('status', '==', status);
     }
     
     if (severity) {
-      sql += ` AND severity = $${paramIndex++}`;
-      params.push(severity);
+      query = query.where('severity', '==', severity);
     }
     
     if (patientId) {
-      sql += ` AND patient_id = $${paramIndex++}`;
-      params.push(patientId);
+      query = query.where('patientId', '==', patientId);
     }
     
-    sql += ` ORDER BY 
-      CASE severity 
-        WHEN 'critical' THEN 1 
-        WHEN 'warning' THEN 2 
-        WHEN 'info' THEN 3 
-        ELSE 4 
-      END,
-      created_at DESC 
-      LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
-    params.push(parseInt(limit), parseInt(skip));
+    // Apply ordering and pagination
+    query = query.orderBy('createdAt', 'desc')
+                .limit(parseInt(limit))
+                .offset(parseInt(skip));
     
-    const result = await query(sql, params);
+    const snapshot = await query.get();
     
-    // Get counts
-    const countResult = await query('SELECT COUNT(*) FROM alerts');
-    const activeResult = await query("SELECT COUNT(*) FROM alerts WHERE status = 'active'");
-
+    if (snapshot.empty) {
+      return res.json({
+        alerts: [],
+        count: {
+          total: 0,
+          active: 0
+        },
+        pagination: {
+          limit: parseInt(limit),
+          skip: parseInt(skip)
+        }
+      });
+    }
+    
+    const alerts = [];
+    let activeCount = 0;
+    
+    snapshot.forEach(doc => {
+      const alert = formatAlertDoc(doc);
+      alerts.push(alert);
+      if (alert.status === 'active') {
+        activeCount++;
+      }
+    });
+    
     res.json({
-      alerts: result.rows.map(formatAlert),
+      alerts,
       count: {
-        total: parseInt(countResult.rows[0].count),
-        active: parseInt(activeResult.rows[0].count)
+        total: alerts.length,
+        active: activeCount
       },
       pagination: {
         limit: parseInt(limit),
         skip: parseInt(skip)
       }
     });
-
   } catch (error) {
     logger.error('Error fetching alerts:', error);
     res.status(500).json({ error: 'Failed to fetch alerts' });
@@ -91,24 +95,27 @@ router.get('/', async (req, res) => {
 // GET /api/alerts/active - Get active alerts
 router.get('/active', async (req, res) => {
   try {
-    const result = await query(`
-      SELECT * FROM alerts 
-      WHERE status = 'active'
-      ORDER BY 
-        CASE severity 
-          WHEN 'critical' THEN 1 
-          WHEN 'warning' THEN 2 
-          WHEN 'info' THEN 3 
-          ELSE 4 
-        END,
-        created_at DESC
-    `);
-
-    res.json({
-      alerts: result.rows.map(formatAlert),
-      count: result.rows.length
+    const snapshot = await db.collection(COLLECTIONS.ALERTS)
+      .where('status', '==', 'active')
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    if (snapshot.empty) {
+      return res.json({
+        alerts: [],
+        count: 0
+      });
+    }
+    
+    const alerts = [];
+    snapshot.forEach(doc => {
+      alerts.push(formatAlertDoc(doc));
     });
-
+    
+    res.json({
+      alerts,
+      count: alerts.length
+    });
   } catch (error) {
     logger.error('Error fetching active alerts:', error);
     res.status(500).json({ error: 'Failed to fetch active alerts' });
@@ -120,42 +127,63 @@ router.get('/statistics', async (req, res) => {
   try {
     const { period = '7d' } = req.query;
     
-    const periodMap = {
-      '24h': "created_at >= NOW() - INTERVAL '24 hours'",
-      '7d': "created_at >= NOW() - INTERVAL '7 days'",
-      '30d': "created_at >= NOW() - INTERVAL '30 days'"
-    };
+    const now = new Date();
+    let startTime;
     
-    const whereClause = periodMap[period] || periodMap['7d'];
+    switch (period) {
+      case '24h':
+        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
+        break;
+      case '7d':
+        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+        break;
+      case '30d':
+        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+        break;
+      default:
+        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Default to 7d
+    }
     
-    const severityResult = await query(`
-      SELECT severity, COUNT(*) as count 
-      FROM alerts 
-      WHERE ${whereClause}
-      GROUP BY severity
-    `);
+    const query = db.collection(COLLECTIONS.ALERTS)
+      .where('createdAt', '>=', startTime);
     
-    const statusResult = await query(`
-      SELECT status, COUNT(*) as count 
-      FROM alerts 
-      WHERE ${whereClause}
-      GROUP BY status
-    `);
+    const snapshot = await query.get();
     
-    const typeResult = await query(`
-      SELECT type, COUNT(*) as count 
-      FROM alerts 
-      WHERE ${whereClause}
-      GROUP BY type
-    `);
-
+    if (snapshot.empty) {
+      return res.json({
+        period,
+        bySeverity: [],
+        byStatus: [],
+        byType: []
+      });
+    }
+    
+    const severityCounts = {};
+    const statusCounts = {};
+    const typeCounts = {};
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      
+      // Count by severity
+      const severity = data.severity || 'info';
+      severityCounts[severity] = (severityCounts[severity] || 0) + 1;
+      
+      // Count by status
+      const status = data.status || 'active';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+      
+      // Count by type
+      const type = data.type || 'deviceError';
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+    
     res.json({
       period,
-      bySeverity: severityResult.rows.map(r => ({ _id: r.severity, count: parseInt(r.count) })),
-      byStatus: statusResult.rows.map(r => ({ _id: r.status, count: parseInt(r.count) })),
-      byType: typeResult.rows.map(r => ({ _id: r.type, count: parseInt(r.count) }))
+      bySeverity: Object.entries(severityCounts).map(([_id, count]) => ({ _id, count })),
+      byStatus: Object.entries(statusCounts).map(([_id, count]) => ({ _id, count })),
+      byType: Object.entries(typeCounts).map(([_id, count]) => ({ _id, count }))
     });
-
   } catch (error) {
     logger.error('Error fetching alert statistics:', error);
     res.status(500).json({ error: 'Failed to fetch alert statistics' });
@@ -167,32 +195,35 @@ router.post('/', async (req, res) => {
   try {
     const alertData = req.body;
     
-    // Generate alert ID if not provided
-    const alertId = alertData.alertId || `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    const result = await query(`
-      INSERT INTO alerts (alert_id, patient_id, device_id, type, severity, title, message, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [
-      alertId,
-      alertData.patientId,
-      alertData.deviceId,
-      alertData.type,
-      alertData.severity,
-      alertData.title,
-      alertData.message,
-      alertData.status || 'active'
-    ]);
-
-    logger.info(`New alert created: ${alertId}`);
-
+    // Validate alert data
+    const validation = validateAlert(alertData);
+    if (!validation.isValid) {
+      return res.status(400).json({ error: validation.errors[0] });
+    }
+    
+    // Format data for Firestore
+    const formattedData = formatAlertData(alertData);
+    
+    // Add to Firestore
+    const docRef = await db.collection(COLLECTIONS.ALERTS).add(formattedData);
+    
+    logger.info(`New alert created: ${docRef.id}`);
+    
     // Emit real-time alert
     const io = req.app.get('io');
-    io.emit('newAlert', formatAlert(result.rows[0]));
-
-    res.status(201).json(formatAlert(result.rows[0]));
-
+    io.emit('newAlert', {
+      id: docRef.id,
+      ...formattedData,
+      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
+      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
+    });
+    
+    res.status(201).json({
+      id: docRef.id,
+      ...formattedData,
+      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
+      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
+    });
   } catch (error) {
     logger.error('Error creating alert:', error);
     res.status(500).json({ error: 'Failed to create alert' });
@@ -204,30 +235,51 @@ router.put('/:alertId/acknowledge', async (req, res) => {
   try {
     const { alertId } = req.params;
     const { userId } = req.body;
-
-    const result = await query(`
-      UPDATE alerts 
-      SET status = 'acknowledged',
-          acknowledged_by = $1,
-          acknowledged_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE alert_id = $2 AND status = 'active'
-      RETURNING *
-    `, [userId, alertId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Alert not found or already processed' });
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
     }
-
+    
+    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Alert not found' });
+    }
+    
+    const alertData = doc.data();
+    
+    // Check if alert is already processed
+    if (alertData.status !== 'active') {
+      return res.status(400).json({ error: 'Alert is not active' });
+    }
+    
+    // Acknowledge alert
+    const updatedData = acknowledgeAlert(alertData, userId);
+    
+    // Save to Firestore
+    await docRef.update(updatedData);
+    
     // Emit real-time update
     const io = req.app.get('io');
-    io.emit('alertAcknowledged', formatAlert(result.rows[0]));
-
+    io.emit('alertAcknowledged', {
+      id: alertId,
+      ...updatedData,
+      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+      acknowledgedAt: updatedData.acknowledgedAt ? updatedData.acknowledgedAt.toDate().toISOString() : null
+    });
+    
     res.json({
       success: true,
-      alert: formatAlert(result.rows[0])
+      alert: {
+        id: alertId,
+        ...updatedData,
+        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+        acknowledgedAt: updatedData.acknowledgedAt ? updatedData.acknowledgedAt.toDate().toISOString() : null
+      }
     });
-
   } catch (error) {
     logger.error('Error acknowledging alert:', error);
     res.status(500).json({ error: 'Failed to acknowledge alert' });
@@ -239,35 +291,100 @@ router.put('/:alertId/resolve', async (req, res) => {
   try {
     const { alertId } = req.params;
     const { userId, method, notes } = req.body;
-
-    const result = await query(`
-      UPDATE alerts 
-      SET status = 'resolved',
-          resolved_by = $1,
-          resolved_at = CURRENT_TIMESTAMP,
-          resolution_method = $2,
-          resolution_notes = $3,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE alert_id = $4
-      RETURNING *
-    `, [userId, method, notes, alertId]);
-
-    if (result.rows.length === 0) {
+    
+    if (!userId || !method) {
+      return res.status(400).json({ error: 'User ID and method are required' });
+    }
+    
+    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
       return res.status(404).json({ error: 'Alert not found' });
     }
-
+    
+    const alertData = doc.data();
+    
+    // Resolve alert
+    const updatedData = resolveAlert(alertData, userId, method, notes);
+    
+    // Save to Firestore
+    await docRef.update(updatedData);
+    
     // Emit real-time update
     const io = req.app.get('io');
-    io.emit('alertResolved', formatAlert(result.rows[0]));
-
+    io.emit('alertResolved', {
+      id: alertId,
+      ...updatedData,
+      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+      resolvedAt: updatedData.resolvedAt ? updatedData.resolvedAt.toDate().toISOString() : null
+    });
+    
     res.json({
       success: true,
-      alert: formatAlert(result.rows[0])
+      alert: {
+        id: alertId,
+        ...updatedData,
+        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+        resolvedAt: updatedData.resolvedAt ? updatedData.resolvedAt.toDate().toISOString() : null
+      }
     });
-
   } catch (error) {
     logger.error('Error resolving alert:', error);
     res.status(500).json({ error: 'Failed to resolve alert' });
+  }
+});
+
+// PUT /api/alerts/:alertId/escalate - Escalate alert
+router.put('/:alertId/escalate', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { level, escalatedTo, reason } = req.body;
+    
+    if (!level || !escalatedTo || !reason) {
+      return res.status(400).json({ error: 'Level, escalatedTo, and reason are required' });
+    }
+    
+    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ error: 'Alert not found' });
+    }
+    
+    const alertData = doc.data();
+    
+    // Escalate alert
+    const updatedData = escalateAlert(alertData, level, escalatedTo, reason);
+    
+    // Save to Firestore
+    await docRef.update(updatedData);
+    
+    // Emit real-time update
+    const io = req.app.get('io');
+    io.emit('alertEscalated', {
+      id: alertId,
+      ...updatedData,
+      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+      escalatedAt: updatedData.escalation?.escalatedAt ? updatedData.escalation.escalatedAt.toDate().toISOString() : null
+    });
+    
+    res.json({
+      success: true,
+      alert: {
+        id: alertId,
+        ...updatedData,
+        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
+        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
+        escalatedAt: updatedData.escalation?.escalatedAt ? updatedData.escalation.escalatedAt.toDate().toISOString() : null
+      }
+    });
+  } catch (error) {
+    logger.error('Error escalating alert:', error);
+    res.status(500).json({ error: 'Failed to escalate alert' });
   }
 });
 

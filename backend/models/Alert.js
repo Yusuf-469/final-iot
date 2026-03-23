@@ -1,244 +1,163 @@
 /**
- * Alert Model
- * Stores health alerts and notifications
+ * Alert Model - Firestore Version
+ * Medical IoT Backend - Health alerts structure for Firestore
  */
 
-const mongoose = require('mongoose');
+// Firestore collection reference will be passed from service layer
+const COLLECTIONS = {
+  ALERTS: 'alerts'
+};
 
-const alertSchema = new mongoose.Schema({
-  alertId: {
-    type: String,
-    required: true,
-    unique: true,
-    index: true
-  },
-  patientId: {
-    type: String,
-    required: true,
-    index: true
-  },
-  deviceId: {
-    type: String,
-    index: true
-  },
-  type: {
-    type: String,
-    enum: [
-      'heartRate',      // Abnormal heart rate
-      'temperature',    // Abnormal body temperature
-      'spo2',           // Low blood oxygen
-      'bloodPressure',  // Abnormal blood pressure
-      'ecg',            // ECG abnormalities
-      'respiration',    // Breathing issues
-      'deviceOffline',  // Device disconnected
-      'lowBattery',     // Device battery low
-      'fallDetection',  // Patient fall detected
-      'deviceError',    // Sensor malfunction
-      'prediction'      // AI predicted risk
-    ],
-    required: true,
-    index: true
-  },
-  severity: {
-    type: String,
-    enum: ['info', 'warning', 'critical', 'emergency'],
-    required: true,
-    index: true
-  },
-  status: {
-    type: String,
-    enum: ['active', 'acknowledged', 'resolved', 'escalated'],
-    default: 'active',
-    index: true
-  },
-  title: {
-    type: String,
-    required: true
-  },
-  message: {
-    type: String,
-    required: true
-  },
-  data: {
-    value: Number,
-    threshold: Number,
-    unit: String,
-    readings: [{
-      timestamp: Date,
-      value: Number
-    }]
-  },
-  triggeredBy: {
-    ruleId: String,
-    thresholdId: String,
-    predictionId: String
-  },
-  notifications: [{
-    channel: {
-      type: String,
-      enum: ['email', 'sms', 'push', 'call', 'dashboard']
-    },
-    recipient: String,
-    sentAt: Date,
-    status: {
-      type: String,
-      enum: ['pending', 'sent', 'delivered', 'failed']
-    },
-    messageId: String
-  }],
-  assignedTo: {
-    userId: String,
-    name: String,
-    assignedAt: Date
-  },
-  resolution: {
-    resolvedBy: String,
-    resolvedAt: Date,
-    method: String,
-    notes: String
-  },
-  escalation: {
-    level: Number,
-    escalatedAt: Date,
-    escalatedTo: String,
-    reason: String
-  },
-  metadata: {
-    patientAge: Number,
-    patientConditions: [String],
-    deviceType: String,
-    location: String,
-    tags: [String]
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-    index: true
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  },
-  acknowledgedAt: Date,
-  resolvedAt: Date,
-  expiresAt: Date
-}, {
-  timestamps: true
-});
+/**
+ * Alert validation and formatting
+ * @param {Object} alertData - Raw alert data
+ * @returns {Object} - Formatted alert data for Firestore
+ */
+const formatAlertData = (alertData) => {
+  const formatted = {
+    alertId: alertData.alertId || `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+    patientId: alertData.patientId || '',
+    deviceId: alertData.deviceId || '',
+    type: alertData.type || 'deviceError',
+    severity: alertData.severity || 'info',
+    status: alertData.status || 'active',
+    title: alertData.title || 'Health Alert',
+    message: alertData.message || '',
+    data: alertData.data || {},
+    triggeredBy: alertData.triggeredBy || {},
+    notifications: alertData.notifications || [],
+    assignedTo: alertData.assignedTo || {},
+    resolution: alertData.resolution || {},
+    escalation: alertData.escalation || {},
+    metadata: alertData.metadata || {},
+    createdAt: alertData.createdAt ? new Date(alertData.createdAt) : new Date(),
+    updatedAt: alertData.updatedAt ? new Date(alertData.updatedAt) : new Date(),
+    acknowledgedAt: alertData.acknowledgedAt ? new Date(alertData.acknowledgedAt) : null,
+    resolvedAt: alertData.resolvedAt ? new Date(alertData.resolvedAt) : null,
+    expiresAt: alertData.expiresAt ? new Date(alertData.expiresAt) : null
+  };
 
-// Compound indexes
-alertSchema.index({ patientId: 1, status: 1, createdAt: -1 });
-alertSchema.index({ severity: 1, status: 1, createdAt: -1 });
-alertSchema.index({ type: 1, createdAt: -1 });
+  // Remove null/undefined values for cleaner Firestore docs
+  return Object.fromEntries(
+    Object.entries(formatted).filter(([_, value]) => value !== null && value !== undefined)
+  );
+};
 
-// TTL index to archive resolved alerts after 30 days
-// alertSchema.index({ resolvedAt: 1 }, { expireAfterSeconds: 2592000 });
+/**
+ * Validate alert data
+ * @param {Object} alertData - Alert data to validate
+ * @returns {Object} - Validation result { isValid, errors }
+ */
+const validateAlert = (alertData) => {
+  const errors = [];
 
-// Pre-save middleware to generate alert ID
-alertSchema.pre('save', function(next) {
-  if (!this.alertId) {
-    this.alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+  if (!alertData.patientId || alertData.patientId.trim() === '') {
+    errors.push('Patient ID is required');
   }
-  next();
-});
 
-// Method to acknowledge alert
-alertSchema.methods.acknowledge = function(userId) {
-  this.status = 'acknowledged';
-  this.acknowledgedAt = new Date();
-  this.assignedTo = {
-    userId,
-    assignedAt: new Date()
+  const validTypes = [
+    'heartRate', 'temperature', 'spo2', 'bloodPressure', 'ecg',
+    'respiration', 'deviceOffline', 'lowBattery', 'fallDetection',
+    'deviceError', 'prediction'
+  ];
+  if (!alertData.type || !validTypes.includes(alertData.type)) {
+    errors.push('Invalid alert type');
+  }
+
+  const validSeverities = ['info', 'warning', 'critical', 'emergency'];
+  if (!alertData.severity || !validSeverities.includes(alertData.severity)) {
+    errors.push('Invalid severity level');
+  }
+
+  const validStatuses = ['active', 'acknowledged', 'resolved', 'escalated'];
+  if (!alertData.status || !validStatuses.includes(alertData.status)) {
+    errors.push('Invalid status');
+  }
+
+  if (!alertData.title || alertData.title.trim() === '') {
+    errors.push('Alert title is required');
+  }
+
+  if (!alertData.message || alertData.message.trim() === '') {
+    errors.push('Alert message is required');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
   };
-  return this.save();
 };
 
-// Method to resolve alert
-alertSchema.methods.resolve = function(userId, method, notes = '') {
-  this.status = 'resolved';
-  this.resolvedAt = new Date();
-  this.resolution = {
-    resolvedBy: userId,
-    resolvedAt: new Date(),
-    method,
-    notes
-  };
-  return this.save();
-};
-
-// Method to escalate alert
-alertSchema.methods.escalate = function(level, escalatedTo, reason) {
-  this.status = 'escalated';
-  this.escalation = {
-    level,
-    escalatedAt: new Date(),
-    escalatedTo,
-    reason
-  };
-  this.severity = 'emergency';
-  return this.save();
-};
-
-// Static method to get active critical alerts
-alertSchema.statics.getActiveCritical = function() {
-  return this.find({
-    status: 'active',
-    severity: { $in: ['critical', 'emergency'] }
-  }).sort({ createdAt: -1 });
-};
-
-// Static method to get alerts by patient
-alertSchema.statics.getPatientAlerts = function(patientId, options = {}) {
-  const query = { patientId };
-  if (options.status) query.status = options.status;
-  if (options.severity) query.severity = options.severity;
-  if (options.type) query.type = options.type;
-  
-  return this.find(query)
-    .sort({ createdAt: -1 })
-    .limit(options.limit || 100);
-};
-
-// Static method to get alert statistics
-alertSchema.statics.getStatistics = async function(startDate, endDate) {
-  return this.aggregate([
-    {
-      $match: {
-        createdAt: { $gte: startDate, $lte: endDate }
-      }
+/**
+ * Acknowledge an alert
+ * @param {Object} alert - Alert document data
+ * @param {string} userId - User ID acknowledging the alert
+ * @returns {Object} - Updated alert data
+ */
+const acknowledgeAlert = (alert, userId) => {
+  return {
+    ...alert,
+    status: 'acknowledged',
+    acknowledgedAt: new Date().toISOString(),
+    assignedTo: {
+      userId,
+      assignedAt: new Date().toISOString()
     },
-    {
-      $group: {
-        _id: {
-          type: '$type',
-          severity: '$severity'
-        },
-        count: { $sum: 1 },
-        avgResolutionTime: {
-          $avg: {
-            $cond: [
-              { $eq: ['$status', 'resolved'] },
-              { $subtract: ['$resolvedAt', '$createdAt'] },
-              null
-            ]
-          }
-        }
-      }
-    },
-    {
-      $group: {
-        _id: '$_id.type',
-        severities: {
-          $push: {
-            severity: '$_id.severity',
-            count: '$count'
-          }
-        },
-        totalCount: { $sum: '$count' },
-        avgResolutionTime: { $avg: '$avgResolutionTime' }
-      }
-    }
-  ]);
+    updatedAt: new Date().toISOString()
+  };
 };
 
-module.exports = mongoose.model('Alert', alertSchema);
+/**
+ * Resolve an alert
+ * @param {Object} alert - Alert document data
+ * @param {string} userId - User ID resolving the alert
+ * @param {string} method - Resolution method
+ * @param {string} notes - Resolution notes
+ * @returns {Object} - Updated alert data
+ */
+const resolveAlert = (alert, userId, method, notes = '') => {
+  return {
+    ...alert,
+    status: 'resolved',
+    resolvedAt: new Date().toISOString(),
+    resolution: {
+      resolvedBy: userId,
+      resolvedAt: new Date().toISOString(),
+      method,
+      notes
+    },
+    updatedAt: new Date().toISOString()
+  };
+};
+
+/**
+ * Escalate an alert
+ * @param {Object} alert - Alert document data
+ * @param {number} level - Escalation level
+ * @param {string} escalatedTo - User/team escalated to
+ * @param {string} reason - Reason for escalation
+ * @returns {Object} - Updated alert data
+ */
+const escalateAlert = (alert, level, escalatedTo, reason) => {
+  return {
+    ...alert,
+    status: 'escalated',
+    severity: 'emergency',
+    escalation: {
+      level,
+      escalatedAt: new Date().toISOString(),
+      escalatedTo,
+      reason
+    },
+    updatedAt: new Date().toISOString()
+  };
+};
+
+module.exports = {
+  COLLECTIONS,
+  formatAlertData,
+  validateAlert,
+  acknowledgeAlert,
+  resolveAlert,
+  escalateAlert
+};
