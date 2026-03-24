@@ -459,7 +459,6 @@ function logout() {
 // Expose functions globally
 window.handleLogin = handleLogin;
 window.togglePassword = togglePassword;
-window.handleDemoLogin = handleDemoLogin;
 window.switchToRegister = switchToRegister;
 window.logout = logout;
 window.socialLogin = socialLogin;

@@ -198,40 +198,23 @@
 
     <script src="js/page-scripts.js"></script>
     <script>
-        // Patient page specific - Check demo mode
-        let isDemoMode = false;
-        
         document.addEventListener('DOMContentLoaded', () => {
-            isDemoMode = localStorage.getItem('isDemo') === 'true';
             loadPatientsPage();
         });
-
-        // Demo patients data
-        const demoPatients = [
-            { id: 1, firstName: 'John', lastName: 'Doe', age: 45, heartRate: 72, temperature: 36.8, spo2: 98, status: 'online', device: 'ESP32-001', battery: 85 },
-            { id: 2, firstName: 'Jane', lastName: 'Smith', age: 38, heartRate: 78, temperature: 36.6, spo2: 97, status: 'online', device: 'ESP32-002', battery: 72 },
-            { id: 3, firstName: 'Bob', lastName: 'Johnson', age: 52, heartRate: 68, temperature: 36.5, spo2: 99, status: 'online', device: 'ESP32-003', battery: 90 },
-            { id: 4, firstName: 'Alice', lastName: 'Williams', age: 29, heartRate: 75, temperature: 36.9, spo2: 96, status: 'warning', device: 'ESP32-004', battery: 45 }
-        ];
 
         async function loadPatientsPage() {
             let patients = [];
             
-            if (isDemoMode) {
-                // Use demo data
-                patients = demoPatients;
-            } else {
-                // Fetch from API
-                try {
-                    const response = await fetch('/api/patients');
-                    if (response.ok) {
-                        const data = await response.json();
-                        patients = data.patients || [];
-                    }
-                } catch (error) {
-                    console.error('Error loading patients:', error);
-                    patients = [];
+            // Fetch from API
+            try {
+                const response = await fetch('/api/patients');
+                if (response.ok) {
+                    const data = await response.json();
+                    patients = data.patients || [];
                 }
+            } catch (error) {
+                console.error('Error loading patients:', error);
+                patients = [];
             }
             
             // Update stats
@@ -362,10 +345,83 @@
             document.getElementById('modal-overlay').classList.add('active');
         }
 
-        function addPatient(e) {
+        async function addPatient(e) {
             e.preventDefault();
-            closeModal();
-            showToast('Patient added successfully!', 'success');
+            
+            const nameInput = document.getElementById('patient-name');
+            const ageInput = document.getElementById('patient-age');
+            const deviceSelect = document.getElementById('patient-device');
+            
+            const name = nameInput.value.trim();
+            const age = parseInt(ageInput.value);
+            const deviceId = deviceSelect.value;
+            
+            // Basic validation
+            if (!name || !age || !deviceId) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+            
+            if (isNaN(age) || age < 0 || age > 120) {
+                showToast('Please enter a valid age', 'error');
+                return;
+            }
+            
+            // Split name into first and last name (simple approach)
+            const nameParts = name.split(' ');
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+            
+            try {
+                // Show loading state
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+                submitBtn.disabled = true;
+                
+                // Call API to add patient
+                const response = await fetch('/api/patients', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstName,
+                        lastName,
+                        age,
+                        deviceId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to add patient');
+                }
+                
+                // Close modal and show success
+                closeModal();
+                showToast('Patient added successfully!', 'success');
+                
+                // Reload patients list to show the new patient
+                loadPatientsPage();
+                
+                // Reset form
+                e.target.reset();
+                
+                // Reset button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                
+            } catch (error) {
+                console.error('Error adding patient:', error);
+                showToast(error.message || 'Failed to add patient', 'error');
+                
+                // Reset button state
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Patient';
+                submitBtn.disabled = false;
+            }
         }
     </script>
     <div class="toast-container" id="toast-container"></div>

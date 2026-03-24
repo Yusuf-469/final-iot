@@ -142,19 +142,9 @@
 
     <script src="js/page-scripts.js"></script>
     <script>
-        let isDemoMode = false;
         let charts = {};
 
-        // Demo patient data
-        const demoPatients = [
-            { name: 'John Doe', color: '#6366f1' },
-            { name: 'Jane Smith', color: '#10b981' },
-            { name: 'Bob Johnson', color: '#f59e0b' },
-            { name: 'Alice Williams', color: '#ef4444' }
-        ];
-
         document.addEventListener('DOMContentLoaded', () => {
-            isDemoMode = localStorage.getItem('isDemo') === 'true';
             initAnalyticsCharts();
             loadHealthInsights();
         });
@@ -172,101 +162,91 @@
             return labels.map(() => baseValue + (Math.random() * variance * 2 - variance));
         }
 
-        function initAnalyticsCharts() {
-            const range = document.getElementById('analytics-range').value || '7d';
-            const labels = getTimeLabels(range);
+         function initAnalyticsCharts() {
+             const range = document.getElementById('analytics-range').value || '7d';
+             const labels = getTimeLabels(range);
 
-            // Heart Rate Chart
-            const hrCtx = document.getElementById('heartRateChart');
-            if (hrCtx) {
-                const hrDatasets = isDemoMode ? demoPatients.map(p => ({
-                    label: p.name,
-                    data: generateDemoData(72, 8, range),
-                    borderColor: p.color,
-                    tension: 0.4,
-                    fill: false
-                })) : [];
+             // Heart Rate Chart
+             const hrCtx = document.getElementById('heartRateChart');
+             if (hrCtx) {
+                 charts.heartRate = new Chart(hrCtx, {
+                     type: 'line',
+                     data: {
+                         labels: labels,
+                         datasets: [{
+                             label: 'No Data',
+                             data: [],
+                             borderColor: '#64748b',
+                             borderDash: [5, 5],
+                             tension: 0.4
+                         }]
+                     },
+                     options: {
+                         responsive: true,
+                         maintainAspectRatio: false,
+                         plugins: { 
+                             legend: { 
+                                 position: 'bottom',
+                                 display: false
+                             } 
+                         },
+                         scales: { y: { beginAtZero: false, min: 50, max: 100 } }
+                     }
+                 });
+             }
 
-                charts.heartRate = new Chart(hrCtx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: hrDatasets.length > 0 ? hrDatasets : [{
-                            label: 'No Data',
-                            data: [],
-                            borderColor: '#64748b',
-                            borderDash: [5, 5],
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { 
-                            legend: { 
-                                position: 'bottom',
-                                display: hrDatasets.length > 0 || !isDemoMode
-                            } 
-                        },
-                        scales: { y: { beginAtZero: false, min: 50, max: 100 } }
-                    }
-                });
-            }
+             // Temperature Chart
+             const tempCtx = document.getElementById('tempChart');
+             if (tempCtx) {
+                 charts.temp = new Chart(tempCtx, {
+                     type: 'line',
+                     data: {
+                         labels: labels,
+                         datasets: [{
+                             label: 'No Data',
+                             data: [],
+                             borderColor: '#64748b',
+                             backgroundColor: 'transparent',
+                             tension: 0.4
+                         }]
+                     },
+                     options: {
+                         responsive: true,
+                         maintainAspectRatio: false,
+                         plugins: { legend: { display: false } }
+                     }
+                 });
+             }
 
-            // Temperature Chart
-            const tempCtx = document.getElementById('tempChart');
-            if (tempCtx) {
-                charts.temp = new Chart(tempCtx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: isDemoMode ? 'Avg Temperature' : 'No Data',
-                            data: isDemoMode ? generateDemoData(36.5, 0.3, range) : [],
-                            borderColor: isDemoMode ? '#f59e0b' : '#64748b',
-                            backgroundColor: isDemoMode ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                            fill: isDemoMode,
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: isDemoMode } }
-                    }
-                });
-            }
+             // SpO2 Chart
+             const spo2Ctx = document.getElementById('spo2Chart');
+             if (spo2Ctx) {
+                 charts.spo2 = new Chart(spo2Ctx, {
+                     type: 'line',
+                     data: {
+                         labels: labels,
+                         datasets: [{
+                             label: 'No Data',
+                             data: [],
+                             borderColor: '#64748b',
+                             backgroundColor: 'transparent',
+                             tension: 0.4
+                         }]
+                     },
+                     options: {
+                         responsive: true,
+                         maintainAspectRatio: false,
+                         plugins: { legend: { display: false } },
+                         scales: { y: { beginAtZero: false, min: 90, max: 100 } }
+                     }
+                 });
+             }
 
-            // SpO2 Chart
-            const spo2Ctx = document.getElementById('spo2Chart');
-            if (spo2Ctx) {
-                charts.spo2 = new Chart(spo2Ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: isDemoMode ? 'Avg SpO2' : 'No Data',
-                            data: isDemoMode ? generateDemoData(97, 2, range) : [],
-                            borderColor: isDemoMode ? '#3b82f6' : '#64748b',
-                            backgroundColor: isDemoMode ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
-                            fill: isDemoMode,
-                            tension: 0.4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: isDemoMode } },
-                        scales: { y: { beginAtZero: false, min: 90, max: 100 } }
-                    }
-                });
-            }
-
-            // Update charts when range changes
-            document.getElementById('analytics-range')?.addEventListener('change', (e) => {
-                updateCharts(e.target.value);
-            });
-        }
+             // Update charts when range changes
+             document.getElementById('analytics-range')?.addEventListener('change', (e) => {
+                 updateCharts(e.target.value);
+             });
+         }
 
         function updateCharts(range) {
             const labels = getTimeLabels(range);
