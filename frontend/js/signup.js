@@ -11,6 +11,41 @@ const phoneInput = document.getElementById('phone');
 const passwordInput = document.getElementById('password');
 const confirmPasswordInput = document.getElementById('confirm-password');
 
+// Firebase configuration (replace with your actual config)
+const firebaseConfig = {
+  apiKey: "AIzaSyBexampleKey1234567890abcdef",
+  authDomain: "iothealth-2335a.firebaseapp.com",
+  projectId: "iothealth-2335a",
+  storageBucket: "iothealth-2335a.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef123456"
+};
+
+// Initialize Firebase
+let firebaseApp = null;
+let auth = null;
+try {
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  auth = firebaseApp.auth();
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+}
+
+// Initialize Firebase authentication
+async function initFirebase() {
+  if (!firebaseApp) {
+    try {
+      firebaseApp = firebase.initializeApp(firebaseConfig);
+      auth = firebaseApp.auth();
+      console.log('Firebase initialized successfully');
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+      throw error;
+    }
+  }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initScrollReveal();
@@ -165,7 +200,7 @@ function togglePassword(inputId) {
 /**
  * Handle signup form submission
  */
-function handleSignup(event) {
+async function handleSignup(event) {
     event.preventDefault();
     
     const name = nameInput.value.trim();
@@ -216,47 +251,49 @@ function handleSignup(event) {
     submitBtn.classList.add('loading');
     submitBtn.disabled = true;
     
-    // Call API to signup
-    fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            email: email,
-            password: password,
-            firstName: name.split(' ')[0],
-            lastName: name.split(' ').slice(1).join(' ') || 'User'
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Store user data
-            localStorage.setItem('isLoggedIn', 'true');
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('userEmail', data.user.email);
-            localStorage.setItem('userName', data.user.firstName + ' ' + data.user.lastName);
-            localStorage.setItem('userRole', data.user.role);
-            
-            showToast('Account created successfully!', 'success');
-            
-            // Redirect to dashboard
-            setTimeout(() => {
-                window.location.href = 'dashboard.html';
-            }, 1500);
-        } else {
-            showToast(data.error || 'Registration failed', 'error');
-            submitBtn.classList.remove('loading');
-            submitBtn.disabled = false;
-        }
-    })
-    .catch(error => {
+    try {
+        // Initialize Firebase if not already done
+        await initFirebase();
+        
+        // Create user with email and password using Firebase
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        // Update profile with name
+        await user.updateProfile({
+            displayName: name
+        });
+        
+        // Get ID token for API calls
+        const idToken = await user.getIdToken();
+        
+        // Store auth state
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('authToken', idToken);
+        localStorage.setItem('userEmail', user.email);
+        localStorage.setItem('userName', user.displayName || name);
+        localStorage.setItem('userRole', 'viewer'); // Default role
+        
+        showToast('Account created successfully!', 'success');
+        
+        // Redirect to dashboard
+        setTimeout(() => {
+            window.location.href = 'dashboard.html';
+        }, 1500);
+    } catch (error) {
         console.error('Signup error:', error);
-        showToast('Registration failed. Please try again.', 'error');
+        let errorMessage = 'Registration failed';
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = 'Email already registered';
+        } else if (error.code === 'auth/weak-password') {
+            errorMessage = 'Password should be at least 6 characters';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = 'Invalid email address';
+        }
+        showToast(errorMessage, 'error');
         submitBtn.classList.remove('loading');
         submitBtn.disabled = false;
-    });
+    }
 }
 
 /**
@@ -315,5 +352,5 @@ function showToast(message, type = 'info') {
 
 // Expose functions globally
 window.handleSignup = handleSignup;
-window.socialSignup = socialSignup;
 window.togglePassword = togglePassword;
+window.socialLogin = socialLogin;

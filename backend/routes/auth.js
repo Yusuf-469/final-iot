@@ -80,10 +80,6 @@ const createUser = async (userData) => {
   };
 };
 
-// Demo user credentials
-const DEMO_EMAIL = 'demo@healthmonitor.com';
-const DEMO_PASSWORD = 'demo1234';
-
 // POST /api/auth/login - User login
 router.post('/login', async (req, res) => {
   try {
@@ -92,44 +88,6 @@ router.post('/login', async (req, res) => {
     // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    // Demo user special handling - always allow demo login
-    if (email.toLowerCase() === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      // Find or create demo user
-      let user = await getUserByEmail(DEMO_EMAIL);
-      
-      if (!user) {
-        // Create demo user with plain password (will be hashed)
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(DEMO_PASSWORD, salt);
-        
-        user = await createUser({
-          email: DEMO_EMAIL,
-          password: hashedPassword,
-          firstName: 'Demo',
-          lastName: 'Admin',
-          role: 'admin',
-          status: 'active',
-          isDemo: true
-        });
-        logger.info('Demo user created');
-      }
-
-      const token = generateToken(user);
-      
-      return res.json({
-        success: true,
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          isDemo: user.isDemo
-        }
-      });
     }
 
     // Regular user login

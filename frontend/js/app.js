@@ -9,6 +9,14 @@ class HealthMonitorApp {
     this.notifications = [];
     this.patients = [];
     this.alerts = [];
+    this.firebaseConfig = {
+      apiKey: "AIzaSyBexampleKey1234567890abcdef",
+      authDomain: "iothealth-2335a.firebaseapp.com",
+      projectId: "iothealth-2335a",
+      storageBucket: "iothealth-2335a.appspot.com",
+      messagingSenderId: "123456789012",
+      appId: "1:123456789012:web:abcdef123456"
+    };
     this.init();
   }
 
@@ -16,6 +24,7 @@ class HealthMonitorApp {
    * Initialize the application
    */
   async init() {
+    this.initFirebase();
     this.setupEventListeners();
     this.initCharts();
     await this.loadDashboardData();

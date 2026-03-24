@@ -12,9 +12,40 @@ const loginCard = document.querySelector('.login-card');
 const toast = document.getElementById('toast');
 const previewChart = document.getElementById('previewChart');
 
-// Demo credentials
-const DEMO_EMAIL = 'demo@healthmonitor.com';
-const DEMO_PASSWORD = 'demo1234';
+// Firebase configuration (replace with your actual config)
+const firebaseConfig = {
+  apiKey: "AIzaSyBexampleKey1234567890abcdef",
+  authDomain: "iothealth-2335a.firebaseapp.com",
+  projectId: "iothealth-2335a",
+  storageBucket: "iothealth-2335a.appspot.com",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef123456"
+};
+
+// Initialize Firebase
+let firebaseApp = null;
+let auth = null;
+try {
+  firebaseApp = firebase.initializeApp(firebaseConfig);
+  auth = firebaseApp.auth();
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error);
+}
+
+// Initialize Firebase authentication
+async function initFirebase() {
+  if (!firebaseApp) {
+    try {
+      firebaseApp = firebase.initializeApp(firebaseConfig);
+      auth = firebaseApp.auth();
+      console.log('Firebase initialized successfully');
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+      throw error;
+    }
+  }
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -129,41 +160,41 @@ async function handleLogin(event) {
     loginBtn.disabled = true;
     
     try {
-        // Make API call to login
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ email, password })
-        });
+        // Initialize Firebase if not already done
+        await initFirebase();
         
-        const data = await response.json();
+        // Sign in with email and password using Firebase
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
         
-        if (data.success) {
-            // Store auth state
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('userEmail', data.user.email);
-            localStorage.setItem('userName', `${data.user.firstName} ${data.user.lastName}`);
-            localStorage.setItem('userRole', data.user.role);
-            localStorage.setItem('isDemo', data.user.isDemo || false);
-            localStorage.setItem('isLoggedIn', 'true');
-            
-            showToast('Login successful! Redirecting...', 'success');
-            
-            // Animate transition to dashboard
-            setTimeout(() => {
-                animateToDashboard();
-            }, 1000);
-        } else {
-            showToast(data.error || 'Login failed', 'error');
-            loginBtn.classList.remove('loading');
-            loginBtn.disabled = false;
-        }
+        // Get ID token for API calls
+        const idToken = await user.getIdToken();
         
+        // Store auth state
+        localStorage.setItem('authToken', idToken);
+        localStorage.setItem('userEmail', user.email);
+        localStorage.setItem('userName', `${user.displayName || user.email.split('@')[0]} ${''}`); // Firebase doesn't store first/last name by default
+        localStorage.setItem('userRole', 'viewer'); // Default role, can be customized via custom claims
+        localStorage.setItem('isDemo', false);
+        localStorage.setItem('isLoggedIn', 'true');
+        
+        showToast('Login successful! Redirecting...', 'success');
+        
+        // Animate transition to dashboard
+        setTimeout(() => {
+            animateToDashboard();
+        }, 1000);
     } catch (error) {
         console.error('Login error:', error);
-        showToast('Connection error. Please try again.', 'error');
+        let errorMessage = 'Login failed';
+        if (error.code === 'auth/user-not-found') {
+            errorMessage = 'No user found with this email';
+        } else if (error.code === 'auth/wrong-password') {
+            errorMessage = 'Invalid password';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = 'Invalid email address';
+        }
+        showToast(errorMessage, 'error');
         loginBtn.classList.remove('loading');
         loginBtn.disabled = false;
     }
@@ -194,20 +225,7 @@ function animateToDashboard() {
     }, 100);
 }
 
-/**
- * Handle demo login
- */
-async function handleDemoLogin() {
-    emailInput.value = DEMO_EMAIL;
-    passwordInput.value = DEMO_PASSWORD;
-    
-    // Trigger validation
-    validateEmail();
-    validatePassword();
-    
-    // Submit form
-    await handleLogin(new Event('submit'));
-}
+
 
 /**
  * Switch to register
@@ -379,6 +397,53 @@ function showToast(message, type = 'info') {
 }
 
 /**
+ * Handle social login
+ */
+async function socialLogin(provider) {
+    try {
+        // Initialize Firebase if not already done
+        await initFirebase();
+        
+        let providerObj;
+        if (provider === 'google') {
+            providerObj = new firebase.auth.GoogleAuthProvider();
+        } else if (provider === 'github') {
+            providerObj = new firebase.auth.GithubAuthProvider();
+        } else if (provider === 'microsoft') {
+            providerObj = new firebase.auth.OAuthProvider('microsoft.com');
+        } else {
+            showToast('Unsupported provider', 'error');
+            return;
+        }
+        
+        // Sign in with popup
+        const result = await auth.signInWithPopup(providerObj);
+        const user = result.user;
+        
+        // Get ID token for API calls
+        const idToken = await user.getIdToken();
+        
+        // Store auth state
+        localStorage.setItem('authToken', idToken);
+        localStorage.setItem('userEmail', user.email);
+        localStorage.setItem('userName', user.displayName || user.email.split('@')[0]);
+        localStorage.setItem('userRole', 'viewer'); // Default role
+        localStorage.setItem('isDemo', false);
+        localStorage.setItem('isLoggedIn', 'true');
+        
+        showToast('Login successful! Redirecting...', 'success');
+        
+        // Animate transition to dashboard
+        setTimeout(() => {
+            animateToDashboard();
+        }, 1000);
+    } catch (error) {
+        console.error('Social login error:', error);
+        showToast('Social login failed. Please try again.', 'error');
+    }
+}
+
+/**
  * Logout user
  */
 function logout() {
@@ -397,3 +462,4 @@ window.togglePassword = togglePassword;
 window.handleDemoLogin = handleDemoLogin;
 window.switchToRegister = switchToRegister;
 window.logout = logout;
+window.socialLogin = socialLogin;
