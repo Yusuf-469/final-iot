@@ -12,41 +12,6 @@ const loginCard = document.querySelector('.login-card');
 const toast = document.getElementById('toast');
 const previewChart = document.getElementById('previewChart');
 
-// Firebase configuration (replace with your actual config)
-const firebaseConfig = {
-  apiKey: "AIzaSyBexampleKey1234567890abcdef",
-  authDomain: "iothealth-2335a.firebaseapp.com",
-  projectId: "iothealth-2335a",
-  storageBucket: "iothealth-2335a.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef123456"
-};
-
-// Initialize Firebase
-let firebaseApp = null;
-let auth = null;
-try {
-  firebaseApp = firebase.initializeApp(firebaseConfig);
-  auth = firebaseApp.auth();
-  console.log('Firebase initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-}
-
-// Initialize Firebase authentication
-async function initFirebase() {
-  if (!firebaseApp) {
-    try {
-      firebaseApp = firebase.initializeApp(firebaseConfig);
-      auth = firebaseApp.auth();
-      console.log('Firebase initialized successfully');
-    } catch (error) {
-      console.error('Firebase initialization error:', error);
-      throw error;
-    }
-  }
-}
-
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initScrollReveal();
@@ -160,12 +125,8 @@ async function handleLogin(event) {
     loginBtn.disabled = true;
     
     try {
-        // Initialize Firebase if not already done
-        await initFirebase();
-        
-        // Sign in with email and password using Firebase
-        const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        const user = userCredential.user;
+        // Sign in with email and password using auth module
+        const user = await window.auth.loginWithEmail(email, password);
         
         // Get ID token for API calls
         const idToken = await user.getIdToken();

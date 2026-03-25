@@ -85,16 +85,16 @@
                 </div>
 
                 <div class="social-login reveal-scroll" data-delay="500">
-                    <button type="button" class="social-btn google" onclick="socialLogin('google')">
-                        <i class="fab fa-google"></i>
-                    </button>
-                    <button type="button" class="social-btn github" onclick="socialLogin('github')">
-                        <i class="fab fa-github"></i>
-                    </button>
-                    <button type="button" class="social-btn microsoft" onclick="socialLogin('microsoft')">
-                        <i class="fab fa-microsoft"></i>
-                    </button>
-                </div>
+                     <button type="button" class="social-btn google" onclick="window.auth.signInWithGoogle()">
+                         <i class="fab fa-google"></i>
+                     </button>
+                     <button type="button" class="social-btn github" onclick="window.auth.signInWithGitHub()">
+                         <i class="fab fa-github"></i>
+                     </button>
+                     <button type="button" class="social-btn microsoft" onclick="window.auth.signInWithMicrosoft()">
+                         <i class="fab fa-microsoft"></i>
+                     </button>
+                 </div>
             </form>
 
             <div class="login-footer reveal-scroll" data-delay="600">
