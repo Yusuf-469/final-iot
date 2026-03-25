@@ -42,8 +42,8 @@ const app = {
         if (userNameEl) userNameEl.textContent = userName;
         if (welcomeNameEl) welcomeNameEl.textContent = userName;
         
-        // Store demo status for use in other functions
-        this.isDemo = isDemo;
+        // Demo mode removed - always use real data
+        this.isDemo = false;
         
         return true;
     },
@@ -304,22 +304,17 @@ const app = {
     
     // Load dashboard data
     async loadDashboardData() {
-        if (this.isDemo) {
-            // Load demo data for demo user
-            this.loadDemoData();
-        } else {
-            // Load real data for personal user
-            try {
-                await this.loadPatients();
-                await this.loadAlerts();
-                await this.loadDevices();
-            } catch (error) {
-                console.error('Error loading dashboard data:', error);
-                // Show empty state for personal users
-                this.data.patients = [];
-                this.data.alerts = [];
-                this.data.devices = [];
-            }
+        // Load real data for personal user
+        try {
+            await this.loadPatients();
+            await this.loadAlerts();
+            await this.loadDevices();
+        } catch (error) {
+            console.error('Error loading dashboard data:', error);
+            // Show empty state for personal users
+            this.data.patients = [];
+            this.data.alerts = [];
+            this.data.devices = [];
         }
         // Always render stats after loading data
         this.renderStats();
@@ -346,60 +341,7 @@ const app = {
         }
     },
     
-    // Load demo patients
-    loadDemoPatients() {
-        this.data.patients = [
-            {
-                id: 1,
-                patientId: 'PAT-001',
-                firstName: 'John',
-                lastName: 'Doe',
-                age: 45,
-                status: 'active',
-                device: 'ESP32-001',
-                heartRate: 72,
-                temperature: 36.6,
-                spo2: 98
-            },
-            {
-                id: 2,
-                patientId: 'PAT-002',
-                firstName: 'Jane',
-                lastName: 'Smith',
-                age: 38,
-                status: 'warning',
-                device: 'ESP32-002',
-                heartRate: 88,
-                temperature: 37.4,
-                spo2: 95
-            },
-            {
-                id: 3,
-                patientId: 'PAT-003',
-                firstName: 'Bob',
-                lastName: 'Johnson',
-                age: 52,
-                status: 'critical',
-                device: 'ESP32-003',
-                heartRate: 105,
-                temperature: 38.2,
-                spo2: 92
-            },
-            {
-                id: 4,
-                patientId: 'PAT-004',
-                firstName: 'Alice',
-                lastName: 'Williams',
-                age: 29,
-                status: 'active',
-                device: 'ESP32-004',
-                heartRate: 68,
-                temperature: 36.5,
-                spo2: 99
-            }
-        ];
-        this.renderPatients();
-    },
+
     
     // Render patients grid
     renderPatients() {
@@ -500,40 +442,7 @@ const app = {
         }
     },
     
-    // Load demo alerts
-    loadDemoAlerts() {
-        this.data.alerts = [
-            {
-                id: 1,
-                type: 'critical',
-                title: 'High Heart Rate Alert',
-                message: 'Patient John Doe has heart rate above 100 BPM',
-                time: '2 mins ago'
-            },
-            {
-                id: 2,
-                type: 'warning',
-                title: 'Temperature Rising',
-                message: 'Patient Jane Smith temperature is 37.4°C',
-                time: '15 mins ago'
-            },
-            {
-                id: 3,
-                type: 'info',
-                title: 'Device Connected',
-                message: 'ESP32-003 is now online',
-                time: '1 hour ago'
-            },
-            {
-                id: 4,
-                type: 'resolved',
-                title: 'Alert Resolved',
-                message: 'Bob Johnson SpO2 levels returned to normal',
-                time: '2 hours ago'
-            }
-        ];
-        this.renderAlerts();
-    },
+
     
     // Render alerts list
     renderAlerts() {
@@ -621,16 +530,7 @@ const app = {
         }
     },
     
-    // Load demo devices
-    loadDemoDevices() {
-        this.data.devices = [
-            { id: 'ESP32-001', name: 'John Doe', status: 'online', battery: 85 },
-            { id: 'ESP32-002', name: 'Jane Smith', status: 'online', battery: 72 },
-            { id: 'ESP32-003', name: 'Bob Johnson', status: 'warning', battery: 45 },
-            { id: 'ESP32-004', name: 'Alice Williams', status: 'online', battery: 90 }
-        ];
-        this.renderDevices();
-    },
+
     
     // Render devices grid
     renderDevices() {
@@ -761,12 +661,7 @@ const app = {
         }
     },
     
-    // Load demo data
-    loadDemoData() {
-        this.loadDemoPatients();
-        this.loadDemoAlerts();
-        this.loadDemoDevices();
-    },
+
     
     // Animate counters
     animateCounters() {

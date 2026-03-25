@@ -1,3 +1,6 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
@@ -11,63 +14,48 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let firebaseApp = null;
-let auth = null;
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 
-function initializeFirebase() {
-  if (!firebaseApp) {
-    firebaseApp = firebase.initializeApp(firebaseConfig);
-    auth = firebaseApp.auth();
-  }
-  return auth;
-}
-
-// Initialize Firebase on load
-initializeFirebase();
-
-const googleProvider = new firebase.auth.GoogleAuthProvider();
-const githubProvider = new firebase.auth.GithubAuthProvider();
-const microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
+const googleProvider = new GoogleAuthProvider();
+const githubProvider = new GithubAuthProvider();
+const microsoftProvider = new OAuthProvider('microsoft.com');
 
 // Auth functions
-async function signInWithGoogle() {
+export async function signInWithGoogle() {
   const result = await signInWithPopup(auth, googleProvider);
   return result.user;
 }
 
-async function signInWithGitHub() {
+export async function signInWithGitHub() {
   const result = await signInWithPopup(auth, githubProvider);
   return result.user;
 }
 
-async function signInWithMicrosoft() {
+export async function signInWithMicrosoft() {
   const result = await signInWithPopup(auth, microsoftProvider);
   return result.user;
 }
 
-async function registerWithEmail(email, password) {
+export async function registerWithEmail(email, password) {
   const result = await createUserWithEmailAndPassword(auth, email, password);
   return result.user;
 }
 
-async function loginWithEmail(email, password) {
+export async function loginWithEmail(email, password) {
   const result = await signInWithEmailAndPassword(auth, email, password);
   return result.user;
 }
 
-async function logoutUser() {
+export async function logoutUser() {
   await signOut(auth);
 }
 
 // Auth state
 let subscribers = [];
 
-function subscribeToAuthState(callback) {
-  if (!firebaseApp) {
-    initializeFirebase();
-  }
-
-  const unsubscribe = auth.onAuthStateChanged((user) => {
+export function subscribeToAuthState(callback) {
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
     subscribers.forEach(cb => cb(user));
   });
 
@@ -83,14 +71,11 @@ function subscribeToAuthState(callback) {
   };
 }
 
-function getCurrentUser() {
-  if (!firebaseApp) {
-    initializeFirebase();
-  }
+export function getCurrentUser() {
   return auth.currentUser;
 }
 
-// Attach to window
+// Attach to window for use in other files
 window.auth = {
   signInWithGoogle,
   signInWithGitHub,

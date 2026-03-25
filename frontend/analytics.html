@@ -253,31 +253,41 @@
             
             if (charts.heartRate) {
                 charts.heartRate.data.labels = labels;
-                if (isDemoMode) {
-                    charts.heartRate.data.datasets = demoPatients.map(p => ({
-                        label: p.name,
-                        data: generateDemoData(72, 8, range),
-                        borderColor: p.color,
-                        tension: 0.4,
-                        fill: false
-                    }));
-                }
+                // In production, this would be populated with real data from API
+                // For now, showing empty state until real data is implemented
+                charts.heartRate.data.datasets = [{
+                    label: 'Heart Rate',
+                    data: [],
+                    borderColor: '#ef4444',
+                    tension: 0.4,
+                    fill: false
+                }];
                 charts.heartRate.update();
             }
             
             if (charts.temp) {
                 charts.temp.data.labels = labels;
-                if (isDemoMode) {
-                    charts.temp.data.datasets[0].data = generateDemoData(36.5, 0.3, range);
-                }
+                // In production, this would be populated with real data from API
+                charts.temp.data.datasets = [{
+                    label: 'Temperature',
+                    data: [],
+                    borderColor: '#f97316',
+                    tension: 0.4,
+                    fill: false
+                }];
                 charts.temp.update();
             }
             
             if (charts.spo2) {
                 charts.spo2.data.labels = labels;
-                if (isDemoMode) {
-                    charts.spo2.data.datasets[0].data = generateDemoData(97, 2, range);
-                }
+                // In production, this would be populated with real data from API
+                charts.spo2.data.datasets = [{
+                    label: 'SpO2',
+                    data: [],
+                    borderColor: '#10b981',
+                    tension: 0.4,
+                    fill: false
+                }];
                 charts.spo2.update();
             }
         }
@@ -286,49 +296,19 @@
             const insightsGrid = document.getElementById('insights-grid');
             if (!insightsGrid) return;
 
-            if (isDemoMode) {
-                insightsGrid.innerHTML = `
-                    <div class="insight-card">
-                        <div class="insight-icon good">
-                            <i class="fas fa-thumbs-up"></i>
-                        </div>
-                        <div class="insight-content">
-                            <h4>Overall Health</h4>
-                            <p>All patients show stable vital signs this week.</p>
-                        </div>
+            // In production, this would be populated with real data from API
+            // For now, showing empty state until real data is implemented
+            insightsGrid.innerHTML = `
+                <div class="insight-card">
+                    <div class="insight-icon info">
+                        <i class="fas fa-info-circle"></i>
                     </div>
-                    <div class="insight-card">
-                        <div class="insight-icon warning">
-                            <i class="fas fa-exclamation-triangle"></i>
-                        </div>
-                        <div class="insight-content">
-                            <h4>Attention Needed</h4>
-                            <p>Some patients' SpO2 levels need monitoring.</p>
-                        </div>
+                    <div class="insight-content">
+                        <h4>No Data Available</h4>
+                        <p>Add patients and connect devices to see health analytics.</p>
                     </div>
-                    <div class="insight-card">
-                        <div class="insight-icon info">
-                            <i class="fas fa-info-circle"></i>
-                        </div>
-                        <div class="insight-content">
-                            <h4>AI Prediction</h4>
-                            <p>No health risks predicted for the next 7 days.</p>
-                        </div>
-                    </div>
-                `;
-            } else {
-                insightsGrid.innerHTML = `
-                    <div class="insight-card">
-                        <div class="insight-icon info">
-                            <i class="fas fa-info-circle"></i>
-                        </div>
-                        <div class="insight-content">
-                            <h4>No Data Available</h4>
-                            <p>Add patients and connect devices to see health analytics.</p>
-                        </div>
-                    </div>
-                `;
-            }
+                </div>
+            `;
         }
 
         function exportAnalytics() {

@@ -152,11 +152,16 @@ class HealthMonitorApp {
       // Update stats
       this.updateStats();
 
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      // Load demo data on error
-      this.loadDemoData();
-    }
+     } catch (error) {
+       console.error('Error loading dashboard data:', error);
+       // Show empty state on error - no demo data
+       this.patients = [];
+       this.alerts = [];
+       this.renderPatientsGrid();
+       this.renderAlertsList();
+       this.updateAlertBadge();
+       this.updateStats();
+     }
   }
 
   /**
@@ -184,87 +189,7 @@ class HealthMonitorApp {
     }
   }
 
-  /**
-   * Load demo data for demonstration
-   */
-  loadDemoData() {
-    this.patients = [
-      {
-        patientId: 'PAT-001',
-        firstName: 'John',
-        lastName: 'Doe',
-        status: 'active',
-        lastReading: {
-          heartRate: 72,
-          temperature: 36.8,
-          spo2: 98,
-          bloodPressure: { systolic: 120, diastolic: 80 }
-        }
-      },
-      {
-        patientId: 'PAT-002',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        status: 'critical',
-        lastReading: {
-          heartRate: 105,
-          temperature: 38.2,
-          spo2: 94,
-          bloodPressure: { systolic: 145, diastolic: 92 }
-        }
-      },
-      {
-        patientId: 'PAT-003',
-        firstName: 'Robert',
-        lastName: 'Johnson',
-        status: 'active',
-        lastReading: {
-          heartRate: 68,
-          temperature: 36.5,
-          spo2: 99,
-          bloodPressure: { systolic: 118, diastolic: 78 }
-        }
-      },
-      {
-        patientId: 'PAT-004',
-        firstName: 'Emily',
-        lastName: 'Davis',
-        status: 'active',
-        lastReading: {
-          heartRate: 75,
-          temperature: 36.9,
-          spo2: 97,
-          bloodPressure: { systolic: 122, diastolic: 82 }
-        }
-      }
-    ];
 
-    this.alerts = [
-      {
-        alertId: 'ALT-001',
-        type: 'heartRate',
-        severity: 'critical',
-        title: 'High Heart Rate Detected',
-        message: 'Patient PAT-002 heart rate exceeded 100 bpm',
-        patientId: 'PAT-002',
-        createdAt: new Date(Date.now() - 300000)
-      },
-      {
-        alertId: 'ALT-002',
-        type: 'temperature',
-        severity: 'warning',
-        title: 'Elevated Temperature',
-        message: 'Patient PAT-002 temperature is 38.2°C',
-        patientId: 'PAT-002',
-        createdAt: new Date(Date.now() - 600000)
-      }
-    ];
-
-    this.renderPatientsGrid();
-    this.renderAlertsList();
-    this.updateAlertBadge();
-    this.updateStats();
-  }
 
   /**
    * Update statistics
