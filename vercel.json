@@ -16,9 +16,4 @@
       "dest": "/frontend/$1"
     }
   ],
-  "functions": {
-    "backend/server.js": {
-      "maxDuration": 10
-    }
-  }
 }
