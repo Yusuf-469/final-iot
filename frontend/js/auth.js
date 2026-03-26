@@ -28,6 +28,7 @@ function initializeFirebase() {
 
 // Auth functions
 async function signInWithGoogle() {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     const result = await auth.signInWithPopup(googleProvider);
     return result.user;
@@ -38,6 +39,7 @@ async function signInWithGoogle() {
 }
 
 async function signInWithGitHub() {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     const result = await auth.signInWithPopup(githubProvider);
     return result.user;
@@ -48,6 +50,7 @@ async function signInWithGitHub() {
 }
 
 async function signInWithMicrosoft() {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     const result = await auth.signInWithPopup(microsoftProvider);
     return result.user;
@@ -58,6 +61,7 @@ async function signInWithMicrosoft() {
 }
 
 async function registerWithEmail(email, password) {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     const result = await auth.createUserWithEmailAndPassword(email, password);
     return result.user;
@@ -68,6 +72,7 @@ async function registerWithEmail(email, password) {
 }
 
 async function loginWithEmail(email, password) {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     const result = await auth.signInWithEmailAndPassword(email, password);
     return result.user;
@@ -78,6 +83,7 @@ async function loginWithEmail(email, password) {
 }
 
 async function logoutUser() {
+  if (!auth) throw new Error('Firebase not initialized');
   try {
     await auth.signOut();
   } catch (error) {
@@ -114,8 +120,8 @@ function getCurrentUser() {
   return auth.currentUser;
 }
 
-// Initialize Firebase when DOM is ready
-document.addEventListener('DOMContentLoaded', initializeFirebase);
+// Initialize Firebase immediately when script loads
+initializeFirebase();
 
 // Attach to window for use in other files
 window.auth = {
