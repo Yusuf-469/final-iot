@@ -9,28 +9,35 @@ const admin = require('firebase-admin');
 if (!admin.apps.length) {
   // Initialize Firebase Admin SDK
   try {
-    // Check for Firebase credentials
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  // Check for Firebase credentials
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+  const privateKey = privateKeyRaw?.replace(/\\n/g, '\n');
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
-    if (projectId && privateKey && clientEmail) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          privateKey,
-          clientEmail
-        })
-      });
-      console.log('✅ Firebase Admin SDK initialized with credentials');
-    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      // Use Google Application Credentials (from service account file path)
-      admin.initializeApp();
-      console.log('✅ Firebase Admin SDK initialized with GOOGLE_APPLICATION_CREDENTIALS');
-    } else {
-      // No credentials found - throw error to prevent demo mode
-      throw new Error('Firebase credentials not found. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
-    }
+  console.log('Firebase config check:');
+  console.log('  projectId:', projectId ? '(set)' : '(not set)', projectId || '');
+  console.log('  privateKeyRaw:', privateKeyRaw ? '(set)' : '(not set)', privateKeyRaw ? '(length: ' + privateKeyRaw.length + ')' : '(not set)');
+  console.log('  privateKey:', privateKey ? '(set)' : '(not set)', privateKey ? '(length: ' + privateKey.length + ')' : '(not set)');
+  console.log('  clientEmail:', clientEmail ? '(set)' : '(not set)', clientEmail || '');
+
+  if (projectId && privateKey && clientEmail) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId,
+        privateKey,
+        clientEmail
+      })
+    });
+    console.log('✅ Firebase Admin SDK initialized with credentials');
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    // Use Google Application Credentials (from service account file path)
+    admin.initializeApp();
+    console.log('✅ Firebase Admin SDK initialized with GOOGLE_APPLICATION_CREDENTIALS');
+  } else {
+    // No credentials found - throw error to prevent demo mode
+    throw new Error('Firebase credentials not found. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
+  }
   } catch (error) {
     console.error('Firebase initialization error:', error.message);
     // Re-throw to prevent app from starting without proper database

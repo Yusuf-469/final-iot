@@ -4,12 +4,12 @@
  */
 
 // Load environment variables early
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Express setup
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const http = require('http');
 
 // Database (now Firebase)
