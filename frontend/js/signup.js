@@ -339,4 +339,4 @@ function showToast(message, type = 'info') {
 // Expose functions globally
 window.handleSignup = handleSignup;
 window.togglePassword = togglePassword;
-window.socialLogin = socialLogin;
+window.socialSignup = socialSignup;
