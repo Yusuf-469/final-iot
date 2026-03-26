@@ -121,7 +121,9 @@ function getCurrentUser() {
 }
 
 // Initialize Firebase immediately when script loads
+console.log('🔥 Initializing Firebase auth...');
 initializeFirebase();
+console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
 
 // Attach to window for use in other files
 window.auth = {
@@ -134,3 +136,4 @@ window.auth = {
   subscribeToAuthState,
   getCurrentUser
 };
+console.log('🚀 window.auth object created with methods:', Object.keys(window.auth));

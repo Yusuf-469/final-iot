@@ -217,6 +217,15 @@ async function handleSignup(event) {
     submitBtn.disabled = true;
     
     try {
+        // Debug: Check if window.auth is available
+        console.log('🔍 Checking window.auth at signup:', window.auth);
+        if (!window.auth) {
+            throw new Error('window.auth is not available. Firebase auth not initialized.');
+        }
+        if (!window.auth.registerWithEmail) {
+            throw new Error('window.auth.registerWithEmail is not available');
+        }
+
         // Register with email and password using auth module
         const user = await window.auth.registerWithEmail(email, password);
         
