@@ -1,6 +1,6 @@
 /**
  * Firebase Configuration
- * Medical IoT Backend - Firestore Database
+ * Medical IoT Backend - Realtime Database
  */
 
 const admin = require('firebase-admin');
@@ -45,17 +45,16 @@ if (!admin.apps.length) {
   }
 }
 
-// Export Firestore instance - handle case where app might not be properly initialized
+// Export Realtime Database instance - handle case where app might not be properly initialized
 let db = null;
 let dbInitialized = false;
 
 try {
-  db = admin.firestore();
-  // Enable Firestore timestamps
-  db.settings({ timestampsInSnapshots: true });
+  db = admin.database();
   dbInitialized = true;
+  console.log('✅ Firebase Realtime Database initialized');
 } catch (error) {
-  console.warn('Could not initialize Firestore:', error.message);
+  console.warn('Could not initialize Realtime Database:', error.message);
 }
 
 // Collection names
@@ -67,19 +66,21 @@ const COLLECTIONS = {
   ALERTS: 'alerts'
 };
 
-// Helper to convert Firestore timestamps to ISO strings
+// Helper to convert timestamps to ISO strings (for Realtime Database)
 const convertTimestamps = (data) => {
   if (!data) return data;
-  if (data instanceof admin.firestore.Timestamp) {
-    return data.toDate().toISOString();
-  }
   if (Array.isArray(data)) {
     return data.map(item => convertTimestamps(item));
   }
   if (typeof data === 'object') {
     const converted = {};
     for (const [key, value] of Object.entries(data)) {
-      converted[key] = convertTimestamps(value);
+      // Convert timestamp objects to ISO strings
+      if (value && typeof value === 'object' && (value.seconds || value._seconds)) {
+        converted[key] = new Date((value.seconds || value._seconds) * 1000).toISOString();
+      } else {
+        converted[key] = convertTimestamps(value);
+      }
     }
     return converted;
   }

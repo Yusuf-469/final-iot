@@ -16,9 +16,11 @@ const connectDB = async () => {
   }
   
   try {
-    // Test Firestore connection by attempting to read from a collection
-    const testDoc = await db.collection(COLLECTIONS.PATIENTS).limit(1).get();
-    console.log('✅ Firebase Firestore connected successfully');
+    // Test Realtime Database connection
+    const testRef = db.ref('test');
+    await testRef.set({ test: true });
+    await testRef.remove();
+    console.log('✅ Firebase Realtime Database connected successfully');
     return true;
   } catch (error) {
     console.error('❌ Firebase connection error:', error.message);
@@ -40,30 +42,30 @@ const getDbConnected = () => {
 };
 
 /**
- * Get Firestore instance
- * @returns {FirebaseFirestore.Firestore|null} - Firestore instance or null
+ * Get Realtime Database instance
+ * @returns {FirebaseDatabase|null} - Database instance or null
  */
 const getDb = () => dbInitialized ? db : null;
 
 /**
- * Collection reference helper
- * @param {string} collectionName - Name of the collection
- * @returns {FirebaseFirestore.CollectionReference|null} - Collection reference or null
+ * Reference helper for collections (Realtime Database paths)
+ * @param {string} collectionName - Name of the collection/path
+ * @returns {FirebaseDatabase.Reference|null} - Database reference or null
  */
 const collection = (collectionName) => {
   if (!dbInitialized || !db) return null;
-  return db.collection(collectionName);
+  return db.ref(collectionName);
 };
 
 /**
- * Document reference helper
- * @param {string} collectionName - Name of the collection
- * @param {string} docId - Document ID
- * @returns {FirebaseFirestore.DocumentReference|null} - Document reference or null
+ * Reference helper for documents (Realtime Database child paths)
+ * @param {string} collectionName - Name of the collection/path
+ * @param {string} itemId - Item ID/key
+ * @returns {FirebaseDatabase.Reference|null} - Database reference or null
  */
-const doc = (collectionName, docId) => {
+const doc = (collectionName, itemId) => {
   if (!dbInitialized || !db) return null;
-  return db.collection(collectionName).doc(docId);
+  return db.ref(`${collectionName}/${itemId}`);
 };
 
 module.exports = {
