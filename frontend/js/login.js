@@ -12,6 +12,13 @@ const loginCard = document.querySelector('.login-card');
 const toast = document.getElementById('toast');
 const previewChart = document.getElementById('previewChart');
 
+// Initialize Firebase if not already done
+async function initFirebase() {
+    // Firebase is already initialized in auth.js, so we just need to import the auth instance
+    // This function exists for compatibility with existing code
+    return window.auth;
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initScrollReveal();
@@ -362,24 +369,17 @@ function showToast(message, type = 'info') {
  */
 async function socialLogin(provider) {
     try {
-        // Initialize Firebase if not already done
-        await initFirebase();
-        
-        let providerObj;
+        let user;
         if (provider === 'google') {
-            providerObj = new firebase.auth.GoogleAuthProvider();
+            user = await window.auth.signInWithGoogle();
         } else if (provider === 'github') {
-            providerObj = new firebase.auth.GithubAuthProvider();
+            user = await window.auth.signInWithGitHub();
         } else if (provider === 'microsoft') {
-            providerObj = new firebase.auth.OAuthProvider('microsoft.com');
+            user = await window.auth.signInWithMicrosoft();
         } else {
             showToast('Unsupported provider', 'error');
             return;
         }
-        
-        // Sign in with popup
-        const result = await auth.signInWithPopup(providerObj);
-        const user = result.user;
         
         // Get ID token for API calls
         const idToken = await user.getIdToken();
