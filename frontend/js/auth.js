@@ -1,10 +1,7 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
-  authDomain: "iothealth-2335a.firebaseapp.com",
+  authDomain: "healthmonitor-zeta.vercel.app",
   databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
   projectId: "iothealth-2335a",
   storageBucket: "iothealth-2335a.firebasestorage.app",
@@ -13,51 +10,92 @@ const firebaseConfig = {
   measurementId: "G-ZSL6D941JK"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+// Initialize Firebase (assuming Firebase scripts are loaded globally)
+let app, auth, googleProvider, githubProvider, microsoftProvider;
 
-const googleProvider = new GoogleAuthProvider();
-const githubProvider = new GithubAuthProvider();
-const microsoftProvider = new OAuthProvider('microsoft.com');
+function initializeFirebase() {
+  if (typeof firebase !== 'undefined') {
+    app = firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+
+    googleProvider = new firebase.auth.GoogleAuthProvider();
+    githubProvider = new firebase.auth.GithubAuthProvider();
+    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
+  } else {
+    console.error('Firebase SDK not loaded');
+  }
+}
 
 // Auth functions
-export async function signInWithGoogle() {
-  const result = await signInWithPopup(auth, googleProvider);
-  return result.user;
+async function signInWithGoogle() {
+  try {
+    const result = await auth.signInWithPopup(googleProvider);
+    return result.user;
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    throw error;
+  }
 }
 
-export async function signInWithGitHub() {
-  const result = await signInWithPopup(auth, githubProvider);
-  return result.user;
+async function signInWithGitHub() {
+  try {
+    const result = await auth.signInWithPopup(githubProvider);
+    return result.user;
+  } catch (error) {
+    console.error('GitHub sign-in error:', error);
+    throw error;
+  }
 }
 
-export async function signInWithMicrosoft() {
-  const result = await signInWithPopup(auth, microsoftProvider);
-  return result.user;
+async function signInWithMicrosoft() {
+  try {
+    const result = await auth.signInWithPopup(microsoftProvider);
+    return result.user;
+  } catch (error) {
+    console.error('Microsoft sign-in error:', error);
+    throw error;
+  }
 }
 
-export async function registerWithEmail(email, password) {
-  const result = await createUserWithEmailAndPassword(auth, email, password);
-  return result.user;
+async function registerWithEmail(email, password) {
+  try {
+    const result = await auth.createUserWithEmailAndPassword(email, password);
+    return result.user;
+  } catch (error) {
+    console.error('Email registration error:', error);
+    throw error;
+  }
 }
 
-export async function loginWithEmail(email, password) {
-  const result = await signInWithEmailAndPassword(auth, email, password);
-  return result.user;
+async function loginWithEmail(email, password) {
+  try {
+    const result = await auth.signInWithEmailAndPassword(email, password);
+    return result.user;
+  } catch (error) {
+    console.error('Email login error:', error);
+    throw error;
+  }
 }
 
-export async function logoutUser() {
-  await signOut(auth);
+async function logoutUser() {
+  try {
+    await auth.signOut();
+  } catch (error) {
+    console.error('Logout error:', error);
+    throw error;
+  }
 }
 
 // Auth state
 let subscribers = [];
+let unsubscribeFunction = null;
 
-export function subscribeToAuthState(callback) {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    subscribers.forEach(cb => cb(user));
-  });
+function subscribeToAuthState(callback) {
+  if (!unsubscribeFunction) {
+    unsubscribeFunction = auth.onAuthStateChanged((user) => {
+      subscribers.forEach(cb => cb(user));
+    });
+  }
 
   subscribers.push(callback);
   // Call immediately with current user
@@ -65,15 +103,19 @@ export function subscribeToAuthState(callback) {
 
   return () => {
     subscribers = subscribers.filter(cb => cb !== callback);
-    if (subscribers.length === 0) {
-      unsubscribe();
+    if (subscribers.length === 0 && unsubscribeFunction) {
+      unsubscribeFunction();
+      unsubscribeFunction = null;
     }
   };
 }
 
-export function getCurrentUser() {
+function getCurrentUser() {
   return auth.currentUser;
 }
+
+// Initialize Firebase when DOM is ready
+document.addEventListener('DOMContentLoaded', initializeFirebase);
 
 // Attach to window for use in other files
 window.auth = {

@@ -2,86 +2,23 @@
   "version": 2,
   "builds": [
     {
-      "src": "frontend/**",
-      "use": "@vercel/static"
+      "src": "backend/server.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/dashboard.html",
-      "dest": "/frontend/dashboard.html"
+      "src": "/api/(.*)",
+      "dest": "/backend/server.js"
     },
     {
-      "src": "/patients.html",
-      "dest": "/frontend/patients.html"
-    },
-    {
-      "src": "/alerts.html",
-      "dest": "/frontend/alerts.html"
-    },
-    {
-      "src": "/devices.html",
-      "dest": "/frontend/devices.html"
-    },
-    {
-      "src": "/analytics.html",
-      "dest": "/frontend/analytics.html"
-    },
-    {
-      "src": "/settings.html",
-      "dest": "/frontend/settings.html"
-    },
-    {
-      "src": "/login.html",
-      "dest": "/frontend/login.html"
-    },
-    {
-      "src": "/signup.html",
-      "dest": "/frontend/signup.html"
-    },
-    {
-      "src": "/css/(.*)",
-      "dest": "/frontend/css/$1"
-    },
-    {
-      "src": "/js/(.*)",
-      "dest": "/frontend/js/$1"
-    },
-    {
-      "src": "/dashboard",
-      "dest": "/frontend/dashboard.html"
-    },
-    {
-      "src": "/patients",
-      "dest": "/frontend/patients.html"
-    },
-    {
-      "src": "/alerts",
-      "dest": "/frontend/alerts.html"
-    },
-    {
-      "src": "/devices",
-      "dest": "/frontend/devices.html"
-    },
-    {
-      "src": "/analytics",
-      "dest": "/frontend/analytics.html"
-    },
-    {
-      "src": "/settings",
-      "dest": "/frontend/settings.html"
-    },
-    {
-      "src": "/login",
-      "dest": "/frontend/login.html"
-    },
-    {
-      "src": "/signup",
-      "dest": "/frontend/signup.html"
-    },
-    {
-      "src": "/",
-      "dest": "/frontend/index.html"
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
     }
-  ]
+  ],
+  "functions": {
+    "backend/server.js": {
+      "maxDuration": 10
+    }
+  }
 }

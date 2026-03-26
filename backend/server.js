@@ -228,3 +228,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Export for testing
 module.exports = { app, server };
+
+// Export for Vercel serverless functions
+module.exports.default = app;

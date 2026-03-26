@@ -1,20 +1,22 @@
-# 🚂 Railway Deployment Checklist for Medical IoT System
+# 🚀 Vercel Deployment Checklist for Medical IoT System
 
 ## Pre-Deployment Checklist
 
-- [ ] **Git Repository**: Ensure code is pushed to GitHub
-- [ ] **MongoDB Ready**: Have MongoDB Atlas connection string ready OR use Railway's MongoDB plugin
-- [ ] **Environment Variables**: Prepare all required environment variables (see below)
-- [ ] **Railway Account**: Create account at [railway.app](https://railway.app)
+- [x] **Git Repository**: Ensure code is pushed to GitHub
+- [x] **Firebase Ready**: Firebase project configured with Authentication enabled
+- [x] **Environment Variables**: Firebase credentials already configured (see .env file)
+- [x] **Vercel Account**: Create account at [vercel.com](https://vercel.com)
 
-## Required Environment Variables for Railway
+## Required Environment Variables for Vercel
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `NODE_ENV` | `production` | Required for Railway |
+| `NODE_ENV` | `production` | Required for Vercel |
 | `JWT_SECRET` | (32+ char string) | For authentication |
-| `FRONTEND_URL` | `https://your-app.railway.app` | Your Railway URL |
-| `MONGODB_URI` | (MongoDB Atlas string) OR use Railway MongoDB plugin | Database connection |
+| `FRONTEND_URL` | `https://healthmonitor-zeta.vercel.app` | Your Vercel URL |
+| `FIREBASE_PROJECT_ID` | `iothealth-2335a` | Firebase project ID |
+| `FIREBASE_PRIVATE_KEY` | (Firebase service account key) | Firebase admin credentials |
+| `FIREBASE_CLIENT_EMAIL` | firebase-adminsdk-fbsvc@iothealth-2335a.iam.gserviceaccount.com | Firebase service account email |
 
 ## Optional Environment Variables
 
@@ -32,18 +34,14 @@
 
 ## 🚀 Deployment Steps
 
-### Option 1: Railway Dashboard (Recommended)
+### Option 1: Vercel Dashboard (Recommended)
 
 1. **Create New Project**:
-   - Go to [Railway Dashboard](https://railway.app/dashboard)
-   - Click "New Project" → "Deploy from GitHub repo"
+   - Go to [Vercel Dashboard](https://vercel.com/dashboard)
+   - Click "New Project" → "Import Git Repository"
    - Select your repository
 
-2. **Add MongoDB** (Choose one):
-   - Option A: Click "Add Plugin" → "MongoDB" (easiest)
-   - Option B: Use MongoDB Atlas and add `MONGODB_URI` variable
-
-3. **Configure Variables**:
+2. **Configure Variables** (Firebase credentials are already in .env):
    - Go to "Variables" tab
    - Add:
      ```
@@ -72,10 +70,7 @@ railway login
 # 3. Initialize project
 railway init
 
-# 4. Add MongoDB
-railway add mongodb
-
-# 5. Set required variables
+# 4. Set required variables (Firebase credentials are already configured)
 railway variables set NODE_ENV=production
 railway variables set JWT_SECRET=your-secret-key
 railway variables set FRONTEND_URL=https://your-app.railway.app
