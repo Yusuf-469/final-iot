@@ -61,12 +61,18 @@ async function signInWithMicrosoft() {
 }
 
 async function registerWithEmail(email, password) {
-  if (!auth) throw new Error('Firebase not initialized');
+  console.log('📧 Attempting Firebase email registration for:', email);
+  if (!auth) {
+    console.error('❌ Firebase auth not available');
+    throw new Error('Firebase not initialized');
+  }
   try {
+    console.log('🔐 Calling Firebase createUserWithEmailAndPassword...');
     const result = await auth.createUserWithEmailAndPassword(email, password);
+    console.log('✅ Firebase registration successful:', result.user.email);
     return result.user;
   } catch (error) {
-    console.error('Email registration error:', error);
+    console.error('❌ Firebase email registration error:', error.code, error.message);
     throw error;
   }
 }
@@ -122,8 +128,17 @@ function getCurrentUser() {
 
 // Initialize Firebase immediately when script loads
 console.log('🔥 Initializing Firebase auth...');
-initializeFirebase();
-console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
+try {
+  initializeFirebase();
+  console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
+  console.log('🔍 Firebase config used:', {
+    apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-10) : 'missing',
+    authDomain: firebaseConfig.authDomain,
+    projectId: firebaseConfig.projectId
+  });
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error);
+}
 
 // Attach to window for use in other files
 window.auth = {
