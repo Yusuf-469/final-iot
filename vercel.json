@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "outputDirectory": "frontend",
   "functions": {
     "api/server.js": {
       "maxDuration": 10
@@ -8,7 +9,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/backend/server.js"
+      "destination": "/api/server.js"
     },
     {
       "source": "/(.*)",
