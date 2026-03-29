@@ -26,25 +26,41 @@ const dashboardApp = {
     },
     
     // Check authentication - Redirect to login if not authenticated
-    checkAuth() {
+    async checkAuth() {
         const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
         if (!isLoggedIn) {
             window.location.href = 'login.html';
             return false;
         }
-        
-        const userName = localStorage.getItem('userName') || 'User';
-        const isDemo = localStorage.getItem('isDemo') === 'true';
-        
+
+        // Get user name from localStorage first
+        let userName = localStorage.getItem('userName') || 'User';
+
+        // Try to get fresh data from Firebase if available
+        try {
+            if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+                const user = await window.auth.getCurrentUser();
+                if (user) {
+                    // Update with fresh Firebase data
+                    userName = user.displayName || user.email.split('@')[0] || userName;
+                    // Update localStorage with fresh data
+                    localStorage.setItem('userName', userName);
+                    localStorage.setItem('userEmail', user.email || localStorage.getItem('userEmail'));
+                }
+            }
+        } catch (error) {
+            console.warn('Could not get fresh user data from Firebase:', error);
+        }
+
         const userNameEl = document.getElementById('user-name');
         const welcomeNameEl = document.getElementById('welcome-name');
-        
+
         if (userNameEl) userNameEl.textContent = userName;
         if (welcomeNameEl) welcomeNameEl.textContent = userName;
-        
+
         // Demo mode removed - always use real data
         this.isDemo = false;
-        
+
         return true;
     },
     
