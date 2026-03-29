@@ -13,10 +13,11 @@ const firebaseConfig = {
 // Initialize Firebase (assuming Firebase scripts are loaded globally)
 let app, auth, googleProvider, githubProvider, microsoftProvider;
 
+// Firebase v8 compatibility
 function initializeFirebase() {
   if (typeof firebase !== 'undefined') {
     app = firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
+    auth = firebase.auth(app);
 
     googleProvider = new firebase.auth.GoogleAuthProvider();
     githubProvider = new firebase.auth.GithubAuthProvider();
@@ -91,7 +92,7 @@ async function loginWithEmail(email, password) {
 async function logoutUser() {
   if (!auth) throw new Error('Firebase not initialized');
   try {
-    await auth.signOut();
+    await firebase.auth().signOut();
   } catch (error) {
     console.error('Logout error:', error);
     throw error;
@@ -111,7 +112,7 @@ function subscribeToAuthState(callback) {
 
   subscribers.push(callback);
   // Call immediately with current user
-  callback(auth.currentUser);
+  auth.onAuthStateChanged(callback);
 
   return () => {
     subscribers = subscribers.filter(cb => cb !== callback);
