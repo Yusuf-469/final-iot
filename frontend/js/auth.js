@@ -131,7 +131,6 @@ function getCurrentUser() {
 console.log('🔥 Initializing Firebase auth...');
 try {
   initializeFirebase();
-  console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
   console.log('🔍 Firebase config used:', {
     apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-10) : 'missing',
     authDomain: firebaseConfig.authDomain,
@@ -152,4 +151,5 @@ window.auth = {
   subscribeToAuthState,
   getCurrentUser
 };
+console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
 console.log('🚀 window.auth object created with methods:', Object.keys(window.auth));
