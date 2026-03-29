@@ -4,7 +4,7 @@
  */
 
 // Global application state
-const app = {
+const dashboardApp = {
     socket: null,
     charts: {},
     isDemo: false,
@@ -13,7 +13,7 @@ const app = {
         alerts: [],
         devices: []
     },
-    
+
     // Initialize the dashboard
     init() {
         this.checkAuth();
@@ -854,16 +854,16 @@ const app = {
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
-    app.init();
+    dashboardApp.init();
 });
 
 // Expose functions globally
-window.app = app;
-window.logout = () => app.logout();
-window.refreshData = () => app.refreshData();
-window.exportReport = () => app.exportReport();
-window.showAddPatientModal = () => app.showAddPatientModal();
-window.navigateTo = (page) => app.navigateTo(page);
+window.app = dashboardApp;
+window.logout = () => dashboardApp.logout();
+window.refreshData = () => dashboardApp.refreshData();
+window.exportReport = () => dashboardApp.exportReport();
+window.showAddPatientModal = () => dashboardApp.showAddPatientModal();
+window.navigateTo = (page) => dashboardApp.navigateTo(page);
 window.closeModal = () => {
     document.getElementById('modal-overlay')?.classList.remove('active');
 };

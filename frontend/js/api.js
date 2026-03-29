@@ -5,18 +5,18 @@
 
 // Detect environment and set API URL accordingly
 const getApiBaseUrl = () => {
-  // Check for Netlify environment
-  if (process.env.NETLIFY && process.env.API_URL) {
-    return process.env.API_URL;
+  // Check for Vercel environment (client-side detection)
+  if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('now.sh')) {
+    return '/api';
   }
-  
-  // Check for Railway environment
-  if (process.env.RAILWAY_ENVIRONMENT === 'true' || process.env.RAILWAY_STATIC_URL) {
-    const railwayUrl = process.env.RAILWAY_STATIC_URL;
-    if (railwayUrl) {
-      return `https://${railwayUrl}/api`;
-    }
+
+  // Check for local development
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:3000/api';
   }
+
+  // Default to relative API path for production
+  return '/api';
   
   // Check for custom API URL (set in Netlify)
   if (process.env.API_URL) {
