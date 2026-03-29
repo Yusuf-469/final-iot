@@ -227,13 +227,25 @@
     <script src="js/auth.js"></script>
     <script src="js/page-scripts.js"></script>
     <script>
+        // Check authentication first
+        function checkAuth() {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+            if (!isLoggedIn) {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
         // Initialize Firebase and load user data on page load
         document.addEventListener('DOMContentLoaded', () => {
+            if (!checkAuth()) return;
+
             initializeFirebase();
             loadUserData();
         });
 
-        function loadUserData() {
+        async function loadUserData() {
             // First load from localStorage
             const userName = localStorage.getItem('userName') || 'User';
             const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
@@ -244,14 +256,20 @@
             document.getElementById('settings-phone').value = userPhone;
 
             // Then try to get fresh data from Firebase
-            if (window.auth && auth.currentUser) {
-                const user = auth.currentUser;
-                document.getElementById('settings-name').value = user.displayName || userName;
-                document.getElementById('settings-email').value = user.email || userEmail;
+            try {
+                if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+                    const user = await window.auth.getCurrentUser();
+                    if (user) {
+                        document.getElementById('settings-name').value = user.displayName || userName;
+                        document.getElementById('settings-email').value = user.email || userEmail;
 
-                // Update localStorage with fresh data
-                localStorage.setItem('userName', user.displayName || userName);
-                localStorage.setItem('userEmail', user.email || userEmail);
+                        // Update localStorage with fresh data
+                        localStorage.setItem('userName', user.displayName || userName);
+                        localStorage.setItem('userEmail', user.email || userEmail);
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not load fresh user data from Firebase:', error);
             }
         }
         
@@ -262,10 +280,13 @@
 
             try {
                 // Update Firebase profile if user is authenticated
-                if (window.auth && auth.currentUser) {
-                    await auth.currentUser.updateProfile({
-                        displayName: name
-                    });
+                if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+                    const user = await window.auth.getCurrentUser();
+                    if (user) {
+                        await user.updateProfile({
+                            displayName: name
+                        });
+                    }
                 }
 
                 // Update localStorage
