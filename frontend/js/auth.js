@@ -16,7 +16,12 @@ let app, auth, googleProvider, githubProvider, microsoftProvider;
 // Firebase v8 compatibility
 function initializeFirebase() {
   if (typeof firebase !== 'undefined') {
-    app = firebase.initializeApp(firebaseConfig);
+    // Check if Firebase app already exists
+    if (!firebase.apps.length) {
+      app = firebase.initializeApp(firebaseConfig);
+    } else {
+      app = firebase.app(); // Use existing app
+    }
     auth = firebase.auth(app);
 
     googleProvider = new firebase.auth.GoogleAuthProvider();
