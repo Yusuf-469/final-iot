@@ -221,38 +221,69 @@
         </main>
     </div>
 
+    <!-- Firebase SDK (Compatibility Mode) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/page-scripts.js"></script>
     <script>
-        // Load user data on page load
+        // Initialize Firebase and load user data on page load
         document.addEventListener('DOMContentLoaded', () => {
+            initializeFirebase();
             loadUserData();
         });
-        
+
         function loadUserData() {
+            // First load from localStorage
             const userName = localStorage.getItem('userName') || 'User';
             const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
             const userPhone = localStorage.getItem('userPhone') || '';
-            
+
             document.getElementById('settings-name').value = userName;
             document.getElementById('settings-email').value = userEmail;
             document.getElementById('settings-phone').value = userPhone;
+
+            // Then try to get fresh data from Firebase
+            if (window.auth && auth.currentUser) {
+                const user = auth.currentUser;
+                document.getElementById('settings-name').value = user.displayName || userName;
+                document.getElementById('settings-email').value = user.email || userEmail;
+
+                // Update localStorage with fresh data
+                localStorage.setItem('userName', user.displayName || userName);
+                localStorage.setItem('userEmail', user.email || userEmail);
+            }
         }
         
-        function saveProfile() {
+        async function saveProfile() {
             const name = document.getElementById('settings-name').value;
             const email = document.getElementById('settings-email').value;
             const phone = document.getElementById('settings-phone').value;
-            
-            // Update localStorage
-            localStorage.setItem('userName', name);
-            localStorage.setItem('userEmail', email);
-            localStorage.setItem('userPhone', phone);
-            
-            // Update header if exists
-            const userNameEl = document.getElementById('user-name');
-            if (userNameEl) userNameEl.textContent = name;
-            
-            showToast('Profile saved successfully!', 'success');
+
+            try {
+                // Update Firebase profile if user is authenticated
+                if (window.auth && auth.currentUser) {
+                    await auth.currentUser.updateProfile({
+                        displayName: name
+                    });
+                }
+
+                // Update localStorage
+                localStorage.setItem('userName', name);
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userPhone', phone);
+
+                // Update header if exists
+                const userNameEl = document.getElementById('user-name');
+                const welcomeNameEl = document.getElementById('welcome-name');
+                if (userNameEl) userNameEl.textContent = name;
+                if (welcomeNameEl) welcomeNameEl.textContent = name;
+
+                showToast('Profile saved successfully!', 'success');
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                showToast('Error saving profile', 'error');
+            }
         }
 
         function saveThresholds() {

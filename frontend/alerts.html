@@ -182,78 +182,150 @@
             loadAlertsPage();
         });
 
-        function loadAlertsPage() {
-            const alerts = [
-                { id: 1, type: 'critical', title: 'Critical Alert', message: "Patient Niladri's heart rate exceeded 100 BPM", time: '2 minutes ago', patient: 'Niladri' },
-                { id: 2, type: 'warning', title: 'Warning', message: 'Device ESP32-004 battery below 20%', time: '15 minutes ago', device: 'ESP32-004' },
-                { id: 3, type: 'critical', title: 'Critical Alert', message: 'Patient Kaustav temperature above 38°C', time: '30 minutes ago', patient: 'Kaustav' },
-                { id: 4, type: 'warning', title: 'Warning', message: 'SpO2 level below 95% for patient Yusuf', time: '45 minutes ago', patient: 'Yusuf' },
-                { id: 5, type: 'info', title: 'Device Connected', message: 'New device ESP32-005 is now online', time: '1 hour ago', device: 'ESP32-005' }
-            ];
+        async function loadAlertsPage() {
+            try {
+                const response = await fetch('/api/alerts');
+                let alerts = [];
 
-            const list = document.getElementById('alerts-list');
-            list.innerHTML = alerts.map(a => `
-                <div class="alert-full-item ${a.type}">
-                    <div class="alert-icon">
-                        <i class="fas ${a.type === 'critical' ? 'fa-exclamation-circle' : a.type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
-                    </div>
-                    <div class="alert-content">
-                        <h4>${a.title}</h4>
-                        <p>${a.message}</p>
-                        <span class="alert-meta">
-                            ${a.patient ? `<span class="meta-item"><i class="fas fa-user"></i> ${a.patient}</span>` : ''}
-                            ${a.device ? `<span class="meta-item"><i class="fas fa-microchip"></i> ${a.device}</span>` : ''}
-                            <span class="meta-item"><i class="fas fa-clock"></i> ${a.time}</span>
-                        </span>
-                    </div>
-                    <div class="alert-actions">
-                        <button class="action-btn" title="View Details"><i class="fas fa-eye"></i></button>
-                        <button class="action-btn" title="Dismiss" onclick="dismissAlert(${a.id})"><i class="fas fa-times"></i></button>
-                    </div>
-                </div>
-            `).join('');
-
-            // Alert distribution chart
-            new Chart(document.getElementById('alertChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Critical', 'Warning', 'Info'],
-                    datasets: [{
-                        data: [2, 2, 1],
-                        backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '70%',
-                    plugins: { legend: { display: false } }
+                if (response.ok) {
+                    const data = await response.json();
+                    alerts = data.alerts || [];
+                } else {
+                    console.warn('Failed to load alerts from API, showing empty state');
                 }
-            });
 
-            // Alerts over time chart
-            new Chart(document.getElementById('alertsTimeChart'), {
-                type: 'bar',
-                data: {
-                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                    datasets: [{
-                        label: 'Alerts',
-                        data: [3, 5, 2, 7, 4, 2, 5],
-                        backgroundColor: 'rgba(99, 102, 241, 0.8)',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false } },
-                        y: { beginAtZero: true }
+                // Update stats
+                updateAlertStats(alerts);
+
+                const list = document.getElementById('alerts-list');
+
+                if (alerts.length === 0) {
+                    list.innerHTML = '<div class="no-data">No alerts found.</div>';
+                    return;
+                }
+
+                list.innerHTML = alerts.map(a => {
+                    const type = a.severity || a.type || 'info';
+                    const title = a.title || 'Alert';
+                    const message = a.message || a.description || '';
+                    const time = a.createdAt ? new Date(a.createdAt).toLocaleString() : 'Unknown time';
+                    const patient = a.patientName || a.patientId || '';
+                    const device = a.deviceId || '';
+
+                    return `
+                        <div class="alert-full-item ${type}">
+                            <div class="alert-icon">
+                                <i class="fas ${type === 'critical' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
+                            </div>
+                            <div class="alert-content">
+                                <h4>${title}</h4>
+                                <p>${message}</p>
+                                <span class="alert-meta">
+                                    ${patient ? `<span class="meta-item"><i class="fas fa-user"></i> ${patient}</span>` : ''}
+                                    ${device ? `<span class="meta-item"><i class="fas fa-microchip"></i> ${device}</span>` : ''}
+                                    <span class="meta-item"><i class="fas fa-clock"></i> ${time}</span>
+                                </span>
+                            </div>
+                            <div class="alert-actions">
+                                <button class="action-btn" title="View Details"><i class="fas fa-eye"></i></button>
+                                <button class="action-btn" title="Dismiss" onclick="dismissAlert('${a.id}')"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Initialize and update charts with real data
+                initializeAlertCharts();
+                updateAlertCharts(alerts);
+
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+                const list = document.getElementById('alerts-list');
+                list.innerHTML = '<div class="no-data">Error loading alerts. Please try again.</div>';
+            }
+        }
+
+        function initializeAlertCharts() {
+            // Initialize alert distribution chart
+            const alertChartCanvas = document.getElementById('alertChart');
+            if (alertChartCanvas && !window.alertChart) {
+                window.alertChart = new Chart(alertChartCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Critical', 'Warning', 'Info'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: { legend: { display: false } }
                     }
-                }
-            });
+                });
+            }
+
+            // Initialize alerts over time chart
+            const timeChartCanvas = document.getElementById('alertsTimeChart');
+            if (timeChartCanvas && !window.alertsTimeChart) {
+                window.alertsTimeChart = new Chart(timeChartCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                        datasets: [{
+                            label: 'Alerts',
+                            data: [0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateAlertStats(alerts) {
+            const totalAlerts = alerts.length;
+            const criticalAlerts = alerts.filter(a => (a.severity || a.type) === 'critical').length;
+            const warningAlerts = alerts.filter(a => (a.severity || a.type) === 'warning').length;
+            const infoAlerts = alerts.filter(a => (a.severity || a.type) === 'info').length;
+
+            // Update stats cards
+            document.querySelectorAll('.stat-card .stat-number')[0].textContent = totalAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[1].textContent = criticalAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[2].textContent = warningAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[3].textContent = infoAlerts;
+        }
+
+        function updateAlertCharts(alerts) {
+            // Update donut chart
+            const criticalCount = alerts.filter(a => (a.severity || a.type) === 'critical').length;
+            const warningCount = alerts.filter(a => (a.severity || a.type) === 'warning').length;
+            const infoCount = alerts.filter(a => (a.severity || a.type) === 'info').length;
+
+            // Update donut chart data
+            if (window.alertChart) {
+                window.alertChart.data.datasets[0].data = [criticalCount, warningCount, infoCount];
+                window.alertChart.update();
+            }
+
+            // Update center text
+            const centerValue = document.querySelector('.chart-center-text .center-value');
+            if (centerValue) centerValue.textContent = alerts.length;
+
+            // For the time chart, we could implement date grouping if needed
+            // For now, keep it simple
         }
 
         function dismissAlert(id) {
