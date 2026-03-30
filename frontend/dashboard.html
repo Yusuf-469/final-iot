@@ -12,9 +12,97 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Firebase SDK (Compatibility Mode) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <!-- Firebase SDK v9 (Modular) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+        import { getAuth, GoogleAuthProvider, GithubAuthProvider, OAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
+            authDomain: "healthmonitor-zeta.vercel.app",
+            databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
+            projectId: "iothealth-2335a",
+            storageBucket: "iothealth-2335a.firebasestorage.app",
+            messagingSenderId: "346846344297",
+            appId: "1:346846344297:web:870d295b32646e58b25ef8",
+            measurementId: "G-ZSL6D941JK"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Providers
+        const googleProvider = new GoogleAuthProvider();
+        const githubProvider = new GithubAuthProvider();
+        const microsoftProvider = new OAuthProvider('microsoft.com');
+
+        // Make auth available globally
+        window.auth = {
+            signInWithGoogle: async () => {
+                try {
+                    const result = await signInWithPopup(auth, googleProvider);
+                    return result.user;
+                } catch (error) {
+                    console.error('Google sign-in error:', error);
+                    throw error;
+                }
+            },
+            signInWithGitHub: async () => {
+                try {
+                    const result = await signInWithPopup(auth, githubProvider);
+                    return result.user;
+                } catch (error) {
+                    console.error('GitHub sign-in error:', error);
+                    throw error;
+                }
+            },
+            signInWithMicrosoft: async () => {
+                try {
+                    const result = await signInWithPopup(auth, microsoftProvider);
+                    return result.user;
+                } catch (error) {
+                    console.error('Microsoft sign-in error:', error);
+                    throw error;
+                }
+            },
+            registerWithEmail: async (email, password) => {
+                try {
+                    const result = await createUserWithEmailAndPassword(auth, email, password);
+                    return result.user;
+                } catch (error) {
+                    console.error('Email registration error:', error);
+                    throw error;
+                }
+            },
+            loginWithEmail: async (email, password) => {
+                try {
+                    const result = await signInWithEmailAndPassword(auth, email, password);
+                    return result.user;
+                } catch (error) {
+                    console.error('Email login error:', error);
+                    throw error;
+                }
+            },
+            logoutUser: async () => {
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error('Logout error:', error);
+                    throw error;
+                }
+            },
+            subscribeToAuthState: (callback) => {
+                return onAuthStateChanged(auth, callback);
+            },
+            getCurrentUser: () => {
+                return auth.currentUser;
+            }
+        };
+
+        console.log('✅ Firebase v9 initialized for dashboard');
+    </script>
 </head>
 <body class="dashboard-body">
     <div class="dashboard-layout">

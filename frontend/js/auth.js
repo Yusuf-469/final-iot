@@ -1,36 +1,5 @@
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
-  authDomain: "healthmonitor-zeta.vercel.app",
-  databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
-  projectId: "iothealth-2335a",
-  storageBucket: "iothealth-2335a.firebasestorage.app",
-  messagingSenderId: "346846344297",
-  appId: "1:346846344297:web:870d295b32646e58b25ef8",
-  measurementId: "G-ZSL6D941JK"
-};
-
-// Initialize Firebase (assuming Firebase scripts are loaded globally)
-let app, auth, googleProvider, githubProvider, microsoftProvider;
-
-// Firebase v8 compatibility
-function initializeFirebase() {
-  if (typeof firebase !== 'undefined') {
-    // Check if Firebase app already exists
-    if (!firebase.apps.length) {
-      app = firebase.initializeApp(firebaseConfig);
-    } else {
-      app = firebase.app(); // Use existing app
-    }
-    auth = firebase.auth(app);
-
-    googleProvider = new firebase.auth.GoogleAuthProvider();
-    githubProvider = new firebase.auth.GithubAuthProvider();
-    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
-  } else {
-    console.error('Firebase SDK not loaded');
-  }
-}
+// Firebase is now initialized inline in HTML files
+// This file provides compatibility functions
 
 // Auth functions
 async function signInWithGoogle() {
