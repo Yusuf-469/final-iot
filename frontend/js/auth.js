@@ -1,33 +1,41 @@
-// Firebase is now initialized inline in HTML files
-// This file provides compatibility functions
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
+  authDomain: "healthmonitor-zeta.vercel.app",
+  databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
+  projectId: "iothealth-2335a",
+  storageBucket: "iothealth-2335a.firebasestorage.app",
+  messagingSenderId: "346846344297",
+  appId: "1:346846344297:web:870d295b32646e58b25ef8",
+  measurementId: "G-ZSL6D941JK"
+};
+
+// Initialize Firebase (assuming Firebase scripts are loaded globally)
+let app, auth, googleProvider, githubProvider, microsoftProvider;
+
+// Firebase v8 compatibility
+function initializeFirebase() {
+  if (typeof firebase !== 'undefined') {
+    app = firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth(app);
+
+    googleProvider = new firebase.auth.GoogleAuthProvider();
+    githubProvider = new firebase.auth.GithubAuthProvider();
+    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
+  } else {
+    console.error('Firebase SDK not loaded');
+  }
+}
 
 // Auth functions
 async function signInWithGoogle() {
-  if (!auth) {
-    console.error('Firebase auth not initialized');
-    throw new Error('Firebase not initialized');
-  }
+  if (!auth) throw new Error('Firebase not initialized');
   try {
-    console.log('Attempting Google sign-in...');
     const result = await auth.signInWithPopup(googleProvider);
-    console.log('Google sign-in successful:', result.user.email);
     return result.user;
   } catch (error) {
-    console.error('Google sign-in error:', error.code, error.message);
-
-    // Provide user-friendly error messages
-    let userMessage = 'Google sign-in failed';
-    if (error.code === 'auth/popup-blocked') {
-      userMessage = 'Popup was blocked. Please allow popups for this site.';
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      userMessage = 'Sign-in was cancelled.';
-    } else if (error.code === 'auth/network-request-failed') {
-      userMessage = 'Network error. Please check your connection and try again.';
-    } else if (error.code === 'auth/unauthorized-domain') {
-      userMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
-    }
-
-    throw new Error(userMessage);
+    console.error('Google sign-in error:', error);
+    throw error;
   }
 }
 
