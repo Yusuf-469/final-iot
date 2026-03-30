@@ -34,13 +34,31 @@ function initializeFirebase() {
 
 // Auth functions
 async function signInWithGoogle() {
-  if (!auth) throw new Error('Firebase not initialized');
+  if (!auth) {
+    console.error('Firebase auth not initialized');
+    throw new Error('Firebase not initialized');
+  }
   try {
+    console.log('Attempting Google sign-in...');
     const result = await auth.signInWithPopup(googleProvider);
+    console.log('Google sign-in successful:', result.user.email);
     return result.user;
   } catch (error) {
-    console.error('Google sign-in error:', error);
-    throw error;
+    console.error('Google sign-in error:', error.code, error.message);
+
+    // Provide user-friendly error messages
+    let userMessage = 'Google sign-in failed';
+    if (error.code === 'auth/popup-blocked') {
+      userMessage = 'Popup was blocked. Please allow popups for this site.';
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      userMessage = 'Sign-in was cancelled.';
+    } else if (error.code === 'auth/network-request-failed') {
+      userMessage = 'Network error. Please check your connection and try again.';
+    } else if (error.code === 'auth/unauthorized-domain') {
+      userMessage = 'This domain is not authorized for Google sign-in. Please contact support.';
+    }
+
+    throw new Error(userMessage);
   }
 }
 
