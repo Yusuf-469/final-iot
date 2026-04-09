@@ -1,89 +1,74 @@
 /**
- * Alerts Routes - Firestore Version
+ * Alerts Routes - Realtime Database Version
  * Medical IoT Backend - Alerts management endpoints
  */
 
 const express = require('express');
 const router = express.Router();
-const { db, COLLECTIONS } = require('../database');
-const { formatAlertData, validateAlert, acknowledgeAlert, resolveAlert, escalateAlert } = require('../models/Alert');
+const { collection, COLLECTIONS } = require('../database');
 const { logger } = require('../utils/logger');
 
-// Helper to format alert document from Firestore
-const formatAlertDoc = (doc) => {
-  const data = doc.data();
+// Helper to format alert data from Realtime Database
+const formatAlertData = (key, data) => {
   return {
-    id: doc.id,
+    id: key,
     ...data,
-    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-    updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
-    acknowledgedAt: data.acknowledgedAt ? data.acknowledgedAt.toDate().toISOString() : null,
-    resolvedAt: data.resolvedAt ? data.resolvedAt.toDate().toISOString() : null,
-    escalatedAt: data.escalation?.escalatedAt ? data.escalation.escalatedAt.toDate().toISOString() : null
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
+    acknowledgedAt: data.acknowledgedAt || null,
+    resolvedAt: data.resolvedAt || null,
+    escalatedAt: data.escalation?.escalatedAt || null
   };
 };
 
 // GET /api/alerts - Get all alerts
 router.get('/', async (req, res) => {
   try {
-    const { status, severity, patientId, limit = 100, skip = 0 } = req.query;
-    
-    let query = db.collection(COLLECTIONS.ALERTS);
-    
-    // Apply filters
-    if (status) {
-      query = query.where('status', '==', status);
+    const alertsRef = collection(COLLECTIONS.ALERTS);
+
+    if (!alertsRef) {
+      return res.status(500).json({ error: 'Database not connected' });
     }
-    
-    if (severity) {
-      query = query.where('severity', '==', severity);
-    }
-    
-    if (patientId) {
-      query = query.where('patientId', '==', patientId);
-    }
-    
-    // Apply ordering and pagination
-    query = query.orderBy('createdAt', 'desc')
-                .limit(parseInt(limit))
-                .offset(parseInt(skip));
-    
-    const snapshot = await query.get();
-    
-    if (snapshot.empty) {
-      return res.json({
-        alerts: [],
-        count: {
-          total: 0,
-          active: 0
-        },
-        pagination: {
-          limit: parseInt(limit),
-          skip: parseInt(skip)
-        }
-      });
-    }
-    
-    const alerts = [];
-    let activeCount = 0;
-    
-    snapshot.forEach(doc => {
-      const alert = formatAlertDoc(doc);
-      alerts.push(alert);
-      if (alert.status === 'active') {
-        activeCount++;
-      }
+
+    const snapshot = await alertsRef.once('value');
+    const alertsData = snapshot.val() || {};
+
+    const alerts = Object.keys(alertsData).map(key => {
+      return formatAlertData(key, alertsData[key]);
     });
     
+    // Apply basic filtering (Realtime DB doesn't support complex queries)
+    let filteredAlerts = alerts;
+    if (status) {
+      filteredAlerts = filteredAlerts.filter(a => a.status === status);
+    }
+    if (severity) {
+      filteredAlerts = filteredAlerts.filter(a => a.severity === severity);
+    }
+    if (patientId) {
+      filteredAlerts = filteredAlerts.filter(a => a.patientId === patientId);
+    }
+
+    // Sort by creation date (newest first)
+    filteredAlerts.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    // Calculate active count
+    const activeCount = filteredAlerts.filter(a => a.status === 'active').length;
+
+    // Apply pagination
+    const limitNum = parseInt(limit) || 100;
+    const skipNum = parseInt(skip) || 0;
+    const paginatedAlerts = filteredAlerts.slice(skipNum, skipNum + limitNum);
+
     res.json({
-      alerts,
+      alerts: paginatedAlerts,
       count: {
-        total: alerts.length,
+        total: filteredAlerts.length,
         active: activeCount
       },
       pagination: {
-        limit: parseInt(limit),
-        skip: parseInt(skip)
+        limit: limitNum,
+        skip: skipNum
       }
     });
   } catch (error) {
@@ -194,28 +179,33 @@ router.get('/statistics', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const alertData = req.body;
-    
-    // Validate alert data
-    const validation = validateAlert(alertData);
-    if (!validation.isValid) {
-      return res.status(400).json({ error: validation.errors[0] });
+
+    // Generate alert ID
+    const alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+    // Format data for Realtime Database
+    const formattedData = {
+      ...alertData,
+      alertId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: alertData.status || 'active',
+      severity: alertData.severity || 'info'
+    };
+
+    // Save to Realtime Database
+    const alertRef = collection(`${COLLECTIONS.ALERTS}/${alertId}`);
+    if (!alertRef) {
+      return res.status(500).json({ error: 'Database not connected' });
     }
-    
-    // Format data for Firestore
-    const formattedData = formatAlertData(alertData);
-    
-    // Add to Firestore
-    const docRef = await db.collection(COLLECTIONS.ALERTS).add(formattedData);
-    
-    logger.info(`New alert created: ${docRef.id}`);
-    
-    // Emit real-time alert
-    const io = req.app.get('io');
-    io.emit('newAlert', {
-      id: docRef.id,
-      ...formattedData,
-      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
+
+    await alertRef.set(formattedData);
+
+    logger.info(`New alert created: ${alertId}`);
+
+    res.status(201).json({
+      id: alertId,
+      ...formattedData
     });
     
     res.status(201).json({

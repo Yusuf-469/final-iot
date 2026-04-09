@@ -1,23 +1,21 @@
 /**
- * Devices Routes - Firestore Version
+ * Devices Routes - Realtime Database Version
  * Medical IoT Backend - Device management endpoints
  */
 
 const express = require('express');
 const router = express.Router();
-const { db, COLLECTIONS } = require('../database');
-const { formatDeviceData, validateDevice, isDeviceOnline, updateDeviceStatus, deviceHeartbeat, updateDeviceBattery } = require('../models/Device');
+const { collection, COLLECTIONS } = require('../database');
 const { logger } = require('../utils/logger');
 
-// Helper to format device document from Firestore
-const formatDeviceDoc = (doc) => {
-  const data = doc.data();
+// Helper to format device data from Realtime Database
+const formatDeviceData = (key, data) => {
   return {
-    id: doc.id,
+    id: key,
     ...data,
-    lastSeen: data.lastSeen ? data.lastSeen.toDate().toISOString() : null,
-    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-    updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
+    lastSeen: data.lastSeen || new Date().toISOString(),
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString(),
     firmware: data.firmware || {},
     power: data.power || {},
     connectivity: data.connectivity || {},
@@ -31,62 +29,39 @@ const formatDeviceDoc = (doc) => {
 // GET /api/devices - Get all devices
 router.get('/', async (req, res) => {
   try {
-    const { status, patientId, limit = 100, skip = 0 } = req.query;
-    
-    let query = db.collection(COLLECTIONS.DEVICES);
-    
-    // Apply filters
-    if (status) {
-      query = query.where('status', '==', status);
+    const devicesRef = collection(COLLECTIONS.DEVICES);
+
+    if (!devicesRef) {
+      return res.status(500).json({ error: 'Database not connected' });
     }
-    
-    if (patientId) {
-      query = query.where('patientId', '==', patientId);
-    }
-    
-    // Apply pagination
-    query = query.orderBy('createdAt', 'desc')
-                .limit(parseInt(limit))
-                .offset(parseInt(skip));
-    
-    const snapshot = await query.get();
-    
-    if (snapshot.empty) {
-      return res.json({
-        devices: [],
-        pagination: {
-          total: 0,
-          limit: parseInt(limit),
-          skip: parseInt(skip)
-        }
-      });
-    }
-    
-    const devices = [];
-    snapshot.forEach(doc => {
-      devices.push(formatDeviceDoc(doc));
+
+    const snapshot = await devicesRef.once('value');
+    const devicesData = snapshot.val() || {};
+
+    const devices = Object.keys(devicesData).map(key => {
+      return formatDeviceData(key, devicesData[key]);
     });
     
-    // Get total count (separate query for accuracy)
-    let countQuery = db.collection(COLLECTIONS.DEVICES);
-    
+    // Apply basic filtering (Realtime DB doesn't support complex queries)
+    let filteredDevices = devices;
     if (status) {
-      countQuery = countQuery.where('status', '==', status);
+      filteredDevices = filteredDevices.filter(d => d.status === status);
     }
-    
     if (patientId) {
-      countQuery = countQuery.where('patientId', '==', patientId);
+      filteredDevices = filteredDevices.filter(d => d.patientId === patientId);
     }
-    
-    const countSnapshot = await countQuery.get();
-    const total = countSnapshot.size;
-    
+
+    // Apply pagination
+    const limitNum = parseInt(limit) || 100;
+    const skipNum = parseInt(skip) || 0;
+    const paginatedDevices = filteredDevices.slice(skipNum, skipNum + limitNum);
+
     res.json({
-      devices,
+      devices: paginatedDevices,
       pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip)
+        total: filteredDevices.length,
+        limit: limitNum,
+        skip: skipNum
       }
     });
   } catch (error) {
@@ -98,7 +73,14 @@ router.get('/', async (req, res) => {
 // GET /api/devices/stats - Get device statistics
 router.get('/stats', async (req, res) => {
   try {
-    const snapshot = await db.collection(COLLECTIONS.DEVICES).get();
+    const devicesRef = collection(COLLECTIONS.DEVICES);
+
+    if (!devicesRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await devicesRef.once('value');
+    const devicesData = snapshot.val() || {};
     
     if (snapshot.empty) {
       return res.json({
@@ -110,12 +92,16 @@ router.get('/stats', async (req, res) => {
     const statusCounts = {};
     let total = 0;
     
-    snapshot.forEach(doc => {
-      const status = doc.data().status || 'unknown';
+    // Calculate statistics
+    const statusCounts = {};
+    let total = 0;
+
+    Object.values(devicesData).forEach(device => {
+      const status = device.status || 'unknown';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
       total++;
     });
-    
+
     res.json({
       statusCounts: Object.entries(statusCounts).map(([_id, count]) => ({ _id, count })),
       total
@@ -130,15 +116,20 @@ router.get('/stats', async (req, res) => {
 router.get('/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
-    
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
+    if (!deviceRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await deviceRef.once('value');
+    const deviceData = snapshot.val();
+
+    if (!deviceData) {
       return res.status(404).json({ error: 'Device not found' });
     }
-    
-    res.json(formatDeviceDoc(doc));
+
+    res.json(formatDeviceData(deviceId, deviceData));
   } catch (error) {
     logger.error('Error fetching device:', error);
     res.status(500).json({ error: 'Failed to fetch device' });
@@ -149,33 +140,35 @@ router.get('/:deviceId', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const deviceData = req.body;
-    
-    // Validate device data
-    const validation = validateDevice(deviceData);
-    if (!validation.isValid) {
-      return res.status(400).json({ error: validation.errors[0] });
-    }
-    
+
     // Generate device ID if not provided
     const deviceId = deviceData.deviceId || `DEV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    
-    // Format data for Firestore
-    const formattedData = formatDeviceData({
+
+    // Format data for Realtime Database
+    const formattedData = {
       ...deviceData,
-      deviceId
-    });
-    
-    // Add to Firestore
-    const docRef = await db.collection(COLLECTIONS.DEVICES).doc(deviceId).set(formattedData);
-    
+      deviceId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastSeen: new Date().toISOString(),
+      status: deviceData.status || 'offline',
+      power: deviceData.power || { batteryLevel: 100 },
+      connectivity: deviceData.connectivity || { signalStrength: 'good' }
+    };
+
+    // Save to Realtime Database
+    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
+    if (!deviceRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    await deviceRef.set(formattedData);
+
     logger.info(`New device created: ${deviceId}`);
-    
+
     res.status(201).json({
       id: deviceId,
-      ...formattedData,
-      lastSeen: formattedData.lastSeen ? formattedData.lastSeen.toDate().toISOString() : null,
-      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
+      ...formattedData
     });
   } catch (error) {
     logger.error('Error creating device:', error);
@@ -188,19 +181,41 @@ router.put('/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
     const updates = req.body;
-    
-    // Validate device ID exists
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    // Check if device exists
+    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
+    if (!deviceRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await deviceRef.once('value');
+    if (!snapshot.exists()) {
       return res.status(404).json({ error: 'Device not found' });
     }
-    
-    // Get current data
-    const currentData = doc.data();
-    
-    // Merge updates with current data
+
+    // Get current data and merge updates
+    const currentData = snapshot.val();
+    const updatedData = {
+      ...currentData,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Save to Realtime Database
+    await deviceRef.set(updatedData);
+
+    res.json({
+      success: true,
+      device: {
+        id: deviceId,
+        ...updatedData
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating device:', error);
+    res.status(500).json({ error: 'Failed to update device' });
+  }
+});
     const updatedData = {
       ...currentData,
       ...updates,
@@ -359,17 +374,21 @@ router.put('/:deviceId/battery', async (req, res) => {
 router.delete('/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
-    
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    // Check if device exists
+    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
+    if (!deviceRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await deviceRef.once('value');
+    if (!snapshot.exists()) {
       return res.status(404).json({ error: 'Device not found' });
     }
-    
-    // Delete device document
-    await docRef.delete();
-    
+
+    // Delete device data
+    await deviceRef.remove();
+
     res.json({
       success: true,
       message: 'Device deleted'

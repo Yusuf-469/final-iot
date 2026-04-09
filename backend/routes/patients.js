@@ -1,81 +1,52 @@
 /**
- * Patients Routes - Firestore Version
+ * Patients Routes - Realtime Database Version
  * Medical IoT Backend - Patient management endpoints
  */
 
 const express = require('express');
 const router = express.Router();
-const { db, COLLECTIONS } = require('../database');
+const { collection, COLLECTIONS } = require('../database');
 const { formatPatientData, validatePatient } = require('../models/Patient');
 const { logger } = require('../utils/logger');
 
-// Helper to format patient document from Firestore
-const formatPatientDoc = (doc) => {
-  const data = doc.data();
+// Helper to format patient data from Realtime Database
+const formatPatientData = (key, data) => {
   return {
-    id: doc.id,
+    id: key,
     ...data,
-    createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : null,
-    updatedAt: data.updatedAt ? data.updatedAt.toDate().toISOString() : null,
-    dateOfBirth: data.dateOfBirth ? data.dateOfBirth.toDate().toISOString() : null
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: data.updatedAt || new Date().toISOString()
   };
 };
 
 // GET /api/patients - Get all patients
 router.get('/', async (req, res) => {
   try {
-    const { status, search, limit = 50, skip = 0 } = req.query;
-    
-    let query = db.collection(COLLECTIONS.PATIENTS);
-    
-    // Apply filters
-    if (status) {
-      query = query.where('status', '==', status);
+    const patientsRef = collection(COLLECTIONS.PATIENTS);
+
+    if (!patientsRef) {
+      return res.status(500).json({ error: 'Database not connected' });
     }
-    
-    if (search) {
-      // Firestore doesn't support ILIKE, we'll need to handle this differently
-      // For now, we'll get all and filter client-side for demo
-      // In production, you'd use Algolia or similar for text search
-    }
-    
-    // Apply pagination
-    query = query.limit(parseInt(limit)).offset(parseInt(skip));
-    
-    const snapshot = await query.get();
-    
-    if (snapshot.empty) {
-      return res.json({
-        patients: [],
-        pagination: {
-          total: 0,
-          limit: parseInt(limit),
-          skip: parseInt(skip),
-          hasMore: false
-        }
-      });
-    }
-    
-    const patients = [];
-    snapshot.forEach(doc => {
-      patients.push(formatPatientDoc(doc));
+
+    const snapshot = await patientsRef.once('value');
+    const patientsData = snapshot.val() || {};
+
+    const patients = Object.keys(patientsData).map(key => {
+      return formatPatientData(key, patientsData[key]);
     });
     
-    // Get total count (separate query for accuracy)
-    const countQuery = db.collection(COLLECTIONS.PATIENTS);
-    if (status) {
-      countQuery.where('status', '==', status);
-    }
-    const countSnapshot = await countQuery.get();
-    const total = countSnapshot.size;
-    
+    // Apply pagination
+    const limitNum = parseInt(limit) || 50;
+    const skipNum = parseInt(skip) || 0;
+    const paginatedPatients = patients.slice(skipNum, skipNum + limitNum);
+
     res.json({
-      patients,
+      patients: paginatedPatients,
       pagination: {
-        total,
-        limit: parseInt(limit),
-        skip: parseInt(skip),
-        hasMore: parseInt(skip) + parseInt(limit) < total
+        total: patients.length,
+        limit: limitNum,
+        skip: skipNum,
+        hasMore: skipNum + limitNum < patients.length
       }
     });
   } catch (error) {
@@ -87,8 +58,15 @@ router.get('/', async (req, res) => {
 // GET /api/patients/stats - Get patient statistics
 router.get('/stats', async (req, res) => {
   try {
-    const patientsSnapshot = await db.collection(COLLECTIONS.PATIENTS).get();
-    
+    const patientsRef = collection(COLLECTIONS.PATIENTS);
+
+    if (!patientsRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await patientsRef.once('value');
+    const patientsData = snapshot.val() || {};
+
     const statusCounts = {};
     const ageGroups = {
       under_18: 0,
@@ -96,10 +74,8 @@ router.get('/stats', async (req, res) => {
       '40-60': 0,
       '60+': 0
     };
-    
-    patientsSnapshot.forEach(doc => {
-      const data = doc.data();
-      
+
+    Object.values(patientsData).forEach(data => {
       // Count by status
       const status = data.status || 'unknown';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -135,37 +111,53 @@ router.get('/stats', async (req, res) => {
 router.get('/:patientId', async (req, res) => {
   try {
     const { patientId } = req.params;
-    
-    const docRef = db.collection(COLLECTIONS.PATIENTS).doc(patientId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
+    if (!patientRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await patientRef.once('value');
+    const patientData = snapshot.val();
+
+    if (!patientData) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    
-    const patientData = formatPatientDoc(doc);
-    
-    // Get devices for this patient
-    const devicesSnapshot = await db.collection(COLLECTIONS.DEVICES)
-      .where('patientId', '==', patientId)
-      .get();
-    
-    const devices = [];
-    devicesSnapshot.forEach(deviceDoc => {
-      devices.push({
-        id: deviceDoc.id,
-        ...deviceDoc.data()
-      });
+
+    // Format patient data
+    const formattedPatient = formatPatientData(patientId, patientData);
+
+    // Get devices for this patient (simplified - in Realtime DB we can't query by patientId easily)
+    const devicesRef = collection(COLLECTIONS.DEVICES);
+    const devicesSnapshot = await devicesRef.once('value');
+    const allDevices = devicesSnapshot.val() || {};
+
+    const devices = Object.keys(allDevices)
+      .filter(key => allDevices[key].patientId === patientId)
+      .map(key => ({
+        id: key,
+        ...allDevices[key]
+      }));
+
+    // Get recent health data (simplified - last 10 readings)
+    const healthDataRef = collection(COLLECTIONS.HEALTH_DATA);
+    const healthSnapshot = await healthDataRef.once('value');
+    const allHealthData = healthSnapshot.val() || {};
+
+    const recentData = Object.keys(allHealthData)
+      .filter(key => allHealthData[key].patientId === patientId)
+      .sort((a, b) => new Date(allHealthData[b].timestamp || 0) - new Date(allHealthData[a].timestamp || 0))
+      .slice(0, 10)
+      .map(key => ({
+        id: key,
+        ...allHealthData[key]
+      }));
+
+    res.json({
+      patient: formattedPatient,
+      devices,
+      recentData
     });
-    
-    // Get recent health data (last 10 readings)
-    const healthDataSnapshot = await db.collection(COLLECTIONS.HEALTH_DATA)
-      .where('patientId', '==', patientId)
-      .orderBy('timestamp', 'desc')
-      .limit(10)
-      .get();
-    
-    const recentData = [];
     healthDataSnapshot.forEach(dataDoc => {
       recentData.push({
         id: dataDoc.id,
@@ -189,33 +181,32 @@ router.get('/:patientId', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const patientData = req.body;
-    
-    // Validate patient data
-    const validation = validatePatient(patientData);
-    if (!validation.isValid) {
-      return res.status(400).json({ error: validation.errors[0] });
-    }
-    
+
     // Generate patient ID if not provided
     const patientId = patientData.patientId || `PAT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    
-    // Format data for Firestore
-    const formattedData = formatPatientData({
+
+    // Format data for Realtime Database
+    const formattedData = {
       ...patientData,
-      patientId
-    });
-    
-    // Save to Firestore
-    await db.collection(COLLECTIONS.PATIENTS).doc(patientId).set(formattedData);
-    
+      patientId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: patientData.status || 'active'
+    };
+
+    // Save to Realtime Database
+    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
+    if (!patientRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    await patientRef.set(formattedData);
+
     logger.info(`New patient created: ${patientId}`);
-    
+
     res.status(201).json({
       id: patientId,
-      ...formattedData,
-      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null,
-      dateOfBirth: formattedData.dateOfBirth ? formattedData.dateOfBirth.toDate().toISOString() : null
+      ...formattedData
     });
   } catch (error) {
     logger.error('Error creating patient:', error);
@@ -228,39 +219,34 @@ router.put('/:patientId', async (req, res) => {
   try {
     const { patientId } = req.params;
     const updates = req.body;
-    
-    // Validate patient ID exists
-    const docRef = db.collection(COLLECTIONS.PATIENTS).doc(patientId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    // Check if patient exists
+    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
+    if (!patientRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await patientRef.once('value');
+    if (!snapshot.exists()) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    
-    // Get current data
-    const currentData = doc.data();
-    
-    // Merge updates with current data
+
+    // Get current data and merge updates
+    const currentData = snapshot.val();
     const updatedData = {
       ...currentData,
       ...updates,
-      updatedAt: new Date()
+      updatedAt: new Date().toISOString()
     };
-    
-    // Format for Firestore
-    const formattedData = formatPatientData(updatedData);
-    
-    // Save to Firestore
-    await docRef.set(formattedData);
-    
+
+    // Save to Realtime Database
+    await patientRef.set(updatedData);
+
     res.json({
       success: true,
       patient: {
         id: patientId,
-        ...formattedData,
-        createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-        updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null,
-        dateOfBirth: formattedData.dateOfBirth ? formattedData.dateOfBirth.toDate().toISOString() : null
+        ...updatedData
       }
     });
   } catch (error) {
@@ -274,38 +260,40 @@ router.put('/:patientId/status', async (req, res) => {
   try {
     const { patientId } = req.params;
     const { status } = req.body;
-    
+
     const validStatuses = ['active', 'inactive', 'critical', 'discharged'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
     
     const docRef = db.collection(COLLECTIONS.PATIENTS).doc(patientId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+    // Check if patient exists
+    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
+    if (!patientRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await patientRef.once('value');
+    if (!snapshot.exists()) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    
+
     // Update status
-    await docRef.update({
+    const currentData = snapshot.val();
+    const updatedData = {
+      ...currentData,
       status,
-      updatedAt: new Date()
-    });
-    
-    // Emit real-time status update
-    const io = req.app.get('io');
-    io.to(`patient-${patientId}`).emit('patientStatus', {
-      patientId,
-      status
-    });
-    
-    const updatedDoc = await docRef.get();
-    const updatedData = formatPatientDoc(updatedDoc);
-    
+      updatedAt: new Date().toISOString()
+    };
+
+    await patientRef.set(updatedData);
+
     res.json({
       success: true,
-      patient: updatedData
+      patient: {
+        id: patientId,
+        ...updatedData
+      }
     });
   } catch (error) {
     logger.error('Error updating patient status:', error);
@@ -317,20 +305,21 @@ router.put('/:patientId/status', async (req, res) => {
 router.delete('/:patientId', async (req, res) => {
   try {
     const { patientId } = req.params;
-    
-    const docRef = db.collection(COLLECTIONS.PATIENTS).doc(patientId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
+
+    // Check if patient exists
+    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
+    if (!patientRef) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+
+    const snapshot = await patientRef.once('value');
+    if (!snapshot.exists()) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    
-    // Delete patient document
-    await docRef.delete();
-    
-    // Optionally delete related data (devices, health data, alerts)
-    // For now, we'll keep them for historical purposes
-    
+
+    // Delete patient data
+    await patientRef.remove();
+
     res.json({
       success: true,
       message: 'Patient deleted'
