@@ -187,12 +187,17 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ============================================
 
-const PORT = process.env.PORT || 8080;
-const HOST = '0.0.0.0';
+// Check if running on Vercel (serverless)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV || process.env.LAMBDA_TASK_ROOT;
 
-// Start server immediately (don't wait for database)
-server.listen(PORT, HOST, () => {
-  console.log(`
+if (!isVercel) {
+  // Only start server if NOT on Vercel
+  const PORT = process.env.PORT || 8080;
+  const HOST = '0.0.0.0';
+
+  // Start server immediately (don't wait for database)
+  server.listen(PORT, HOST, () => {
+    console.log(`
 ╔════════════════════════════════════════════════════╗
 ║     Medical IoT Backend Server                    ║
 ╠════════════════════════════════════════════════════╣
@@ -202,15 +207,26 @@ server.listen(PORT, HOST, () => {
 ║  Ping endpoint: http://${HOST}:${PORT}/ping                ║
 ╚════════════════════════════════════════════════════╝
   `);
-  
-  // Connect to database (required for production)
+
+    // Connect to database (required for production)
+    connectDB().then(dbReady => {
+      if (!dbReady) {
+        console.error('✗ Firebase connection failed - shutting down');
+        process.exit(1);
+      }
+    });
+  });
+} else {
+  // On Vercel, just initialize database connection
+  console.log('Running on Vercel serverless - initializing database...');
   connectDB().then(dbReady => {
-    if (!dbReady) {
-      console.error('✗ Firebase connection failed - shutting down');
-      process.exit(1);
+    if (dbReady) {
+      console.log('✅ Firebase connected successfully on Vercel');
+    } else {
+      console.error('❌ Firebase connection failed on Vercel');
     }
   });
-});
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

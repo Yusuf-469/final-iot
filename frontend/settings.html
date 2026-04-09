@@ -239,61 +239,89 @@
 
         // Initialize Firebase and load user data on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            if (!checkAuth()) return;
+            console.log('🚀 Settings page loaded');
+
+            if (!checkAuth()) {
+                console.log('❌ Auth check failed - redirecting to login');
+                return;
+            }
+
+            console.log('✅ Auth check passed');
 
             // Ensure Firebase is initialized
             if (typeof initializeFirebase === 'function') {
+                console.log('🔥 Initializing Firebase...');
                 initializeFirebase();
+            } else {
+                console.warn('⚠️ initializeFirebase function not found');
             }
 
-            // Wait a bit for Firebase to initialize, then load data
+            // Wait for Firebase to initialize, then load data
             setTimeout(() => {
+                console.log('⏰ Timeout reached, loading user data...');
                 loadUserData();
-            }, 500);
+            }, 1000); // Increased timeout to 1 second
         });
 
         async function loadUserData() {
             console.log('🔧 Loading user data for settings...');
 
-            // First load from localStorage
-            const userName = localStorage.getItem('userName') || 'User';
-            const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
-            const userPhone = localStorage.getItem('userPhone') || '';
-
-            console.log('📦 localStorage data:', { userName, userEmail, userPhone });
-
-            document.getElementById('settings-name').value = userName;
-            document.getElementById('settings-email').value = userEmail;
-            document.getElementById('settings-phone').value = userPhone;
-
-            // Then try to get fresh data from Firebase
             try {
-                console.log('🔍 Checking Firebase auth:', { auth: !!window.auth, getCurrentUser: typeof window.auth?.getCurrentUser });
+                // First load from localStorage
+                const userName = localStorage.getItem('userName') || 'User';
+                const userEmail = localStorage.getItem('userEmail') || 'user@example.com';
+                const userPhone = localStorage.getItem('userPhone') || '';
+
+                console.log('📦 localStorage data:', { userName, userEmail, userPhone });
+
+                // Set initial values
+                const nameInput = document.getElementById('settings-name');
+                const emailInput = document.getElementById('settings-email');
+                const phoneInput = document.getElementById('settings-phone');
+
+                if (nameInput) nameInput.value = userName;
+                if (emailInput) emailInput.value = userEmail;
+                if (phoneInput) phoneInput.value = userPhone;
+
+                console.log('✅ Initial data loaded from localStorage');
+
+                // Then try to get fresh data from Firebase
+                console.log('🔍 Checking Firebase auth availability...');
+                console.log('window.auth exists:', !!window.auth);
+                console.log('window.auth.getCurrentUser exists:', typeof window.auth?.getCurrentUser);
 
                 if (window.auth && typeof window.auth.getCurrentUser === 'function') {
+                    console.log('🔥 Attempting to get Firebase user...');
                     const user = await window.auth.getCurrentUser();
-                    console.log('👤 Firebase user:', user ? { displayName: user.displayName, email: user.email } : 'null');
+                    console.log('👤 Firebase user result:', user ? {
+                        displayName: user.displayName,
+                        email: user.email,
+                        uid: user.uid
+                    } : 'null');
 
                     if (user) {
                         const freshName = user.displayName || userName;
                         const freshEmail = user.email || userEmail;
 
-                        document.getElementById('settings-name').value = freshName;
-                        document.getElementById('settings-email').value = freshEmail;
+                        console.log('🔄 Updating UI with Firebase data:', { freshName, freshEmail });
+
+                        if (nameInput) nameInput.value = freshName;
+                        if (emailInput) emailInput.value = freshEmail;
 
                         // Update localStorage with fresh data
                         localStorage.setItem('userName', freshName);
                         localStorage.setItem('userEmail', freshEmail);
 
-                        console.log('✅ Updated settings with Firebase data');
+                        console.log('✅ Successfully updated settings with Firebase data');
                     } else {
-                        console.warn('❌ No Firebase user found');
+                        console.warn('⚠️ No Firebase user found, keeping localStorage data');
                     }
                 } else {
-                    console.warn('❌ Firebase auth not available');
+                    console.warn('⚠️ Firebase auth not available, using localStorage data only');
                 }
             } catch (error) {
-                console.error('❌ Error loading fresh user data from Firebase:', error);
+                console.error('❌ Error in loadUserData:', error);
+                console.error('Error stack:', error.stack);
             }
         }
         
