@@ -317,6 +317,134 @@
             // Load patients after modal is shown
             loadPatientsForDeviceAssignment();
         }
+
+        // Load patients for device assignment
+        async function loadPatientsForDeviceAssignment() {
+            try {
+                const response = await fetch('/api/patients');
+                const patients = await response.json();
+
+                const patientSelect = document.getElementById('device-patient');
+                // Clear existing options except the first one
+                patientSelect.innerHTML = '<option value="">Select Patient</option>';
+
+                // Add patients from API
+                patients.forEach(patient => {
+                    const option = document.createElement('option');
+                    option.value = patient.id;
+                    option.textContent = patient.name;
+                    patientSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading patients:', error);
+                // Fallback to show a message
+                const patientSelect = document.getElementById('device-patient');
+                patientSelect.innerHTML = '<option value="">Unable to load patients</option>';
+            }
+        }
+
+        // Load devices for patient assignment (for patients.html cross-reference)
+        async function loadDevicesForPatientAssignment() {
+            try {
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
+
+                const deviceSelect = document.getElementById('patient-device');
+                // Clear existing options except the first one
+                deviceSelect.innerHTML = '<option value="">Select Device</option>';
+
+                // Add devices from API
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.id || device.deviceId;
+                    option.textContent = device.deviceId || device.id || 'Unknown Device';
+                    deviceSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading devices:', error);
+                // Fallback to show a message
+                const deviceSelect = document.getElementById('patient-device');
+                deviceSelect.innerHTML = '<option value="">Unable to load devices</option>';
+            }
+        }
+
+        // Load devices when modal is shown (for patients.html cross-reference)
+        function showAddPatientModal() {
+            document.getElementById('modal-body').innerHTML = `
+                <form onsubmit="addPatient(event)">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="patient-name" required placeholder="Enter patient name">
+                    </div>
+                    <div class="form-group">
+                        <label>Age</label>
+                        <input type="number" id="patient-age" required placeholder="Enter age">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="patient-phone" required placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label>Device ID</label>
+                        <select id="patient-device" required>
+                            <option value="">Loading devices...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add Patient</button>
+                </form>
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+
+            // Load devices after modal is shown
+            loadDevicesForPatientAssignment();
+        }
+
+        async function addPatient(e) {
+            e.preventDefault();
+
+            const nameInput = document.getElementById('patient-name');
+            const ageInput = document.getElementById('patient-age');
+            const phoneInput = document.getElementById('patient-phone');
+            const deviceSelect = document.getElementById('patient-device');
+
+            const name = nameInput.value.trim();
+            const age = parseInt(ageInput.value);
+            const phone = phoneInput.value.trim();
+            const deviceId = deviceSelect.value;
+
+            if (!name || !age || !deviceId) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/patients', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name,
+                        age,
+                        phone,
+                        deviceId
+                    }),
+                });
+
+                if (response.ok) {
+                    showToast('Patient added successfully!', 'success');
+                    document.getElementById('modal-overlay').classList.remove('active');
+                    loadPatients(); // Refresh the patient list
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to add patient', 'error');
+                }
+            } catch (error) {
+                console.error('Error adding patient:', error);
+                showToast('Error adding patient', 'error');
+            }
+        }
+
     <div class="toast-container" id="toast-container"></div>
     </script>
 </body>
