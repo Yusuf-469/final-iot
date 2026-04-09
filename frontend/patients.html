@@ -331,18 +331,16 @@
                     <div class="form-group">
                         <label>Device ID</label>
                         <select id="patient-device" required>
-                            <option value="">Select Device</option>
-                            <option value="ESP32-001">ESP32-001</option>
-                            <option value="ESP32-002">ESP32-002</option>
-                            <option value="ESP32-003">ESP32-003</option>
-                            <option value="ESP32-004">ESP32-004</option>
-                            <option value="ESP32-005">ESP32-005</option>
+                            <option value="">Loading devices...</option>
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">Add Patient</button>
                 </form>
             `;
             document.getElementById('modal-overlay').classList.add('active');
+
+            // Load devices after modal is shown
+            loadDevicesForPatientAssignment();
         }
 
         async function addPatient(e) {
@@ -421,6 +419,31 @@
                 const submitBtn = e.target.querySelector('button[type="submit"]');
                 submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Patient';
                 submitBtn.disabled = false;
+            }
+        }
+
+        // Load devices for patient assignment
+        async function loadDevicesForPatientAssignment() {
+            try {
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
+
+                const deviceSelect = document.getElementById('patient-device');
+                // Clear existing options except the first one
+                deviceSelect.innerHTML = '<option value="">Select Device</option>';
+
+                // Add devices from API
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.id || device.deviceId;
+                    option.textContent = device.deviceId || device.id || 'Unknown Device';
+                    deviceSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading devices:', error);
+                // Fallback to show a message
+                const deviceSelect = document.getElementById('patient-device');
+                deviceSelect.innerHTML = '<option value="">Unable to load devices</option>';
             }
         }
     </script>

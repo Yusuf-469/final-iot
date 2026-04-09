@@ -255,10 +255,7 @@
                         <label>Assign to Patient</label>
                         <select id="device-patient" required>
                             <option value="">Select Patient</option>
-                            <option value="Kaustav">Kaustav</option>
-                            <option value="Yusuf">Yusuf</option>
-                            <option value="Sushanth">Sushanth</option>
-                            <option value="Niladri">Niladri</option>
+                            <!-- Patient options will be loaded dynamically -->
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary btn-block">Add Device</button>
@@ -271,6 +268,54 @@
             e.preventDefault();
             closeModal();
             showToast('Device added successfully!', 'success');
+        }
+
+        // Load patients for device assignment
+        async function loadPatientsForDeviceAssignment() {
+            try {
+                const response = await fetch('/api/patients');
+                const patients = await response.json();
+
+                const patientSelect = document.getElementById('device-patient');
+                // Clear existing options except the first one
+                patientSelect.innerHTML = '<option value="">Select Patient</option>';
+
+                // Add patients from API
+                patients.forEach(patient => {
+                    const option = document.createElement('option');
+                    option.value = patient.id;
+                    option.textContent = patient.name;
+                    patientSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading patients:', error);
+                // Fallback to show a message
+                const patientSelect = document.getElementById('device-patient');
+                patientSelect.innerHTML = '<option value="">Unable to load patients</option>';
+            }
+        }
+
+        // Load patients when modal is shown
+        function showAddDeviceModal() {
+            document.getElementById('modal-body').innerHTML = `
+                <form onsubmit="addDevice(event)">
+                    <div class="form-group">
+                        <label>Device ID</label>
+                        <input type="text" id="device-id" required placeholder="e.g., ESP32-005">
+                    </div>
+                    <div class="form-group">
+                        <label>Assign to Patient</label>
+                        <select id="device-patient" required>
+                            <option value="">Loading patients...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Add Device</button>
+                </form>
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+
+            // Load patients after modal is shown
+            loadPatientsForDeviceAssignment();
         }
     <div class="toast-container" id="toast-container"></div>
     </script>
