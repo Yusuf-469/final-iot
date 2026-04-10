@@ -104,15 +104,6 @@ app.get('/ping', (req, res) => {
   });
 });
 
-// Firebase config for client SDK
-app.get('/api/config/firebase', (req, res) => {
-  res.json({
-    databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
-    projectId: process.env.FIREBASE_PROJECT_ID || 'iothealth-2335a',
-    authDomain: process.env.FIREBASE_PROJECT_ID ? `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com` : 'iothealth-2335a.firebaseapp.com'
-  });
-});
-
 // Direct health data from Firebase RTDB
 app.get('/api/health', async (req, res) => {
   try {

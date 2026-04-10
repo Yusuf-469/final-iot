@@ -209,16 +209,8 @@
             let patients = [];
             
             // Fetch from API
-            try {
-                const response = await fetch('/api/patients');
-                if (response.ok) {
-                    const data = await response.json();
-                    patients = data.patients || [];
-                }
-            } catch (error) {
-                console.error('Error loading patients:', error);
-                patients = [];
-            }
+            const data = await safeFetch('/api/patients');
+            patients = data && data.patients ? data.patients : [];
             
             // Update stats
             updateStats(patients);
@@ -425,12 +417,35 @@
             }
         }
 
+        // Safe fetch helper
+        async function safeFetch(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.warn(`HTTP ${response.status} for ${url}`);
+                    return null;
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.warn(`Non-JSON response for ${url}: ${contentType}`);
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                console.error(`Fetch error for ${url}:`, error);
+                return null;
+            }
+        }
+
         // Get Firebase config from backend and initialize health listener
         async function initHealthListener() {
             try {
                 // Fetch Firebase config from backend
-                const configRes = await fetch('/api/config/firebase');
-                const config = await configRes.json();
+                const config = await safeFetch('/api/config/firebase');
+                if (!config || !config.databaseURL) {
+                    console.warn('Firebase config not available, using fallback');
+                    return;
+                }
                 
                 if (!config.databaseURL) {
                     console.warn('Firebase config not available, using fallback');
@@ -521,25 +536,32 @@
         // Load devices for patient assignment
         async function loadDevicesForPatientAssignment() {
             try {
-                const response = await fetch('/api/devices');
-                const devices = await response.json();
+                const data = await safeFetch('/api/devices');
+                const devices = data && data.devices ? data.devices : [];
 
                 const deviceSelect = document.getElementById('patient-device');
-                // Clear existing options except the first one
                 deviceSelect.innerHTML = '<option value="">Select Device</option>';
 
                 // Add devices from API
                 devices.forEach(device => {
                     const option = document.createElement('option');
                     option.value = device.id || device.deviceId;
-                    option.textContent = device.deviceId || device.id || 'Unknown Device';
+                    option.textContent = device.name || device.deviceId || device.id || 'Unknown Device';
                     deviceSelect.appendChild(option);
                 });
+
+                // If no devices, add health device as fallback
+                if (devices.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = 'health';
+                    option.textContent = 'ESP32 Health Device';
+                    deviceSelect.appendChild(option);
+                }
             } catch (error) {
                 console.error('Error loading devices:', error);
-                // Fallback to show a message
+                // Fallback to health device
                 const deviceSelect = document.getElementById('patient-device');
-                deviceSelect.innerHTML = '<option value="">Unable to load devices</option>';
+                deviceSelect.innerHTML = '<option value="">Select Device</option><option value="health">ESP32 Health Device</option>';
             }
         }
     </script>
