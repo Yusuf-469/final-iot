@@ -35,10 +35,36 @@ const connectDB = async () => {
  */
 const getDbConnected = () => {
   try {
-    // Simple check - if db exists and is initialized, we assume connected
-    return !!db && dbInitialized;
+    const connected = !!db && dbInitialized;
+    console.log('🔍 Database connection status:', connected ? 'CONNECTED' : 'NOT CONNECTED');
+    return connected;
   } catch (error) {
+    console.error('❌ Error checking database connection:', error.message);
     return false;
+  }
+};
+
+/**
+ * Get Realtime Database instance
+ * @returns {FirebaseDatabase|null} - Database instance or null
+ */
+const collection = (collectionName) => {
+  console.log('🔍 Collection request for:', collectionName);
+  console.log('  db exists:', !!db);
+  console.log('  dbInitialized:', dbInitialized);
+
+  if (!dbInitialized || !db) {
+    console.warn('⚠️  Database not available, returning null for collection:', collectionName);
+    return null;
+  }
+
+  try {
+    const ref = db.ref(collectionName);
+    console.log('✅ Created database reference for:', collectionName);
+    return ref;
+  } catch (error) {
+    console.error('❌ Error creating database reference for', collectionName, ':', error.message);
+    return null;
   }
 };
 

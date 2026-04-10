@@ -57,13 +57,23 @@ function isDeviceOnline(updatedAt, staleMinutes = 10) {
 // ─── GET /api/patients ───────────────────────────────────────────────────────
 // Returns all patient records merged with live device readings.
 router.get('/', async (req, res) => {
-  console.log('GET /api/patients called');
-  console.log('Query params:', { limit: req.query.limit, skip: req.query.skip });
+  console.log('🚀 GET /api/patients called');
+  console.log('📋 Query params:', { limit: req.query.limit, skip: req.query.skip });
+  console.log('🌐 Environment:', { NODE_ENV: process.env.NODE_ENV, VERCEL_ENV: process.env.VERCEL_ENV });
 
   const db = getDb();
-  if (!db || !getDbConnected()) {
-    console.warn('Firebase not connected — returning empty patients list');
-    return res.status(200).json({ success: true, data: [], message: 'Database unavailable' });
+  const dbConnected = getDbConnected();
+
+  console.log('💾 Database status:', { db: !!db, dbConnected });
+
+  if (!db || !dbConnected) {
+    console.warn('⚠️  Firebase not connected — returning empty patients list');
+    return res.status(200).json({
+      success: true,
+      data: [],
+      message: 'Database unavailable',
+      debug: { db: !!db, dbConnected, environment: process.env.NODE_ENV }
+    });
   }
 
   try {
@@ -137,17 +147,23 @@ router.get('/', async (req, res) => {
 // ─── POST /api/patients ──────────────────────────────────────────────────────
 // Creates a new patient record in Firebase.
 router.post('/', async (req, res) => {
-  console.log('POST /api/patients called');
-  console.log('Request body:', req.body);
-  console.log('Content-Type:', req.headers['content-type']);
+  console.log('🚀 POST /api/patients called');
+  console.log('📋 Request body:', req.body);
+  console.log('📄 Content-Type:', req.headers['content-type']);
+  console.log('🌐 Environment:', { NODE_ENV: process.env.NODE_ENV, VERCEL_ENV: process.env.VERCEL_ENV });
 
   try {
     const db = getDb();
-    console.log('Database available:', !!db && getDbConnected());
+    const dbConnected = getDbConnected();
+    console.log('💾 Database status:', { db: !!db, dbConnected });
 
-    if (!db || !getDbConnected()) {
-      console.log('Database not available, returning 503');
-      return res.status(503).json({ success: false, error: 'Database unavailable' });
+    if (!db || !dbConnected) {
+      console.error('❌ Database not available for POST operation');
+      return res.status(503).json({
+        success: false,
+        error: 'Database unavailable',
+        debug: { db: !!db, dbConnected, environment: process.env.NODE_ENV }
+      });
     }
 
     const { firstName, lastName, age, deviceId } = req.body;

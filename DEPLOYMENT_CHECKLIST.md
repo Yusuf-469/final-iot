@@ -1,36 +1,67 @@
 # 🚀 Vercel Deployment Checklist for Medical IoT System
 
+## 🔥 CRITICAL: Vercel Environment Variables Setup
+
+### Required Firebase Environment Variables for Vercel Production
+
+**YOU MUST SET THESE IN VERCEL DASHBOARD FOR THE APP TO WORK:**
+
+1. **FIREBASE_PROJECT_ID**
+   - Value: `iothealth-2335a`
+   - Type: Plain text
+
+2. **FIREBASE_PRIVATE_KEY**
+   - Value: (Copy the entire private key from your `.env` file, including `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`)
+   - Type: Plain text
+   - **CRITICAL**: The key contains `\n` characters - copy it exactly as-is from `.env`
+
+3. **FIREBASE_CLIENT_EMAIL**
+   - Value: `firebase-adminsdk-fbsvc@iothealth-2335a.iam.gserviceaccount.com`
+   - Type: Plain text
+
+4. **FIREBASE_DATABASE_URL**
+   - Value: `https://iothealth-2335a-default-rtdb.firebaseio.com`
+   - Type: Plain text
+
+5. **JWT_SECRET**
+   - Value: Generate a secure random string (min 32 characters)
+   - Type: Plain text
+
+6. **FRONTEND_URL**
+   - Value: Your Vercel deployment URL (e.g., `https://your-project.vercel.app`)
+   - Type: Plain text
+
+### How to Set Environment Variables in Vercel:
+
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Select your project
+3. Go to Settings → Environment Variables
+4. Add each variable listed above
+5. **IMPORTANT**: Set them for "Production", "Preview", and "Development" environments
+6. **CRITICAL**: After adding/changing env vars, you must **redeploy** for them to take effect
+
+### Verify Environment Variables are Working:
+
+After deployment, check Vercel function logs. You should see:
+```
+🔍 Firebase Environment Check:
+  VERCEL_ENV: production
+  FIREBASE_PROJECT_ID: (set)
+  FIREBASE_PRIVATE_KEY: (set, length: 1704)
+  FIREBASE_CLIENT_EMAIL: (set)
+  FIREBASE_DATABASE_URL: (set)
+✅ Firebase Admin SDK initialized successfully
+✅ Firebase Realtime Database initialized
+```
+
+**If you see "NOT SET" for any variable, all API routes will return 500 errors.**
+
 ## Pre-Deployment Checklist
 
-- [x] **Git Repository**: Ensure code is pushed to GitHub
-- [x] **Firebase Ready**: Firebase project configured with Authentication enabled
-- [x] **Environment Variables**: Firebase credentials already configured (see .env file)
-- [x] **Vercel Account**: Create account at [vercel.com](https://vercel.com)
-
-## Required Environment Variables for Vercel
-
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `NODE_ENV` | `production` | Required for Vercel |
-| `JWT_SECRET` | (32+ char string) | For authentication |
-| `FRONTEND_URL` | `https://healthmonitor-zeta.vercel.app` | Your Vercel URL |
-| `FIREBASE_PROJECT_ID` | `iothealth-2335a` | Firebase project ID |
-| `FIREBASE_PRIVATE_KEY` | (Firebase service account key) | Firebase admin credentials |
-| `FIREBASE_CLIENT_EMAIL` | firebase-adminsdk-fbsvc@iothealth-2335a.iam.gserviceaccount.com | Firebase service account email |
-
-## Optional Environment Variables
-
-| Variable | Value | Description |
-|----------|-------|-------------|
-| `FIREBASE_PROJECT_ID` | Firebase project ID | Push notifications |
-| `FIREBASE_PRIVATE_KEY` | Firebase private key | Firebase auth |
-| `FIREBASE_CLIENT_EMAIL` | Firebase service account | Firebase auth |
-| `SMTP_HOST` | `smtp.gmail.com` | Email alerts |
-| `SMTP_USER` | Your email | Email sender |
-| `SMTP_PASS` | App password | Email auth |
-| `TWILIO_ACCOUNT_SID` | Twilio SID | SMS alerts |
-| `TWILIO_AUTH_TOKEN` | Twilio token | SMS auth |
-| `LOG_LEVEL` | `info` | Logging level |
+- [x] **Git Repository**: Code pushed to GitHub
+- [x] **Firebase Ready**: RTDB enabled, service account created
+- [x] **Environment Variables**: Set in Vercel dashboard (see above)
+- [x] **Vercel Project**: Connected to GitHub repository
 
 ## 🚀 Deployment Steps
 

@@ -9,40 +9,53 @@ const admin = require('firebase-admin');
 if (!admin.apps.length) {
   // Initialize Firebase Admin SDK
   try {
-  // Check for Firebase credentials
+  // Check for Firebase credentials - log environment status
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
   const privateKey = privateKeyRaw?.replace(/\\n/g, '\n');
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const databaseURL = process.env.FIREBASE_DATABASE_URL;
 
-  console.log('Firebase config check:');
-  console.log('  projectId:', projectId ? '(set)' : '(not set)', projectId || '');
-  console.log('  privateKeyRaw:', privateKeyRaw ? '(set)' : '(not set)', privateKeyRaw ? '(length: ' + privateKeyRaw.length + ')' : '(not set)');
-  console.log('  privateKey:', privateKey ? '(set)' : '(not set)', privateKey ? '(length: ' + privateKey.length + ')' : '(not set)');
-  console.log('  clientEmail:', clientEmail ? '(set)' : '(not set)', clientEmail || '');
+  console.log('🔍 Firebase Environment Check:');
+  console.log('  VERCEL_ENV:', process.env.VERCEL_ENV || 'not set');
+  console.log('  NODE_ENV:', process.env.NODE_ENV || 'not set');
+  console.log('  FIREBASE_PROJECT_ID:', projectId ? '(set)' : '(NOT SET)');
+  console.log('  FIREBASE_PRIVATE_KEY:', privateKeyRaw ? '(set, length: ' + privateKeyRaw.length + ')' : '(NOT SET)');
+  console.log('  FIREBASE_CLIENT_EMAIL:', clientEmail ? '(set)' : '(NOT SET)');
+  console.log('  FIREBASE_DATABASE_URL:', databaseURL ? '(set)' : '(NOT SET)');
 
   if (projectId && privateKey && clientEmail) {
+    console.log('🔧 Initializing Firebase Admin SDK with service account...');
+
     admin.initializeApp({
       credential: admin.credential.cert({
         projectId,
         privateKey,
         clientEmail
       }),
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com'
+      databaseURL: databaseURL || 'https://iothealth-2335a-default-rtdb.firebaseio.com'
     });
-    console.log('✅ Firebase Admin SDK initialized with credentials');
+
+    console.log('✅ Firebase Admin SDK initialized successfully');
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    // Use Google Application Credentials (from service account file path)
+    console.log('🔧 Initializing Firebase Admin SDK with GOOGLE_APPLICATION_CREDENTIALS...');
     admin.initializeApp();
     console.log('✅ Firebase Admin SDK initialized with GOOGLE_APPLICATION_CREDENTIALS');
   } else {
-    // No credentials found - log warning but don't crash server
-    console.warn('⚠️  Firebase credentials not found. Server will start in limited mode.');
-    console.warn('   Set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL for full functionality.');
+    console.error('❌ CRITICAL: No Firebase credentials found!');
+    console.error('   Required environment variables:');
+    console.error('   - FIREBASE_PROJECT_ID');
+    console.error('   - FIREBASE_PRIVATE_KEY');
+    console.error('   - FIREBASE_CLIENT_EMAIL');
+    console.error('   - FIREBASE_DATABASE_URL (optional, defaults to iothealth-2335a)');
+    console.error('');
+    console.error('   Please set these in your Vercel project environment variables.');
+    console.error('   Server will continue but Firebase operations will fail.');
   }
   } catch (error) {
-    console.error('Firebase initialization error:', error.message);
-    console.warn('⚠️  Server will start in limited mode without Firebase.');
+    console.error('❌ Firebase initialization FAILED:', error.message);
+    console.error('   This will cause all API routes to return 500 errors.');
+    console.error('   Check your Firebase credentials and environment variables.');
   }
 }
 
