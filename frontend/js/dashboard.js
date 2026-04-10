@@ -591,7 +591,7 @@ const dashboardApp = {
                     <span class="notification-time">${notifTime}</span>
                 </div>
             </div>
-        `).join('');
+        ` }).join('');
     },
     
     // Mark all notifications as read
