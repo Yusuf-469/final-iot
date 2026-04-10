@@ -23,6 +23,84 @@ const dashboardApp = {
         this.loadDashboardData();
         this.connectWebSocket();
         this.startRealTimeUpdates();
+        this.initFirebaseHealth();
+    },
+
+    // Initialize Firebase realtime health listener
+    async initFirebaseHealth() {
+        try {
+            // Fetch Firebase config from backend
+            const configRes = await fetch('/api/config/firebase');
+            const config = await configRes.json();
+            
+            if (!config.databaseURL) {
+                console.warn('Firebase config not available');
+                return;
+            }
+
+            const firebaseConfig = {
+                apiKey: config.apiKey || "demo",
+                authDomain: config.authDomain,
+                databaseURL: config.databaseURL,
+                projectId: config.projectId
+            };
+
+            // Initialize Firebase (only once)
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+
+            // Listen to health data in real-time
+            const healthRef = firebase.database().ref('health');
+            
+            healthRef.on('value', (snapshot) => {
+                const healthData = snapshot.val();
+                if (healthData) {
+                    this.updateLiveHealthDisplay(healthData);
+                }
+            }, (error) => {
+                console.error('Error reading health data:', error);
+            });
+        } catch (error) {
+            console.error('Failed to initialize health listener:', error);
+        }
+    },
+
+    // Update live health display
+    updateLiveHealthDisplay(data) {
+        const heartRate = data.heartRate !== undefined ? data.heartRate : '--';
+        const spo2 = data.spo2 !== undefined ? data.spo2 : '--';
+        const temperature = data.temperature !== undefined ? data.temperature : '--';
+
+        // Update heart rate
+        const hrEl = document.getElementById('live-heartRate');
+        if (hrEl) {
+            hrEl.textContent = heartRate + ' bpm';
+        }
+        document.querySelectorAll('.health-heartRate').forEach(el => {
+            el.textContent = heartRate;
+        });
+
+        // Update SpO2
+        const spo2El = document.getElementById('live-spo2');
+        if (spo2El) {
+            spo2El.textContent = spo2 + ' %';
+        }
+        document.querySelectorAll('.health-spo2').forEach(el => {
+            el.textContent = spo2;
+        });
+
+        // Update temperature
+        const tempEl = document.getElementById('live-temperature');
+        if (tempEl) {
+            tempEl.textContent = temperature + ' °C';
+        }
+        document.querySelectorAll('.health-temperature').forEach(el => {
+            el.textContent = temperature;
+        });
+
+        // Store for other uses
+        window.latestHealthData = data;
     },
     
     // Check authentication - Redirect to login if not authenticated

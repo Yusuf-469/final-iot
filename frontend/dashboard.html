@@ -197,6 +197,49 @@
                     </div>
                 </section>
 
+                <!-- Live Health Section (from Firebase) -->
+                <section class="stats-section reveal-scroll">
+                    <div class="section-header">
+                        <h3><i class="fas fa-heartbeat pulse"></i> Live Health Data</h3>
+                    </div>
+                    <div class="stat-card live-health">
+                        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                            <i class="fas fa-heart"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-number health-heartRate" id="live-heartRate">--</span>
+                            <span class="stat-label">Heart Rate</span>
+                        </div>
+                        <div class="live-indicator">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                    <div class="stat-card live-health">
+                        <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                            <i class="fas fa-lungs"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-number health-spo2" id="live-spo2">--</span>
+                            <span class="stat-label">SpO2</span>
+                        </div>
+                        <div class="live-indicator">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                    <div class="stat-card live-health">
+                        <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                            <i class="fas fa-thermometer-half"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-number health-temperature" id="live-temperature">--</span>
+                            <span class="stat-label">Temperature</span>
+                        </div>
+                        <div class="live-indicator">
+                            <span class="live-dot"></span> Live
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Charts Section -->
                 <section class="charts-section reveal-scroll">
                     <div class="chart-card large">
@@ -386,6 +429,9 @@
     <!-- Scripts -->
     <script src="js/auth.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
     <script src="js/page-scripts.js"></script>
     <script src="js/api.js"></script>
     <script src="js/charts.js"></script>
