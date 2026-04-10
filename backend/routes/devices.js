@@ -91,10 +91,8 @@ router.get('/stats', async (req, res) => {
     
     const statusCounts = {};
     let total = 0;
-    
+
     // Calculate statistics
-    const statusCounts = {};
-    let total = 0;
 
     Object.values(devicesData).forEach(device => {
       const status = device.status || 'unknown';
@@ -209,33 +207,6 @@ router.put('/:deviceId', async (req, res) => {
       device: {
         id: deviceId,
         ...updatedData
-      }
-    });
-  } catch (error) {
-    logger.error('Error updating device:', error);
-    res.status(500).json({ error: 'Failed to update device' });
-  }
-});
-    const updatedData = {
-      ...currentData,
-      ...updates,
-      updatedAt: new Date()
-    };
-    
-    // Format for Firestore
-    const formattedData = formatDeviceData(updatedData);
-    
-    // Save to Firestore
-    await docRef.set(formattedData);
-    
-    res.json({
-      success: true,
-      device: {
-        id: deviceId,
-        ...formattedData,
-        lastSeen: formattedData.lastSeen ? formattedData.lastSeen.toDate().toISOString() : null,
-        createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-        updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
       }
     });
   } catch (error) {

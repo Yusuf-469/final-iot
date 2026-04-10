@@ -17,14 +17,6 @@ const getApiBaseUrl = () => {
 
   // Default to relative API path for production
   return '/api';
-  
-  // Check for custom API URL (set in Netlify)
-  if (process.env.API_URL) {
-    return process.env.API_URL;
-  }
-  
-  // Default to localhost for development
-  return 'http://localhost:5000/api';
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -213,10 +205,7 @@ class ApiService {
     localStorage.removeItem('authToken');
   }
 
-  // Check if running on Railway
-  isRailway() {
-    return process.env.RAILWAY_ENVIRONMENT === 'true' || process.env.RAILWAY_STATIC_URL !== undefined;
-  }
+
 }
 
 // Export singleton instance
