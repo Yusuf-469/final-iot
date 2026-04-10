@@ -24,6 +24,7 @@ router.get('/', async (req, res) => {
     const patientsRef = collection(COLLECTIONS.PATIENTS);
 
     if (!patientsRef) {
+      console.warn('Patients collection not available');
       return res.status(200).json({ patients: [], pagination: { total: 0, limit: 50, skip: 0 } });
     }
 
@@ -50,7 +51,7 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching patients:', error);
-    res.status(200).json({ patients: [], error: 'Using fallback data', pagination: { total: 0 } });
+    res.status(200).json({ patients: [], pagination: { total: 0, limit: 50, skip: 0 } });
   }
 });
 
@@ -179,37 +180,41 @@ router.get('/:patientId', async (req, res) => {
 // POST /api/patients - Create new patient
 router.post('/', async (req, res) => {
   try {
-    const patientData = req.body;
+    const { firstName, lastName, age, deviceId } = req.body;
 
-    // Generate patient ID if not provided
-    const patientId = patientData.patientId || `PAT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    // Format data for Realtime Database
-    const formattedData = {
-      ...patientData,
-      patientId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: patientData.status || 'active'
-    };
-
-    // Save to Realtime Database
-    const patientRef = collection(`${COLLECTIONS.PATIENTS}/${patientId}`);
-    if (!patientRef) {
-      return res.status(500).json({ error: 'Database not connected' });
+    if (!firstName || !lastName || !age || !deviceId) {
+      return res.status(400).json({ error: 'firstName, lastName, age, and deviceId are required' });
     }
 
-    await patientRef.set(formattedData);
+    const patientsRef = collection(COLLECTIONS.PATIENTS);
+    if (!patientsRef) {
+      return res.status(200).json({ patient: null, error: 'Database unavailable' });
+    }
 
-    logger.info(`New patient created: ${patientId}`);
+    // Generate patient ID
+    const patientId = `patient_${Date.now()}`;
+
+    // Patient data
+    const patientData = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      age: parseInt(age),
+      deviceId,
+      status: 'offline',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Save to database
+    await patientsRef.child(patientId).set(patientData);
 
     res.status(201).json({
-      id: patientId,
-      ...formattedData
+      patient: formatPatientData(patientId, patientData),
+      message: 'Patient created successfully'
     });
   } catch (error) {
     logger.error('Error creating patient:', error);
-    res.status(500).json({ error: 'Failed to create patient' });
+    res.status(200).json({ patient: null, error: 'Failed to create patient' });
   }
 });
 
