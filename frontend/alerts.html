@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alerts - HealthMonitor</title>
+    <title>Alerts - HealthMonitor v2.3</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/pages.css">
@@ -98,7 +98,7 @@
                                 <i class="fas fa-bell"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-number">0</span>
+                                <span class="stat-number" id="total-alerts">0</span>
                                 <span class="stat-label">Total Alerts</span>
                             </div>
                         </div>
@@ -107,7 +107,7 @@
                                 <i class="fas fa-exclamation-triangle"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-number">0</span>
+                                <span class="stat-number" id="critical-alerts">0</span>
                                 <span class="stat-label">Critical</span>
                             </div>
                         </div>
@@ -116,7 +116,7 @@
                                 <i class="fas fa-exclamation-circle"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-number">0</span>
+                                <span class="stat-number" id="warning-alerts">0</span>
                                 <span class="stat-label">Warnings</span>
                             </div>
                         </div>
@@ -125,7 +125,7 @@
                                 <i class="fas fa-info-circle"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-number">0</span>
+                                <span class="stat-number" id="info-alerts">0</span>
                                 <span class="stat-label">Info</span>
                             </div>
                         </div>
@@ -333,11 +333,11 @@
             const warningAlerts = alerts.filter(a => (a.severity || a.type) === 'warning').length;
             const infoAlerts = alerts.filter(a => (a.severity || a.type) === 'info').length;
 
-            // Update stats cards
-            document.querySelectorAll('.stat-card .stat-number')[0].textContent = totalAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[1].textContent = criticalAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[2].textContent = warningAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[3].textContent = infoAlerts;
+            // Update stats cards using IDs
+            document.getElementById('total-alerts').textContent = totalAlerts;
+            document.getElementById('critical-alerts').textContent = criticalAlerts;
+            document.getElementById('warning-alerts').textContent = warningAlerts;
+            document.getElementById('info-alerts').textContent = infoAlerts;
         }
 
         function updateAlertCharts(alerts) {
