@@ -169,37 +169,44 @@ app.use('/api/signup', require('./routes/auth'));
 // FRONTEND ROUTES (SPA support)
 // ============================================
 
-// Serve index.html for all non-API routes (SPA)
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes
-  if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/ready') || req.path.startsWith('/ping')) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-  
-  // Serve appropriate HTML based on path
-  let filePath = path.join(__dirname, '../frontend');
-  
-  if (req.path === '/' || req.path === '/index' || req.path === '/index.html') {
-    filePath = path.join(filePath, 'index.html');
-  } else if (req.path.startsWith('/dashboard')) {
-    filePath = path.join(filePath, 'dashboard.html');
-  } else if (req.path.startsWith('/patients')) {
-    filePath = path.join(filePath, 'patients.html');
-  } else if (req.path.startsWith('/alerts')) {
-    filePath = path.join(filePath, 'alerts.html');
-  } else if (req.path.startsWith('/devices')) {
-    filePath = path.join(filePath, 'devices.html');
-  } else if (req.path.startsWith('/analytics')) {
-    filePath = path.join(filePath, 'analytics.html');
-  } else if (req.path.startsWith('/settings')) {
-    filePath = path.join(filePath, 'settings.html');
-  } else if (req.path.startsWith('/login')) {
-    filePath = path.join(filePath, 'login.html');
-  } else if (req.path.startsWith('/signup')) {
-    filePath = path.join(filePath, 'signup.html');
-  } else {
-    filePath = path.join(filePath, 'index.html');
-  }
+  // Serve index.html for all non-API routes (SPA)
+  app.get('*', (req, res) => {
+    // Only serve HTML for non-API routes
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/health') && !req.path.startsWith('/ready') && !req.path.startsWith('/ping')) {
+      // Serve appropriate HTML based on path
+      let filePath = path.join(__dirname, '../frontend');
+
+      if (req.path === '/' || req.path === '/index' || req.path === '/index.html') {
+        filePath = path.join(filePath, 'index.html');
+      } else if (req.path.startsWith('/dashboard')) {
+        filePath = path.join(filePath, 'dashboard.html');
+      } else if (req.path.startsWith('/patients')) {
+        filePath = path.join(filePath, 'patients.html');
+      } else if (req.path.startsWith('/alerts')) {
+        filePath = path.join(filePath, 'alerts.html');
+      } else if (req.path.startsWith('/devices')) {
+        filePath = path.join(filePath, 'devices.html');
+      } else if (req.path.startsWith('/analytics')) {
+        filePath = path.join(filePath, 'analytics.html');
+      } else if (req.path.startsWith('/settings')) {
+        filePath = path.join(filePath, 'settings.html');
+      } else if (req.path.startsWith('/login')) {
+        filePath = path.join(filePath, 'login.html');
+      } else if (req.path.startsWith('/signup')) {
+        filePath = path.join(filePath, 'signup.html');
+      } else {
+        filePath = path.join(filePath, 'index.html');
+      }
+
+      res.sendFile(filePath, (err) => {
+        if (err) {
+          res.status(404).json({ error: 'Page not found' });
+        }
+      });
+    } else {
+      // For API routes that don't match any handler
+      res.status(404).json({ error: 'API endpoint not found' });
+    }
   
   res.sendFile(filePath, (err) => {
     if (err) {
