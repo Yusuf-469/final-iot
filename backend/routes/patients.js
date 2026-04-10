@@ -141,47 +141,107 @@ router.post('/', async (req, res) => {
   console.log('Request body:', req.body);
   console.log('Content-Type:', req.headers['content-type']);
 
+  try {
+    const db = getDb();
+    console.log('Database available:', !!db && getDbConnected());
+
+    if (!db || !getDbConnected()) {
+      console.log('Database not available, returning 503');
+      return res.status(503).json({ success: false, error: 'Database unavailable' });
+    }
+
+    const { firstName, lastName, age, deviceId } = req.body;
+    console.log('Parsed data:', { firstName, lastName, age, deviceId });
+
+    // Validation
+    if (!firstName) {
+      console.log('Validation failed: firstName missing');
+      return res.status(400).json({ success: false, error: 'firstName is required' });
+    }
+    if (age === undefined || age === null || isNaN(parseInt(age))) {
+      console.log('Validation failed: age invalid');
+      return res.status(400).json({ success: false, error: 'Valid age is required' });
+    }
+
+    const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const now = new Date().toISOString();
+    console.log('Generated patientId:', patientId);
+
+    const patientData = {
+      firstName: firstName.trim(),
+      lastName: lastName ? lastName.trim() : '',
+      age: parseInt(age),
+      deviceId: deviceId || null,
+      status: 'offline',        // device status default
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    console.log('About to save patient data to Firebase');
+    await db.ref(`patients/${patientId}`).set(patientData);
+    console.log('Patient saved successfully to Firebase');
+
+    const response = {
+      success: true,
+      data: { id: patientId, ...patientData },
+    };
+    console.log('Sending response:', response);
+
+    res.status(201).json(response);
+
+  } catch (error) {
+    console.error('Error in POST /api/patients:', error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to save patient', details: error.message });
+  }
+});
+
+// ─── GET /api/patients/:id ───────────────────────────────────────────────────
+router.get('/:id', async (req, res) => {
   const db = getDb();
   if (!db || !getDbConnected()) {
     return res.status(503).json({ success: false, error: 'Database unavailable' });
   }
 
-  const { firstName, lastName, age, deviceId } = req.body;
-
-  // Validation
-  if (!firstName) {
-    return res.status(400).json({ success: false, error: 'firstName is required' });
+  try {
+    const snap = await db.ref(`patients/${req.params.id}`).once('value');
+    const data = snap.val();
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
+    }
+    res.status(200).json({ success: true, data: { id: req.params.id, ...data } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
-  if (age === undefined || age === null || isNaN(parseInt(age))) {
-    return res.status(400).json({ success: false, error: 'Valid age is required' });
+});
+
+// ─── PUT /api/patients/:id ───────────────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
   }
-
-  const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-  const now = new Date().toISOString();
-
-  const patientData = {
-    firstName: firstName.trim(),
-    lastName: lastName.trim(),
-    age: parseInt(age),
-    deviceId: deviceId || null,
-    status: 'offline',        // device status default
-    createdAt: now,
-    updatedAt: now,
-  };
 
   try {
-    console.log('Saving patient data:', patientId, patientData);
-    await db.ref(`patients/${patientId}`).set(patientData);
-    console.log('Patient saved successfully:', patientId);
-
-    res.status(201).json({
-      success: true,
-      data: { id: patientId, ...patientData },
-    });
-
+    const updates = { ...req.body, updatedAt: new Date().toISOString() };
+    await db.ref(`patients/${req.params.id}`).update(updates);
+    res.status(200).json({ success: true, data: { id: req.params.id, ...updates } });
   } catch (error) {
-    console.error('Error saving patient:', error.message, error.stack);
-    res.status(500).json({ success: false, error: 'Failed to save patient', details: error.message });
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── DELETE /api/patients/:id ────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  try {
+    await db.ref(`patients/${req.params.id}`).remove();
+    res.status(200).json({ success: true, message: 'Patient deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
