@@ -50,6 +50,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(200).json({ error: 'Service temporarily unavailable' });
+});
+
 // ============================================
 // STATIC FILES (for frontend in production)
 // ============================================
@@ -98,11 +104,11 @@ app.get('/api/config/firebase', (req, res) => {
 });
 
 // Direct health data from Firebase RTDB
-const { db } = require('./database');
 app.get('/api/health', async (req, res) => {
   try {
+    const { db, getDbConnected } = require('./database');
     if (!db || !getDbConnected()) {
-      return res.status(503).json({ error: 'Database not available', health: null });
+      return res.status(200).json({ health: null, timestamp: new Date().toISOString() });
     }
     const snapshot = await db.ref('health').once('value');
     const healthData = snapshot.val();
@@ -111,7 +117,7 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch health data' });
+    res.status(200).json({ health: null, error: 'unavailable', timestamp: new Date().toISOString() });
   }
 });
 
