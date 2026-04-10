@@ -207,12 +207,6 @@ app.use('/api/signup', require('./routes/auth'));
       // For API routes that don't match any handler
       res.status(404).json({ error: 'API endpoint not found' });
     }
-  
-  res.sendFile(filePath, (err) => {
-    if (err) {
-      res.status(404).json({ error: 'Page not found' });
-    }
-  });
 });
 
 // ============================================
@@ -276,15 +270,8 @@ if (!isVercel) {
     // Database connection is optional - routes handle missing DB gracefully
   });
 } else {
-  // On Vercel, just initialize database connection
-  console.log('Running on Vercel serverless - initializing database...');
-  connectDB().then(dbReady => {
-    if (dbReady) {
-      console.log('✅ Firebase connected successfully on Vercel');
-    } else {
-      console.error('❌ Firebase connection failed on Vercel');
-    }
-  });
+  // On Vercel, database connection is handled by routes
+  console.log('Running on Vercel serverless - database handled by routes');
 }
 
 // Graceful shutdown

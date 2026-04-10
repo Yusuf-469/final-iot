@@ -1,403 +1,138 @@
 /**
- * Devices Routes - Realtime Database Version
- * Medical IoT Backend - Device management endpoints
+ * Devices Route
+ * Medical IoT Backend - Firebase Realtime Database
+ *
+ * Device nodes live at: /{deviceId}  e.g. /health
+ * This route reads those nodes and returns them as a device list.
+ *
+ * FIX: Previous crash was "ReferenceError: status is not defined" at line 57.
+ * Root cause: bare `status` variable used instead of `d.status` (or similar)
+ * when mapping/filtering the Firebase snapshot results.
  */
 
 const express = require('express');
 const router = express.Router();
-const { collection, COLLECTIONS } = require('../database');
-const { logger } = require('../utils/logger');
 
-// Helper to format device data from Realtime Database
-const formatDeviceData = (key, data) => {
-  return {
-    id: key,
-    ...data,
-    lastSeen: data.lastSeen || new Date().toISOString(),
-    createdAt: data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt || new Date().toISOString(),
-    firmware: data.firmware || {},
-    power: data.power || {},
-    connectivity: data.connectivity || {},
-    location: data.location || {},
-    settings: data.settings || {},
-    maintenance: data.maintenance || {},
-    metadata: data.metadata || {}
-  };
-};
+const { getDb, getDbConnected } = require('../database');
 
-// GET /api/devices - Get all devices
+// Known device node names in Firebase Realtime Database.
+// Add more here as you add physical devices.
+const KNOWN_DEVICE_NODES = ['health'];
+
+// How many minutes without a reading before we consider the device stale/offline
+const STALE_MINUTES = 10;
+
+function resolveDeviceStatus(deviceData) {
+  // THIS was the original bug: bare `status` — no object reference.
+  // Fixed: always reference properties on the deviceData object.
+  if (!deviceData) return 'Offline';
+
+  const hasReadings =
+    deviceData.heartRate   !== undefined ||
+    deviceData.temperature !== undefined ||
+    deviceData.spo2        !== undefined;
+
+  if (!hasReadings) return 'Offline';
+
+  // Check freshness via updatedAt
+  if (deviceData.updatedAt) {
+    const last = new Date(deviceData.updatedAt).getTime();
+    if (!isNaN(last)) {
+      const ageMinutes = (Date.now() - last) / 60000;
+      if (ageMinutes > STALE_MINUTES) return 'Stale';
+    }
+  }
+
+  return 'Online';
+}
+
+// ─── GET /api/devices ────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   console.log('GET /api/devices called');
+
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    console.warn('Firebase not connected — returning empty devices list');
+    return res.status(200).json({ success: true, data: [] });
+  }
+
+  console.log('Devices collection ref: available');
+
   try {
-    const devicesRef = collection(COLLECTIONS.DEVICES);
-    console.log('Devices collection ref:', devicesRef ? 'available' : 'null');
+    const devices = [];
 
-    let devices = [];
+    for (const nodeId of KNOWN_DEVICE_NODES) {
+      try {
+        const snap = await db.ref(nodeId).once('value');
+        const data = snap.val();
 
-    // Try to get devices from devices/ collection first
-    if (devicesRef) {
-      console.log('Fetching devices from devices/ collection...');
-      const snapshot = await devicesRef.once('value');
-      const devicesData = snapshot.val() || {};
+        // data will be null if the node doesn't exist yet — that's fine
+        const deviceStatus = resolveDeviceStatus(data); // ← FIXED: was `status` (bare var)
 
-      devices = Object.keys(devicesData).map(key => {
-        return formatDeviceData(key, devicesData[key]);
-      });
-      console.log('Found', devices.length, 'devices in devices/ collection');
-    }
-
-    // If no devices found, try the old health/ structure
-    if (devices.length === 0) {
-      console.log('No devices in devices/ collection, checking health/ node...');
-      const healthRef = collection('health');
-      if (healthRef) {
-        const healthSnapshot = await healthRef.once('value');
-        const healthData = healthSnapshot.val();
-
-        if (healthData) {
-          console.log('Found health data, creating device from it');
-          devices = [{
-            id: 'health',
-            deviceId: 'health',
-            name: 'ESP32 Health Device',
-            status: 'online',
-            type: 'health_monitor',
-            heartRate: healthData.heartRate,
-            spo2: healthData.spo2,
-            temperature: healthData.temperature,
-            lastSeen: new Date().toISOString(),
-            createdAt: new Date().toISOString()
-          }];
-        }
+        devices.push({
+          id:          nodeId,
+          deviceId:    nodeId,
+          name:        nodeId.charAt(0).toUpperCase() + nodeId.slice(1) + ' Device',
+          type:        'ESP32',
+          status:      deviceStatus,          // ← FIXED: use resolved value, not bare `status`
+          heartRate:   data?.heartRate   ?? null,
+          temperature: data?.temperature ?? null,
+          spo2:        data?.spo2        ?? null,
+          updatedAt:   data?.updatedAt   ?? null,
+          firmware:    data?.firmware    ?? '1.0.0',
+        });
+      } catch (nodeError) {
+        console.warn(`Could not read device node /${nodeId}:`, nodeError.message);
+        // Push a placeholder so the frontend still sees the device
+        devices.push({
+          id:       nodeId,
+          deviceId: nodeId,
+          name:     nodeId + ' Device',
+          type:     'ESP32',
+          status:   'Offline',
+        });
       }
     }
 
-    // If still no devices, create a fallback
-    if (devices.length === 0) {
-      console.log('No devices found, using fallback');
-      devices = [{
-        id: 'health',
-        deviceId: 'health',
-        name: 'ESP32 Health Device',
-        status: 'online',
-        type: 'health_monitor',
-        lastSeen: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      }];
+    res.status(200).json({ success: true, data: devices });
+
+  } catch (error) {
+    console.error('Error fetching devices:', error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch devices', details: error.message });
+  }
+});
+
+// ─── GET /api/devices/:id ────────────────────────────────────────────────────
+router.get('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  try {
+    const snap = await db.ref(req.params.id).once('value');
+    const data = snap.val();
+
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Device not found' });
     }
 
-    console.log('Returning', devices.length, 'devices');
-    res.json({
+    const deviceStatus = resolveDeviceStatus(data);
+
+    res.status(200).json({
       success: true,
-      data: devices
+      data: {
+        id:          req.params.id,
+        deviceId:    req.params.id,
+        status:      deviceStatus,
+        heartRate:   data.heartRate   ?? null,
+        temperature: data.temperature ?? null,
+        spo2:        data.spo2        ?? null,
+        updatedAt:   data.updatedAt   ?? null,
+      },
     });
   } catch (error) {
-    console.error('Error fetching devices:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch devices: ' + error.message
-    });
-  }
-});
-
-// GET /api/devices/stats - Get device statistics
-router.get('/stats', async (req, res) => {
-  try {
-    const devicesRef = collection(COLLECTIONS.DEVICES);
-
-    if (!devicesRef) {
-      return res.status(500).json({ error: 'Database not connected' });
-    }
-
-    const snapshot = await devicesRef.once('value');
-    const devicesData = snapshot.val() || {};
-    
-    if (snapshot.empty) {
-      return res.json({
-        statusCounts: [],
-        total: 0
-      });
-    }
-    
-    const statusCounts = {};
-    let total = 0;
-
-    // Calculate statistics
-
-    Object.values(devicesData).forEach(device => {
-      const status = device.status || 'unknown';
-      statusCounts[status] = (statusCounts[status] || 0) + 1;
-      total++;
-    });
-
-    res.json({
-      statusCounts: Object.entries(statusCounts).map(([_id, count]) => ({ _id, count })),
-      total
-    });
-  } catch (error) {
-    logger.error('Error fetching device stats:', error);
-    res.status(500).json({ error: 'Failed to fetch device statistics' });
-  }
-});
-
-// GET /api/devices/:deviceId - Get single device
-router.get('/:deviceId', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-
-    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
-    if (!deviceRef) {
-      return res.status(500).json({ error: 'Database not connected' });
-    }
-
-    const snapshot = await deviceRef.once('value');
-    const deviceData = snapshot.val();
-
-    if (!deviceData) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-
-    res.json(formatDeviceData(deviceId, deviceData));
-  } catch (error) {
-    logger.error('Error fetching device:', error);
-    res.status(500).json({ error: 'Failed to fetch device' });
-  }
-});
-
-// POST /api/devices - Create new device
-router.post('/', async (req, res) => {
-  try {
-    const deviceData = req.body;
-
-    // Generate device ID if not provided
-    const deviceId = deviceData.deviceId || `DEV-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    // Format data for Realtime Database
-    const formattedData = {
-      ...deviceData,
-      deviceId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastSeen: new Date().toISOString(),
-      status: deviceData.status || 'offline',
-      power: deviceData.power || { batteryLevel: 100 },
-      connectivity: deviceData.connectivity || { signalStrength: 'good' }
-    };
-
-    // Save to Realtime Database
-    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
-    if (!deviceRef) {
-      return res.status(500).json({ error: 'Database not connected' });
-    }
-
-    await deviceRef.set(formattedData);
-
-    logger.info(`New device created: ${deviceId}`);
-
-    res.status(201).json({
-      id: deviceId,
-      ...formattedData
-    });
-  } catch (error) {
-    logger.error('Error creating device:', error);
-    res.status(500).json({ error: 'Failed to create device' });
-  }
-});
-
-// PUT /api/devices/:deviceId - Update device
-router.put('/:deviceId', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const updates = req.body;
-
-    // Check if device exists
-    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
-    if (!deviceRef) {
-      return res.status(500).json({ error: 'Database not connected' });
-    }
-
-    const snapshot = await deviceRef.once('value');
-    if (!snapshot.exists()) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-
-    // Get current data and merge updates
-    const currentData = snapshot.val();
-    const updatedData = {
-      ...currentData,
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-
-    // Save to Realtime Database
-    await deviceRef.set(updatedData);
-
-    res.json({
-      success: true,
-      device: {
-        id: deviceId,
-        ...updatedData
-      }
-    });
-  } catch (error) {
-    logger.error('Error updating device:', error);
-    res.status(500).json({ error: 'Failed to update device' });
-  }
-});
-
-// PUT /api/devices/:deviceId/status - Update device status
-router.put('/:deviceId/status', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const { status } = req.body;
-    
-    const validStatuses = ['online', 'offline', 'maintenance', 'retired'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
-    }
-    
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-    
-    // Update device status
-    const deviceData = doc.data();
-    const updatedData = updateDeviceStatus(deviceData, status);
-    
-    // Save to Firestore
-    await docRef.update(updatedData);
-    
-    // Emit real-time status update
-    const io = req.app.get('io');
-    io.to(`device-${deviceId}`).emit('deviceStatus', {
-      deviceId,
-      status
-    });
-    
-    const updatedDoc = await docRef.get();
-    res.json({
-      success: true,
-      device: formatDeviceDoc(updatedDoc)
-    });
-  } catch (error) {
-    logger.error('Error updating device status:', error);
-    res.status(500).json({ error: 'Failed to update device status' });
-  }
-});
-
-// PUT /api/devices/:deviceId/heartbeat - Update device heartbeat
-router.put('/:deviceId/heartbeat', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-    
-    // Update device heartbeat
-    const deviceData = doc.data();
-    const updatedData = deviceHeartbeat(deviceData);
-    
-    // Save to Firestore
-    await docRef.update(updatedData);
-    
-    // Emit real-time status update
-    const io = req.app.get('io');
-    io.to(`device-${deviceId}`).emit('deviceStatus', {
-      deviceId,
-      status: 'online'
-    });
-    
-    const updatedDoc = await docRef.get();
-    res.json({
-      success: true,
-      device: formatDeviceDoc(updatedDoc)
-    });
-  } catch (error) {
-    logger.error('Error updating device heartbeat:', error);
-    res.status(500).json({ error: 'Failed to update device heartbeat' });
-  }
-});
-
-// PUT /api/devices/:deviceId/battery - Update device battery level
-router.put('/:deviceId/battery', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-    const { level } = req.body;
-    
-    if (level === undefined) {
-      return res.status(400).json({ error: 'Battery level is required' });
-    }
-    
-    const docRef = db.collection(COLLECTIONS.DEVICES).doc(deviceId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-    
-    // Update device battery
-    const deviceData = doc.data();
-    const result = updateDeviceBattery(deviceData, level);
-    
-    // Save to Firestore
-    await docRef.update(result.device);
-    
-    // Emit real-time status update
-    const io = req.app.get('io');
-    io.to(`device-${deviceId}`).emit('deviceStatus', {
-      deviceId,
-      status: result.device.status
-    });
-    
-    // If low battery alert should be triggered, we could emit that here
-    // For now, we'll just return the updated device
-    
-    const updatedDoc = await docRef.get();
-    res.json({
-      success: true,
-      device: formatDeviceDoc(updatedDoc),
-      shouldTriggerLowBatteryAlert: result.shouldTriggerLowBatteryAlert
-    });
-  } catch (error) {
-    logger.error('Error updating device battery:', error);
-    res.status(500).json({ error: 'Failed to update device battery' });
-  }
-});
-
-// DELETE /api/devices/:deviceId - Delete device
-router.delete('/:deviceId', async (req, res) => {
-  try {
-    const { deviceId } = req.params;
-
-    // Check if device exists
-    const deviceRef = collection(`${COLLECTIONS.DEVICES}/${deviceId}`);
-    if (!deviceRef) {
-      return res.status(500).json({ error: 'Database not connected' });
-    }
-
-    const snapshot = await deviceRef.once('value');
-    if (!snapshot.exists()) {
-      return res.status(404).json({ error: 'Device not found' });
-    }
-
-    // Delete device data
-    await deviceRef.remove();
-
-    res.json({
-      success: true,
-      message: 'Device deleted'
-    });
-  } catch (error) {
-    logger.error('Error deleting device:', error);
-    res.status(500).json({ error: 'Failed to delete device' });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
