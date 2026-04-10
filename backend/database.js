@@ -10,11 +10,12 @@ const { db, COLLECTIONS, convertTimestamps, dbInitialized } = require('./firebas
  * @returns {Promise<boolean>} - True if successful
  */
 const connectDB = async () => {
-  // If db is not initialized (no credentials), throw error to prevent demo mode
+  // If db is not initialized (no credentials), just log and return false
   if (!dbInitialized || !db) {
-    throw new Error('Firebase not initialized. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
+    console.warn('⚠️  Firebase not initialized. Database operations will return fallback data.');
+    return false;
   }
-  
+
   try {
     // Test Realtime Database connection
     const testRef = db.ref('test');
@@ -24,7 +25,7 @@ const connectDB = async () => {
     return true;
   } catch (error) {
     console.error('❌ Firebase connection error:', error.message);
-    throw error;
+    return false;
   }
 };
 

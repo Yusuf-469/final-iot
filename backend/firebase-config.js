@@ -36,13 +36,13 @@ if (!admin.apps.length) {
     admin.initializeApp();
     console.log('✅ Firebase Admin SDK initialized with GOOGLE_APPLICATION_CREDENTIALS');
   } else {
-    // No credentials found - throw error to prevent demo mode
-    throw new Error('Firebase credentials not found. Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
+    // No credentials found - log warning but don't crash server
+    console.warn('⚠️  Firebase credentials not found. Server will start in limited mode.');
+    console.warn('   Set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL for full functionality.');
   }
   } catch (error) {
     console.error('Firebase initialization error:', error.message);
-    // Re-throw to prevent app from starting without proper database
-    throw error;
+    console.warn('⚠️  Server will start in limited mode without Firebase.');
   }
 }
 

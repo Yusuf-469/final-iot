@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
     const devices = Object.keys(devicesData).map(key => {
       return formatDeviceData(key, devicesData[key]);
     });
-    
+
     let filteredDevices = devices;
     if (status) {
       filteredDevices = filteredDevices.filter(d => d.status === status);
@@ -63,9 +63,12 @@ router.get('/', async (req, res) => {
     const skipNum = parseInt(skip) || 0;
     const paginatedDevices = filteredDevices.slice(skipNum, skipNum + limitNum);
 
-    // Always include health device as fallback
-    if (paginatedDevices.length === 0) {
-      paginatedDevices = [{
+    // Always include health device as a real device option
+    // Check if health device already exists in the list
+    const hasHealthDevice = paginatedDevices.some(d => d.id === 'health' || d.deviceId === 'health');
+
+    if (!hasHealthDevice) {
+      paginatedDevices.push({
         id: 'health',
         deviceId: 'health',
         name: 'ESP32 Health Device',
@@ -73,7 +76,7 @@ router.get('/', async (req, res) => {
         type: 'health_monitor',
         lastSeen: new Date().toISOString(),
         createdAt: new Date().toISOString()
-      }];
+      });
     }
 
     res.json({

@@ -12,8 +12,8 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 
-// Database (now Firebase)
-const { connectDB, getDbConnected } = require('./database');
+// Database (now Firebase) - imported later to avoid startup crashes
+const { getDbConnected } = require('./database');
 
 // Logger
 const logger = require('./utils/logger');
@@ -257,13 +257,7 @@ if (!isVercel) {
 ╚════════════════════════════════════════════════════╝
   `);
 
-    // Connect to database (required for production)
-    connectDB().then(dbReady => {
-      if (!dbReady) {
-        console.error('✗ Firebase connection failed - shutting down');
-        process.exit(1);
-      }
-    });
+    // Database connection is optional - routes handle missing DB gracefully
   });
 } else {
   // On Vercel, just initialize database connection
