@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -163,14 +166,12 @@
 
         async function loadDevicesPage() {
             try {
-                const response = await fetch('/api/devices');
-                let devices = [];
-
-                if (response.ok) {
-                    const data = await response.json();
-                    devices = data.devices || [];
-                } else {
-                    console.warn('Failed to load devices from API, showing empty state');
+                // First try API
+                let devices = await loadDevicesFromAPI();
+                
+                // If API fails, try Firebase direct
+                if (devices.length === 0) {
+                    devices = await loadDevicesFromFirebase();
                 }
 
                 // Update stats
@@ -197,7 +198,7 @@
                                     <i class="fas fa-microchip"></i>
                                 </div>
                                 <div class="device-info">
-                                    <h4>${d.deviceId || d.id || 'Unknown'}</h4>
+                                    <h4>${d.deviceId || d.id || d.key || 'Unknown'}</h4>
                                     <p>${d.patientName || d.name || 'Unassigned'}</p>
                                 </div>
                             </div>
@@ -227,6 +228,66 @@
                 console.error('Error loading devices:', error);
                 const grid = document.getElementById('devices-grid');
                 grid.innerHTML = '<div class="no-data">Error loading devices. Please try again.</div>';
+            }
+        }
+
+        async function loadDevicesFromAPI() {
+            try {
+                const response = await fetch('/api/devices');
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.devices || [];
+                }
+                return [];
+            } catch (error) {
+                console.warn('API failed:', error);
+                return [];
+            }
+        }
+
+        async function loadDevicesFromFirebase() {
+            try {
+                // Get Firebase config from backend
+                const configRes = await fetch('/api/config/firebase');
+                const config = await configRes.json();
+                
+                if (!config.databaseURL) {
+                    throw new Error('Firebase config not available');
+                }
+
+                const firebaseConfig = {
+                    apiKey: config.apiKey || "demo",
+                    authDomain: config.authDomain,
+                    databaseURL: config.databaseURL,
+                    projectId: config.projectId
+                };
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                // Load devices from Firebase directly
+                const snapshot = await firebase.database().ref('devices').once('value');
+                const devicesData = snapshot.val() || {};
+                
+                return Object.keys(devicesData).map(key => {
+                    const device = devicesData[key];
+                    return {
+                        id: key,
+                        key: key,
+                        deviceId: device.deviceId || key,
+                        name: device.name || device.patientName || 'Unassigned',
+                        status: device.status || 'offline',
+                        power: device.power || { batteryLevel: device.battery || 0 },
+                        battery: device.battery || 0,
+                        connectivity: device.connectivity || { signalStrength: device.signal || 'Unknown' },
+                        lastSeen: device.lastSeen || device.lastActive || null,
+                        ...device
+                    };
+                });
+            } catch (error) {
+                console.error('Firebase direct load failed:', error);
+                return [];
             }
         }
 
