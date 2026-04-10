@@ -50,10 +50,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// Global error handler
+// Global error handler - MUST return JSON for API endpoints
+app.use('/api', (err, req, res, next) => {
+  console.error('API error:', err.message);
+  res.status(200).json({ error: 'Service temporarily unavailable' });
+});
+
+// Catch-all for other errors
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message);
-  res.status(200).json({ error: 'Service temporarily unavailable' });
+  if (req.path.startsWith('/api/')) {
+    res.status(200).json({ error: 'Service temporarily unavailable' });
+  } else {
+    res.status(500).send('Internal Server Error');
+  }
 });
 
 // ============================================
@@ -117,7 +127,22 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
+    console.error('Health API error:', error);
     res.status(200).json({ health: null, error: 'unavailable', timestamp: new Date().toISOString() });
+  }
+});
+
+// Firebase config endpoint
+app.get('/api/config/firebase', (req, res) => {
+  try {
+    res.json({
+      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
+      projectId: process.env.FIREBASE_PROJECT_ID || 'iothealth-2335a',
+      authDomain: process.env.FIREBASE_PROJECT_ID ? `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com` : 'iothealth-2335a.firebaseapp.com'
+    });
+  } catch (error) {
+    console.error('Firebase config error:', error);
+    res.status(200).json({ error: 'Config unavailable' });
   }
 });
 
