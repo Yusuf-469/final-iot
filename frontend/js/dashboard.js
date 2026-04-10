@@ -29,14 +29,21 @@ const dashboardApp = {
     // Initialize Firebase realtime health listener
     async initFirebaseHealth() {
         try {
-            // Fetch Firebase config from backend
-            const configRes = await fetch('/api/config/firebase');
-            const config = await configRes.json();
-            
-            if (!config.databaseURL) {
-                console.warn('Firebase config not available');
-                return;
+            // First try backend API endpoint
+            const response = await fetch('/api/health');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.health) {
+                    this.updateLiveHealthDisplay(data.health);
+                }
             }
+            
+            // Also listen via Firebase for real-time updates
+            const configRes = await fetch('/api/config/firebase');
+            if (!configRes.ok) return;
+            
+            const config = await configRes.json();
+            if (!config.databaseURL) return;
 
             const firebaseConfig = {
                 apiKey: config.apiKey || "demo",
@@ -45,12 +52,10 @@ const dashboardApp = {
                 projectId: config.projectId
             };
 
-            // Initialize Firebase (only once)
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
             }
 
-            // Listen to health data in real-time
             const healthRef = firebase.database().ref('health');
             
             healthRef.on('value', (snapshot) => {
@@ -59,10 +64,10 @@ const dashboardApp = {
                     this.updateLiveHealthDisplay(healthData);
                 }
             }, (error) => {
-                console.error('Error reading health data:', error);
+                console.warn('Firebase realtime update failed:', error.message);
             });
         } catch (error) {
-            console.error('Failed to initialize health listener:', error);
+            console.warn('Health listener setup failed:', error.message);
         }
     },
 

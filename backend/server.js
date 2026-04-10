@@ -97,6 +97,24 @@ app.get('/api/config/firebase', (req, res) => {
   });
 });
 
+// Direct health data from Firebase RTDB
+const { db } = require('./database');
+app.get('/api/health', async (req, res) => {
+  try {
+    if (!db || !getDbConnected()) {
+      return res.status(503).json({ error: 'Database not available', health: null });
+    }
+    const snapshot = await db.ref('health').once('value');
+    const healthData = snapshot.val();
+    res.json({
+      health: healthData,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch health data' });
+  }
+});
+
 // API Info
 app.get('/api', (req, res) => {
   res.json({
