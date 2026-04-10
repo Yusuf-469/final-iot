@@ -403,9 +403,9 @@
                 // Close modal and show success
                 closeModal();
                 showToast('Patient added successfully!', 'success');
-                
+
                 // Reload patients list to show the new patient
-                loadPatientsPage();
+                setTimeout(() => loadPatientsPage(), 1000);
                 
                 // Reset form
                 e.target.reset();
@@ -416,8 +416,8 @@
                 
             } catch (error) {
                 console.error('Error adding patient:', error);
-                showToast(error.message || 'Failed to add patient', 'error');
-                
+                showToast('Failed to add patient', 'error');
+
                 // Reset button state
                 const submitBtn = e.target.querySelector('button[type="submit"]');
                 submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Patient';
