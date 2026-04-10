@@ -1,7 +1,7 @@
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
-  authDomain: "healthmonitor-zeta.vercel.app",
+  authDomain: "final-iot-delta.vercel.app",
   databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
   projectId: "iothealth-2335a",
   storageBucket: "iothealth-2335a.firebasestorage.app",

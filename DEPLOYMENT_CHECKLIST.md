@@ -28,6 +28,11 @@
    - Type: Plain text
 
 6. **FRONTEND_URL**
+   - Value: `https://final-iot-delta.vercel.app`
+   - Type: Plain text
+   - Description: Your Vercel deployment URL for CORS configuration
+
+6. **FRONTEND_URL**
    - Value: Your Vercel deployment URL (e.g., `https://your-project.vercel.app`)
    - Type: Plain text
 
