@@ -210,7 +210,7 @@
             
             // Fetch from API
             const data = await safeFetch('/api/patients');
-            patients = data && data.patients ? data.patients : [];
+            patients = data && data.success && data.data ? data.data : [];
             
             // Update stats
             updateStats(patients);
@@ -382,7 +382,7 @@
 
                 const data = await safePost('/api/patients', patientData);
 
-                if (!data || data.error) {
+                if (!data || !data.success) {
                     throw new Error(data?.error || 'Failed to add patient');
                 }
                 
@@ -470,12 +470,13 @@
         async function initHealthListener() {
             try {
                 // Fetch Firebase config from backend
-                const config = await safeFetch('/api/config/firebase');
-                if (!config || !config.databaseURL) {
+                const response = await safeFetch('/api/config/firebase');
+                if (!response || !response.success || !response.data) {
                     console.warn('Firebase config not available, using fallback');
                     return;
                 }
-                
+
+                const config = response.data;
                 if (!config.databaseURL) {
                     console.warn('Firebase config not available, using fallback');
                     return;
@@ -566,7 +567,7 @@
         async function loadDevicesForPatientAssignment() {
             try {
                 const data = await safeFetch('/api/devices');
-                const devices = data && data.devices ? data.devices : [];
+                const devices = data && data.success && data.data ? data.data : [];
 
                 const deviceSelect = document.getElementById('patient-device');
                 deviceSelect.innerHTML = '<option value="">Select Device</option>';

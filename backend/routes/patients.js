@@ -20,31 +20,33 @@ const formatPatientData = (key, data) => {
 
 // GET /api/patients - Get all patients
 router.get('/', async (req, res) => {
+  console.log('GET /api/patients called');
   try {
     const patientsRef = collection(COLLECTIONS.PATIENTS);
+    console.log('Patients collection ref:', patientsRef ? 'available' : 'null');
 
     if (!patientsRef) {
-      return res.status(500).json({ error: 'Database not available' });
+      console.error('Patients collection not available');
+      return res.status(500).json({ success: false, error: 'Database not available' });
     }
 
+    console.log('Fetching patients from Firebase...');
     const snapshot = await patientsRef.once('value');
     const patientsData = snapshot.val() || {};
+    console.log('Patients data:', Object.keys(patientsData).length, 'records');
 
     const patients = Object.keys(patientsData).map(key => {
       return formatPatientData(key, patientsData[key]);
     });
 
+    console.log('Returning', patients.length, 'patients');
     res.json({
-      patients: patients,
-      pagination: {
-        total: patients.length,
-        limit: 50,
-        skip: 0
-      }
+      success: true,
+      data: patients
     });
   } catch (error) {
-    logger.error('Error fetching patients:', error);
-    res.status(500).json({ error: 'Failed to fetch patients' });
+    console.error('Error fetching patients:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch patients: ' + error.message });
   }
 });
 
@@ -172,20 +174,29 @@ router.get('/:patientId', async (req, res) => {
 
 // POST /api/patients - Create new patient
 router.post('/', async (req, res) => {
+  console.log('POST /api/patients called with body:', req.body);
   try {
     const { firstName, lastName, age, deviceId } = req.body;
 
     if (!firstName || !lastName || !age || !deviceId) {
-      return res.status(400).json({ error: 'firstName, lastName, age, and deviceId are required' });
+      console.error('Validation failed - missing required fields');
+      return res.status(400).json({
+        success: false,
+        error: 'firstName, lastName, age, and deviceId are required'
+      });
     }
 
     const patientsRef = collection(COLLECTIONS.PATIENTS);
+    console.log('Patients collection ref:', patientsRef ? 'available' : 'null');
+
     if (!patientsRef) {
-      return res.status(500).json({ error: 'Database not available' });
+      console.error('Patients collection not available');
+      return res.status(500).json({ success: false, error: 'Database not available' });
     }
 
     // Generate patient ID
     const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    console.log('Generated patient ID:', patientId);
 
     // Patient data
     const patientData = {
@@ -198,16 +209,20 @@ router.post('/', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
+    console.log('Saving patient data:', patientData);
+
     // Save to database
     await patientsRef.child(patientId).set(patientData);
+    console.log('Patient saved successfully');
 
     res.status(201).json({
-      patient: formatPatientData(patientId, patientData),
-      message: 'Patient created successfully'
+      success: true,
+      message: 'Patient created successfully',
+      id: patientId
     });
   } catch (error) {
-    logger.error('Error creating patient:', error);
-    res.status(500).json({ error: 'Failed to create patient' });
+    console.error('Error creating patient:', error);
+    res.status(500).json({ success: false, error: 'Failed to create patient: ' + error.message });
   }
 });
 

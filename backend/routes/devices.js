@@ -28,47 +28,55 @@ const formatDeviceData = (key, data) => {
 
 // GET /api/devices - Get all devices
 router.get('/', async (req, res) => {
+  console.log('GET /api/devices called');
   try {
     const devicesRef = collection(COLLECTIONS.DEVICES);
+    console.log('Devices collection ref:', devicesRef ? 'available' : 'null');
 
-    if (!devicesRef) {
-      console.warn('Devices collection not available');
-      return res.status(200).json({
-        devices: [{
-          id: 'health',
-          deviceId: 'health',
-          name: 'ESP32 Health Device',
-          status: 'online'
-        }],
-        pagination: { total: 1 }
+    let devices = [];
+
+    // Try to get devices from devices/ collection first
+    if (devicesRef) {
+      console.log('Fetching devices from devices/ collection...');
+      const snapshot = await devicesRef.once('value');
+      const devicesData = snapshot.val() || {};
+
+      devices = Object.keys(devicesData).map(key => {
+        return formatDeviceData(key, devicesData[key]);
       });
+      console.log('Found', devices.length, 'devices in devices/ collection');
     }
 
-    const snapshot = await devicesRef.once('value');
-    const devicesData = snapshot.val() || {};
+    // If no devices found, try the old health/ structure
+    if (devices.length === 0) {
+      console.log('No devices in devices/ collection, checking health/ node...');
+      const healthRef = collection('health');
+      if (healthRef) {
+        const healthSnapshot = await healthRef.once('value');
+        const healthData = healthSnapshot.val();
 
-    const devices = Object.keys(devicesData).map(key => {
-      return formatDeviceData(key, devicesData[key]);
-    });
-
-    let filteredDevices = devices;
-    if (status) {
-      filteredDevices = filteredDevices.filter(d => d.status === status);
+        if (healthData) {
+          console.log('Found health data, creating device from it');
+          devices = [{
+            id: 'health',
+            deviceId: 'health',
+            name: 'ESP32 Health Device',
+            status: 'online',
+            type: 'health_monitor',
+            heartRate: healthData.heartRate,
+            spo2: healthData.spo2,
+            temperature: healthData.temperature,
+            lastSeen: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          }];
+        }
+      }
     }
-    if (patientId) {
-      filteredDevices = filteredDevices.filter(d => d.patientId === patientId);
-    }
 
-    const limitNum = parseInt(limit) || 100;
-    const skipNum = parseInt(skip) || 0;
-    const paginatedDevices = filteredDevices.slice(skipNum, skipNum + limitNum);
-
-    // Always include health device as a real device option
-    // Check if health device already exists in the list
-    const hasHealthDevice = paginatedDevices.some(d => d.id === 'health' || d.deviceId === 'health');
-
-    if (!hasHealthDevice) {
-      paginatedDevices.push({
+    // If still no devices, create a fallback
+    if (devices.length === 0) {
+      console.log('No devices found, using fallback');
+      devices = [{
         id: 'health',
         deviceId: 'health',
         name: 'ESP32 Health Device',
@@ -76,27 +84,19 @@ router.get('/', async (req, res) => {
         type: 'health_monitor',
         lastSeen: new Date().toISOString(),
         createdAt: new Date().toISOString()
-      });
+      }];
     }
 
+    console.log('Returning', devices.length, 'devices');
     res.json({
-      devices: paginatedDevices,
-      pagination: {
-        total: Math.max(filteredDevices.length, paginatedDevices.length),
-        limit: limitNum,
-        skip: skipNum
-      }
+      success: true,
+      data: devices
     });
   } catch (error) {
-    logger.error('Error fetching devices:', error);
-    res.status(200).json({
-      devices: [{
-        id: 'health',
-        deviceId: 'health',
-        name: 'ESP32 Health Device',
-        status: 'online'
-      }],
-      pagination: { total: 1 }
+    console.error('Error fetching devices:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch devices: ' + error.message
     });
   }
 });
