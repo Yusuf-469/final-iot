@@ -425,34 +425,44 @@
             }
         }
 
-        // Firebase Realtime Database Configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDemo",
-            authDomain: "iothealth-2335a.firebaseapp.com",
-            databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
-            projectId: "iothealth-2335a",
-            storageBucket: "iothealth-2335a.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef"
-        };
-
-        // Initialize Firebase (only once)
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-
-        // Listen to health data in real-time
-        function initHealthListener() {
-            const healthRef = firebase.database().ref('health');
-            
-            healthRef.on('value', (snapshot) => {
-                const healthData = snapshot.val();
-                if (healthData) {
-                    updateHealthDisplay(healthData);
+        // Get Firebase config from backend and initialize health listener
+        async function initHealthListener() {
+            try {
+                // Fetch Firebase config from backend
+                const configRes = await fetch('/api/config/firebase');
+                const config = await configRes.json();
+                
+                if (!config.databaseURL) {
+                    console.warn('Firebase config not available, using fallback');
+                    return;
                 }
-            }, (error) => {
-                console.error('Error reading health data:', error);
-            });
+
+                const firebaseConfig = {
+                    apiKey: config.apiKey || "demo",
+                    authDomain: config.authDomain,
+                    databaseURL: config.databaseURL,
+                    projectId: config.projectId
+                };
+
+                // Initialize Firebase (only once)
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                // Listen to health data in real-time
+                const healthRef = firebase.database().ref('health');
+                
+                healthRef.on('value', (snapshot) => {
+                    const healthData = snapshot.val();
+                    if (healthData) {
+                        updateHealthDisplay(healthData);
+                    }
+                }, (error) => {
+                    console.error('Error reading health data:', error);
+                });
+            } catch (error) {
+                console.error('Failed to initialize health listener:', error);
+            }
         }
 
         // Update health display elements
