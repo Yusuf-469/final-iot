@@ -77,8 +77,8 @@ function validateEmail() {
  */
 function validatePassword() {
     const password = passwordInput.value;
-    
-    if (password.length >= 8) {
+
+    if (password.length >= 6) {
         return true;
     }
     return false;
@@ -120,9 +120,9 @@ async function handleLogin(event) {
         showToast('Please enter a valid email address', 'error');
         return;
     }
-    
-    if (password.length < 8) {
-        showToast('Password must be at least 8 characters', 'error');
+
+    if (password.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
         return;
     }
     
@@ -214,8 +214,8 @@ async function switchToRegister() {
         return;
     }
     
-    if (password.length < 8) {
-        showToast('Password must be at least 8 characters', 'error');
+    if (password.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
         return;
     }
     
