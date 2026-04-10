@@ -465,7 +465,9 @@ const dashboardApp = {
         const list = document.getElementById('alerts-list');
         if (!list) return;
         
-        list.innerHTML = this.data.alerts.slice(0, 5).map(alert => `
+        list.innerHTML = this.data.alerts.slice(0, 5).map(alert => {
+            const alertTime = alert.time || alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'Unknown';
+            return `
             <div class="alert-item ${alert.type}">
                 <div class="alert-icon">
                     <i class="fas ${this.getAlertIcon(alert.type)}"></i>
@@ -473,10 +475,10 @@ const dashboardApp = {
                 <div class="alert-content">
                     <h4>${alert.title}</h4>
                     <p>${alert.message}</p>
-                    <span class="alert-time">${alert.time}</span>
+                    <span class="alert-time">${alertTime}</span>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
         
         // Update alert badge
         const badge = document.querySelector('.alert-badge');
@@ -498,7 +500,9 @@ const dashboardApp = {
             return;
         }
         
-        notificationList.innerHTML = this.data.alerts.slice(0, 5).map(alert => `
+        notificationList.innerHTML = this.data.alerts.slice(0, 5).map(alert => {
+            const notifTime = alert.time || alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'Just now';
+            return `
             <div class="notification-item ${alert.type}">
                 <div class="notification-icon">
                     <i class="fas ${this.getAlertIcon(alert.type)}"></i>
@@ -506,7 +510,7 @@ const dashboardApp = {
                 <div class="notification-content">
                     <h4>${alert.title}</h4>
                     <p>${alert.message}</p>
-                    <span class="notification-time">${alert.time || 'Just now'}</span>
+                    <span class="notification-time">${notifTime}</span>
                 </div>
             </div>
         `).join('');
@@ -558,25 +562,29 @@ const dashboardApp = {
             return;
         }
         
-        grid.innerHTML = this.data.devices.map(device => `
+        grid.innerHTML = this.data.devices.map(device => {
+            const deviceId = device.id || device.deviceId || 'Unknown';
+            const deviceName = device.name || device.patientName || 'Unassigned';
+            const battery = device.power?.batteryLevel || device.battery || 0;
+            return `
             <div class="device-card">
                 <div class="device-status ${device.status}"></div>
                 <div class="device-icon">
                     <i class="fas fa-microchip"></i>
                 </div>
                 <div class="device-info">
-                    <h4>${device.id}</h4>
-                    <p>${device.name}</p>
+                    <h4>${deviceId}</h4>
+                    <p>${deviceName}</p>
                 </div>
                 <div class="device-meta">
-                    <span class="device-patient">${device.name}</span>
+                    <span class="device-patient">${deviceName}</span>
                     <span class="device-battery">
-                        <i class="fas fa-battery-${this.getBatteryLevel(device.battery)}"></i>
-                        ${device.battery}%
+                        <i class="fas fa-battery-${this.getBatteryLevel(battery)}"></i>
+                        ${battery}%
                     </span>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     },
     
     // Render stats and system health
