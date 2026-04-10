@@ -6,7 +6,6 @@
 const express = require('express');
 const router = express.Router();
 const { collection, COLLECTIONS } = require('../database');
-const { formatPatientData, validatePatient } = require('../models/Patient');
 const { logger } = require('../utils/logger');
 
 // Helper to format patient data from Realtime Database

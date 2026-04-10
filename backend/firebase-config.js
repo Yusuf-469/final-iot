@@ -27,7 +27,8 @@ if (!admin.apps.length) {
         projectId,
         privateKey,
         clientEmail
-      })
+      }),
+      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com'
     });
     console.log('✅ Firebase Admin SDK initialized with credentials');
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
