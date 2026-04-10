@@ -48,31 +48,12 @@ const getDbConnected = () => {
  * Get Realtime Database instance
  * @returns {FirebaseDatabase|null} - Database instance or null
  */
-const collection = (collectionName) => {
-  console.log('🔍 Collection request for:', collectionName);
-  console.log('  db exists:', !!db);
-  console.log('  dbInitialized:', dbInitialized);
-
+const getDb = () => {
   if (!dbInitialized || !db) {
-    console.warn('⚠️  Database not available, returning null for collection:', collectionName);
     return null;
   }
-
-  try {
-    const ref = db.ref(collectionName);
-    console.log('✅ Created database reference for:', collectionName);
-    return ref;
-  } catch (error) {
-    console.error('❌ Error creating database reference for', collectionName, ':', error.message);
-    return null;
-  }
+  return db;
 };
-
-/**
- * Get Realtime Database instance
- * @returns {FirebaseDatabase|null} - Database instance or null
- */
-const getDb = () => dbInitialized ? db : null;
 
 /**
  * Reference helper for collections (Realtime Database paths)
