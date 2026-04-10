@@ -1,52 +1,237 @@
 /**
- * Patients Routes - Realtime Database Version
- * Medical IoT Backend - Patient management endpoints
+ * Patients Route
+ * Medical IoT Backend - Firebase Realtime Database
+ *
+ * Patient records live at: /patients/{id}
+ * Live sensor data lives at: /health  (the ESP32 device node)
+ *
+ * This route ONLY manages patient records.
+ * Merging with live device readings is done on the frontend
+ * (or in GET /api/patients below, for convenience).
  */
 
 const express = require('express');
 const router = express.Router();
-const { collection, COLLECTIONS } = require('../database');
-const { logger } = require('../utils/logger');
 
-// Helper to format patient data from Realtime Database
-const formatPatientData = (key, data) => {
-  return {
-    id: key,
-    ...data,
-    createdAt: data.createdAt || new Date().toISOString(),
-    updatedAt: data.updatedAt || new Date().toISOString()
-  };
-};
+// Always pull db via getDb() so we get the live reference, not a cached null
+const { getDb, getDbConnected } = require('../database');
 
-// GET /api/patients - Get all patients
+// ─── Thresholds used for Stable / Poor / Bad ────────────────────────────────
+//  Heart Rate : 60–100 BPM  → outside = 1 issue
+//  Temperature: 36.1–37.5 °C → outside = 1 issue
+//  SpO2       : ≥ 95 %       → below   = 1 issue
+//
+//  0 issues → Stable
+//  1 issue  → Poor
+//  2+ issues → Bad
+// ────────────────────────────────────────────────────────────────────────────
+
+function calculateCondition(hr, temp, spo2) {
+  if (!hr && !temp && !spo2) return 'Unknown';
+
+  let issues = 0;
+
+  const hrN = parseFloat(hr);
+  if (!isNaN(hrN) && (hrN < 60 || hrN > 100)) issues++;
+
+  // Sensor may send Kelvin; convert if > 100
+  const tempRaw = parseFloat(temp);
+  const tempC = !isNaN(tempRaw) ? (tempRaw > 100 ? tempRaw - 273.15 : tempRaw) : null;
+  if (tempC !== null && (tempC < 36.1 || tempC > 37.5)) issues++;
+
+  const spo2N = parseFloat(spo2);
+  if (!isNaN(spo2N) && spo2N < 95) issues++;
+
+  if (issues === 0) return 'Stable';
+  if (issues === 1) return 'Poor';
+  return 'Bad';
+}
+
+function isDeviceOnline(updatedAt, staleMinutes = 10) {
+  if (!updatedAt) return false;
+  const last = new Date(updatedAt).getTime();
+  if (isNaN(last)) return false;
+  return Date.now() - last < staleMinutes * 60 * 1000;
+}
+
+// ─── GET /api/patients ───────────────────────────────────────────────────────
+// Returns all patient records merged with live device readings.
 router.get('/', async (req, res) => {
   console.log('GET /api/patients called');
-  try {
-    const patientsRef = collection(COLLECTIONS.PATIENTS);
-    console.log('Patients collection ref:', patientsRef ? 'available' : 'null');
+  console.log('Query params:', { limit: req.query.limit, skip: req.query.skip });
 
-    if (!patientsRef) {
-      console.error('Patients collection not available');
-      return res.status(500).json({ success: false, error: 'Database not available' });
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    console.warn('Firebase not connected — returning empty patients list');
+    return res.status(200).json({ success: true, data: [], message: 'Database unavailable' });
+  }
+
+  try {
+    // 1. Fetch all patient records
+    const patientsSnap = await db.ref('patients').once('value');
+    const patientsRaw = patientsSnap.val();
+
+    // Firebase returns null if the node is empty
+    if (!patientsRaw) {
+      return res.status(200).json({ success: true, data: [] });
     }
 
-    console.log('Fetching patients from Firebase...');
-    const snapshot = await patientsRef.once('value');
-    const patientsData = snapshot.val() || {};
-    console.log('Patients data:', Object.keys(patientsData).length, 'records');
+    // Convert Firebase object → array  (this was the likely crash point)
+    const patientsList = Object.entries(patientsRaw).map(([id, data]) => ({
+      id,
+      ...data,
+    }));
 
-    const patients = Object.keys(patientsData).map(key => {
-      return formatPatientData(key, patientsData[key]);
+    console.log('Patients collection ref: available');
+
+    // 2. Fetch the live health device node once (for server-side merge)
+    let liveHealth = {};
+    try {
+      const healthSnap = await db.ref('health').once('value');
+      liveHealth = healthSnap.val() || {};
+    } catch (e) {
+      console.warn('Could not read /health node:', e.message);
+    }
+
+    // 3. Merge patient records with device readings
+    const merged = patientsList.map(patient => {
+      const result = { ...patient };
+
+      if (patient.deviceId && patient.deviceId === 'health') {
+        // Pull live readings from the linked device node
+        result.heartRate    = liveHealth.heartRate    ?? null;
+        result.temperature  = liveHealth.temperature  ?? null;
+        result.spo2         = liveHealth.spo2         ?? null;
+
+        // Device status: Online if data exists and is fresh (within 10 min)
+        const hasData = result.heartRate !== null || result.temperature !== null || result.spo2 !== null;
+        const fresh   = isDeviceOnline(liveHealth.updatedAt, 10);
+        result.deviceStatus = hasData && fresh ? 'Online' : (hasData ? 'Stale' : 'Offline');
+
+        // Condition label
+        result.actionStatus = calculateCondition(result.heartRate, result.temperature, result.spo2);
+
+      } else if (patient.deviceId) {
+        // Future: fetch from /devices/{patient.deviceId} node
+        result.heartRate    = null;
+        result.temperature  = null;
+        result.spo2         = null;
+        result.deviceStatus = 'Unknown';
+        result.actionStatus = 'Unknown';
+      } else {
+        result.deviceStatus = 'Offline';
+        result.actionStatus = 'Unknown';
+      }
+
+      return result;
     });
 
-    console.log('Returning', patients.length, 'patients');
-    res.json({
-      success: true,
-      data: patients
-    });
+    res.status(200).json({ success: true, data: merged });
+
   } catch (error) {
-    console.error('Error fetching patients:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch patients: ' + error.message });
+    console.error('Error fetching patients:', error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to fetch patients', details: error.message });
+  }
+});
+
+// ─── POST /api/patients ──────────────────────────────────────────────────────
+// Creates a new patient record in Firebase.
+router.post('/', async (req, res) => {
+  console.log('POST /api/patients called');
+  console.log('Request body:', req.body);
+  console.log('Content-Type:', req.headers['content-type']);
+
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  const { firstName, lastName, age, deviceId } = req.body;
+
+  // Validation
+  if (!firstName || !lastName) {
+    return res.status(400).json({ success: false, error: 'firstName and lastName are required' });
+  }
+  if (age === undefined || age === null || isNaN(parseInt(age))) {
+    return res.status(400).json({ success: false, error: 'Valid age is required' });
+  }
+
+  const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  const now = new Date().toISOString();
+
+  const patientData = {
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    age: parseInt(age),
+    deviceId: deviceId || null,
+    status: 'offline',        // device status default
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    console.log('Saving patient data:', patientId, patientData);
+    await db.ref(`patients/${patientId}`).set(patientData);
+    console.log('Patient saved successfully:', patientId);
+
+    res.status(201).json({
+      success: true,
+      data: { id: patientId, ...patientData },
+    });
+
+  } catch (error) {
+    console.error('Error saving patient:', error.message, error.stack);
+    res.status(500).json({ success: false, error: 'Failed to save patient', details: error.message });
+  }
+});
+
+// ─── GET /api/patients/:id ───────────────────────────────────────────────────
+router.get('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  try {
+    const snap = await db.ref(`patients/${req.params.id}`).once('value');
+    const data = snap.val();
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'Patient not found' });
+    }
+    res.status(200).json({ success: true, data: { id: req.params.id, ...data } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── PUT /api/patients/:id ───────────────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  try {
+    const updates = { ...req.body, updatedAt: new Date().toISOString() };
+    await db.ref(`patients/${req.params.id}`).update(updates);
+    res.status(200).json({ success: true, data: { id: req.params.id, ...updates } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── DELETE /api/patients/:id ────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  try {
+    await db.ref(`patients/${req.params.id}`).remove();
+    res.status(200).json({ success: true, message: 'Patient deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

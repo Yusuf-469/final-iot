@@ -206,18 +206,9 @@
         });
 
         async function loadPatientsPage() {
-            let patients = [];
-
-            // Fetch patients from API
+            // Fetch patients with merged live data from backend
             const patientsData = await safeFetch('/api/patients');
-            patients = patientsData && patientsData.success && patientsData.data ? patientsData.data : [];
-
-            // Fetch live health data from Firebase
-            const healthData = await safeFetch('/api/health');
-            const liveHealth = healthData && healthData.health ? healthData.health : {};
-
-            // Merge patient records with live device readings
-            patients = mergePatientsWithHealthData(patients, liveHealth);
+            const patients = patientsData && patientsData.success && patientsData.data ? patientsData.data : [];
 
             // Update stats
             updateStats(patients);
@@ -236,7 +227,7 @@
             const devicesNow = document.querySelector('.stat-card:nth-child(4) .stat-number');
 
             if (totalPatients) totalPatients.textContent = patients.length;
-            if (onlineNow) onlineNow.textContent = patients.filter(p => p.deviceStatus === 'online').length;
+            if (onlineNow) onlineNow.textContent = patients.filter(p => p.deviceStatus === 'Online').length;
             if (criticalNow) criticalNow.textContent = patients.filter(p => p.actionStatus === 'Bad' || p.actionStatus === 'Poor').length;
             if (devicesNow) devicesNow.textContent = patients.filter(p => p.deviceId).length;
         }
@@ -263,7 +254,7 @@
                     <td><span class="health-temperature ${(parseFloat(p.temperature) > 100 ? parseFloat(p.temperature) - 273.15 : parseFloat(p.temperature) || 0) > 37.5 ? 'danger' : ''}">${p.temperature ? (parseFloat(p.temperature) > 100 ? (parseFloat(p.temperature) - 273.15).toFixed(1) : parseFloat(p.temperature).toFixed(1)) : '--'}°C</span></td>
                     <td><span class="health-spo2 ${(parseFloat(p.spo2) || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
                     <td>${p.deviceId || p.device || 'N/A'}</td>
-                    <td><span class="status-badge ${p.deviceStatus || p.status || 'offline'}">${p.deviceStatus || p.status || 'offline'}</span></td>
+                    <td><span class="status-badge ${p.deviceStatus ? p.deviceStatus.toLowerCase() : 'offline'}">${p.deviceStatus || 'Offline'}</span></td>
                     <td>
                         <span class="condition-badge ${p.actionStatus ? p.actionStatus.toLowerCase() : 'unknown'}">${p.actionStatus || 'Unknown'}</span>
                     </td>
@@ -288,7 +279,7 @@
                             <h4>${p.firstName ? p.firstName + ' ' + p.lastName : p.name || 'Unknown Patient'}</h4>
                             <p>Age: ${p.age || 'N/A'}</p>
                         </div>
-                        <div class="patient-status ${p.deviceStatus || p.status || 'offline'}"></div>
+                        <div class="patient-status ${p.deviceStatus ? p.deviceStatus.toLowerCase() : 'offline'}"></div>
                     </div>
                     <div class="patient-metrics">
                         <div class="metric">
@@ -569,63 +560,7 @@
             initHealthListener();
         });
 
-        // Merge patient records with live health data from linked devices
-        function mergePatientsWithHealthData(patients, healthData) {
-            return patients.map(patient => {
-                let mergedPatient = { ...patient };
 
-                // If patient is linked to health device, add live sensor readings
-                if (patient.deviceId === 'health') {
-                    mergedPatient.heartRate = healthData.heartRate !== undefined ? healthData.heartRate : '--';
-                    mergedPatient.temperature = healthData.temperature !== undefined ? healthData.temperature : '--';
-                    mergedPatient.spo2 = healthData.spo2 !== undefined ? healthData.spo2 : '--';
-
-                    // Determine device status based on data availability and freshness
-                    const isDataAvailable = healthData.heartRate !== undefined ||
-                                          healthData.temperature !== undefined ||
-                                          healthData.spo2 !== undefined;
-                    mergedPatient.deviceStatus = isDataAvailable ? 'online' : 'offline';
-
-                    // Determine action status based on vital signs
-                    mergedPatient.actionStatus = calculateConditionStatus(mergedPatient);
-                } else {
-                    // For patients not linked to health device, use stored/default values
-                    mergedPatient.heartRate = patient.heartRate || '--';
-                    mergedPatient.temperature = patient.temperature || '--';
-                    mergedPatient.spo2 = patient.spo2 || '--';
-                    mergedPatient.deviceStatus = patient.status || 'unknown';
-                    mergedPatient.actionStatus = 'Unknown';
-                }
-
-                return mergedPatient;
-            });
-        }
-
-        // Calculate condition status based on vital signs
-        function calculateConditionStatus(patient) {
-            const hr = parseFloat(patient.heartRate) || 0;
-            const temp = parseFloat(patient.temperature) || 0;
-            const spo2 = parseFloat(patient.spo2) || 0;
-
-            // Skip calculation if no valid readings
-            if (hr === 0 && temp === 0 && spo2 === 0) return 'Unknown';
-
-            let issues = 0;
-
-            // Heart Rate: Normal range 60-100 BPM
-            if (hr < 60 || hr > 100) issues++;
-
-            // Temperature: Normal range 36.1-37.5°C (convert from sensor reading if needed)
-            const tempC = temp > 100 ? temp - 273.15 : temp; // Convert Kelvin to Celsius if needed
-            if (tempC < 36.1 || tempC > 37.5) issues++;
-
-            // SpO2: Normal >= 95%
-            if (spo2 < 95) issues++;
-
-            if (issues === 0) return 'Stable';
-            if (issues === 1) return 'Poor';
-            return 'Bad';
-        }
 
         // Load devices for patient assignment
         async function loadDevicesForPatientAssignment() {
