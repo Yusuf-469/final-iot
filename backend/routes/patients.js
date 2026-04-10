@@ -24,22 +24,7 @@ router.get('/', async (req, res) => {
     const patientsRef = collection(COLLECTIONS.PATIENTS);
 
     if (!patientsRef) {
-      // Return mock data when Firebase is not available
-      return res.status(200).json({
-        patients: [
-          {
-            id: 'demo-patient-1',
-            firstName: 'Demo',
-            lastName: 'Patient',
-            age: 30,
-            deviceId: 'health',
-            status: 'online',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        ],
-        pagination: { total: 1, limit: 50, skip: 0 }
-      });
+      return res.status(500).json({ error: 'Database not available' });
     }
 
     const snapshot = await patientsRef.once('value');
@@ -58,22 +43,8 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (error) {
-    // Return mock data on any error
-    res.status(200).json({
-      patients: [
-        {
-          id: 'demo-patient-1',
-          firstName: 'Demo',
-          lastName: 'Patient',
-          age: 30,
-          deviceId: 'health',
-          status: 'online',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }
-      ],
-      pagination: { total: 1, limit: 50, skip: 0 }
-    });
+    logger.error('Error fetching patients:', error);
+    res.status(500).json({ error: 'Failed to fetch patients' });
   }
 });
 
@@ -210,22 +181,7 @@ router.post('/', async (req, res) => {
 
     const patientsRef = collection(COLLECTIONS.PATIENTS);
     if (!patientsRef) {
-      // Simulate saving when Firebase is not available
-      const patientId = `demo-patient-${Date.now()}`;
-      const patientData = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        age: parseInt(age),
-        deviceId: deviceId.trim(),
-        status: 'online',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      return res.status(201).json({
-        patient: formatPatientData(patientId, patientData),
-        message: 'Patient created successfully (demo mode)'
-      });
+      return res.status(500).json({ error: 'Database not available' });
     }
 
     // Generate patient ID
@@ -250,64 +206,8 @@ router.post('/', async (req, res) => {
       message: 'Patient created successfully'
     });
   } catch (error) {
-    // Return success with demo data on any error
-    const patientId = `demo-patient-${Date.now()}`;
-    const patientData = {
-      firstName: req.body.firstName || 'Demo',
-      lastName: req.body.lastName || 'Patient',
-      age: req.body.age || 30,
-      deviceId: req.body.deviceId || 'health',
-      status: 'online',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    res.status(201).json({
-      patient: formatPatientData(patientId, patientData),
-      message: 'Patient created successfully (demo mode)'
-    });
-  }
-});
-    }
-
-    if (isNaN(parseInt(age)) || parseInt(age) < 0 || parseInt(age) > 120) {
-      return res.status(400).json({ error: 'Age must be a valid number between 0 and 120' });
-    }
-
-    const patientsRef = collection(COLLECTIONS.PATIENTS);
-    if (!patientsRef) {
-      console.warn('Patients collection not available for POST');
-      return res.status(200).json({ patient: null, error: 'Database unavailable' });
-    }
-
-    // Generate patient ID
-    const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-
-    // Patient data
-    const patientData = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      age: parseInt(age),
-      deviceId: deviceId.trim(),
-      status: 'offline',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    console.log('Saving patient data:', patientId, patientData);
-
-    // Save to database
-    await patientsRef.child(patientId).set(patientData);
-
-    console.log('Patient saved successfully:', patientId);
-
-    res.status(201).json({
-      patient: formatPatientData(patientId, patientData),
-      message: 'Patient created successfully'
-    });
-  } catch (error) {
-    console.error('Error creating patient:', error);
-    res.status(200).json({ patient: null, error: 'Failed to create patient: ' + error.message });
+    logger.error('Error creating patient:', error);
+    res.status(500).json({ error: 'Failed to create patient' });
   }
 });
 
