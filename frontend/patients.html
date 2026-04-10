@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -257,9 +260,9 @@
                         </div>
                     </td>
                     <td>${p.age || 'N/A'}</td>
-                    <td><span class="${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
-                    <td><span class="${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'}°C</span></td>
-                    <td><span class="${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
+                    <td><span class="health-heartRate ${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
+                    <td><span class="health-temperature ${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'}°C</span></td>
+                    <td><span class="health-spo2 ${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
                     <td>${p.device || 'N/A'}</td>
                     <td><span class="status-badge ${p.status || 'offline'}">${p.status || 'offline'}</span></td>
                     <td>
@@ -292,15 +295,15 @@
                     <div class="patient-metrics">
                         <div class="metric">
                             <span class="metric-label">Heart Rate</span>
-                            <span class="metric-value">${p.heartRate || '--'} <span>BPM</span></span>
+                            <span class="metric-value health-heartRate ${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} <span>BPM</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">Temperature</span>
-                            <span class="metric-value">${p.temperature || '--'} <span>°C</span></span>
+                            <span class="metric-value health-temperature ${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'} <span>°C</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">SpO2</span>
-                            <span class="metric-value">${p.spo2 || '--'} <span>%</span></span>
+                            <span class="metric-value health-spo2 ${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'} <span>%</span></span>
                         </div>
                     </div>
                     <div class="patient-footer">
@@ -421,6 +424,89 @@
                 submitBtn.disabled = false;
             }
         }
+
+        // Firebase Realtime Database Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDemo",
+            authDomain: "iothealth-2335a.firebaseapp.com",
+            databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
+            projectId: "iothealth-2335a",
+            storageBucket: "iothealth-2335a.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        // Initialize Firebase (only once)
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Listen to health data in real-time
+        function initHealthListener() {
+            const healthRef = firebase.database().ref('health');
+            
+            healthRef.on('value', (snapshot) => {
+                const healthData = snapshot.val();
+                if (healthData) {
+                    updateHealthDisplay(healthData);
+                }
+            }, (error) => {
+                console.error('Error reading health data:', error);
+            });
+        }
+
+        // Update health display elements
+        function updateHealthDisplay(data) {
+            const heartRate = data.heartRate !== undefined ? data.heartRate : '--';
+            const spo2 = data.spo2 !== undefined ? data.spo2 : '--';
+            const temperature = data.temperature !== undefined ? data.temperature : '--';
+
+            // Update all elements with class 'health-heartRate'
+            document.querySelectorAll('.health-heartRate').forEach(el => {
+                el.textContent = heartRate + ' BPM';
+                el.className = 'health-heartRate ' + getMetricClass(heartRate, 'heartRate');
+            });
+
+            // Update all elements with class 'health-spo2'
+            document.querySelectorAll('.health-spo2').forEach(el => {
+                el.textContent = spo2 + ' %';
+                el.className = 'health-spo2 ' + getMetricClass(spo2, 'spo2');
+            });
+
+            // Update all elements with class 'health-temperature'
+            document.querySelectorAll('.health-temperature').forEach(el => {
+                el.textContent = temperature + ' °C';
+                el.className = 'health-temperature ' + getMetricClass(temperature, 'temperature');
+            });
+
+            // Update raw values for other uses
+            window.latestHealthData = data;
+        }
+
+        // Get CSS class based on metric value
+        function getMetricClass(value, type) {
+            if (value === '--') return '';
+            const num = parseFloat(value);
+            if (type === 'heartRate') {
+                if (num > 100 || num < 50) return 'danger';
+                if (num > 90 || num < 60) return 'warning';
+                return 'success';
+            } else if (type === 'temperature') {
+                if (num > 38 || num < 35) return 'danger';
+                if (num > 37.5 || num < 35.5) return 'warning';
+                return 'success';
+            } else if (type === 'spo2') {
+                if (num < 90) return 'danger';
+                if (num < 95) return 'warning';
+                return 'success';
+            }
+            return '';
+        }
+
+        // Initialize health listener on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initHealthListener();
+        });
 
         // Load devices for patient assignment
         async function loadDevicesForPatientAssignment() {
