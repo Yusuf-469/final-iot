@@ -207,17 +207,24 @@
 
         async function loadPatientsPage() {
             let patients = [];
-            
-            // Fetch from API
-            const data = await safeFetch('/api/patients');
-            patients = data && data.success && data.data ? data.data : [];
-            
+
+            // Fetch patients from API
+            const patientsData = await safeFetch('/api/patients');
+            patients = patientsData && patientsData.success && patientsData.data ? patientsData.data : [];
+
+            // Fetch live health data from Firebase
+            const healthData = await safeFetch('/api/health');
+            const liveHealth = healthData && healthData.health ? healthData.health : {};
+
+            // Merge patient records with live device readings
+            patients = mergePatientsWithHealthData(patients, liveHealth);
+
             // Update stats
             updateStats(patients);
-            
+
             // Populate table
             renderTable(patients);
-            
+
             // Populate cards
             renderCards(patients);
         }
@@ -227,11 +234,11 @@
             const onlineNow = document.querySelector('.stat-card:nth-child(2) .stat-number');
             const criticalNow = document.querySelector('.stat-card:nth-child(3) .stat-number');
             const devicesNow = document.querySelector('.stat-card:nth-child(4) .stat-number');
-            
+
             if (totalPatients) totalPatients.textContent = patients.length;
-            if (onlineNow) onlineNow.textContent = patients.filter(p => p.status === 'online').length;
-            if (criticalNow) criticalNow.textContent = patients.filter(p => p.status === 'critical' || p.status === 'warning').length;
-            if (devicesNow) devicesNow.textContent = patients.filter(p => p.device).length;
+            if (onlineNow) onlineNow.textContent = patients.filter(p => p.deviceStatus === 'online').length;
+            if (criticalNow) criticalNow.textContent = patients.filter(p => p.actionStatus === 'Bad' || p.actionStatus === 'Poor').length;
+            if (devicesNow) devicesNow.textContent = patients.filter(p => p.deviceId).length;
         }
 
         function renderTable(patients) {
@@ -247,19 +254,18 @@
                 <tr>
                     <td>
                         <div class="patient-cell">
-                            <div class="patient-avatar">${(p.firstName || p.name).substring(0,2).toUpperCase()}</div>
-                            <span>${p.firstName ? p.firstName + ' ' + p.lastName : p.name}</span>
+                            <div class="patient-avatar">${(p.firstName || p.name || 'U').substring(0,2).toUpperCase()}</div>
+                            <span>${p.firstName ? p.firstName + ' ' + p.lastName : p.name || 'Unknown Patient'}</span>
                         </div>
                     </td>
                     <td>${p.age || 'N/A'}</td>
-                    <td><span class="health-heartRate ${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
-                    <td><span class="health-temperature ${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'}°C</span></td>
-                    <td><span class="health-spo2 ${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
-                    <td>${p.device || 'N/A'}</td>
-                    <td><span class="status-badge ${p.status || 'offline'}">${p.status || 'offline'}</span></td>
+                    <td><span class="health-heartRate ${(parseFloat(p.heartRate) || 0) > 90 ? 'danger' : (parseFloat(p.heartRate) || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
+                    <td><span class="health-temperature ${(parseFloat(p.temperature) > 100 ? parseFloat(p.temperature) - 273.15 : parseFloat(p.temperature) || 0) > 37.5 ? 'danger' : ''}">${p.temperature ? (parseFloat(p.temperature) > 100 ? (parseFloat(p.temperature) - 273.15).toFixed(1) : parseFloat(p.temperature).toFixed(1)) : '--'}°C</span></td>
+                    <td><span class="health-spo2 ${(parseFloat(p.spo2) || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
+                    <td>${p.deviceId || p.device || 'N/A'}</td>
+                    <td><span class="status-badge ${p.deviceStatus || p.status || 'offline'}">${p.deviceStatus || p.status || 'offline'}</span></td>
                     <td>
-                        <button class="action-btn" title="View"><i class="fas fa-eye"></i></button>
-                        <button class="action-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                        <span class="condition-badge ${p.actionStatus ? p.actionStatus.toLowerCase() : 'unknown'}">${p.actionStatus || 'Unknown'}</span>
                     </td>
                 </tr>
             `).join('');
@@ -277,35 +283,35 @@
             grid.innerHTML = patients.map(p => `
                 <div class="patient-card">
                     <div class="patient-header">
-                        <div class="patient-avatar">${(p.firstName || p.name).substring(0,2).toUpperCase()}</div>
+                        <div class="patient-avatar">${(p.firstName || p.name || 'U').substring(0,2).toUpperCase()}</div>
                         <div class="patient-info">
-                            <h4>${p.firstName ? p.firstName + ' ' + p.lastName : p.name}</h4>
+                            <h4>${p.firstName ? p.firstName + ' ' + p.lastName : p.name || 'Unknown Patient'}</h4>
                             <p>Age: ${p.age || 'N/A'}</p>
                         </div>
-                        <div class="patient-status ${p.status || 'offline'}"></div>
+                        <div class="patient-status ${p.deviceStatus || p.status || 'offline'}"></div>
                     </div>
                     <div class="patient-metrics">
                         <div class="metric">
                             <span class="metric-label">Heart Rate</span>
-                            <span class="metric-value health-heartRate ${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} <span>BPM</span></span>
+                            <span class="metric-value health-heartRate ${(parseFloat(p.heartRate) || 0) > 90 ? 'danger' : (parseFloat(p.heartRate) || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} <span>BPM</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">Temperature</span>
-                            <span class="metric-value health-temperature ${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'} <span>°C</span></span>
+                            <span class="metric-value health-temperature ${(parseFloat(p.temperature) > 100 ? parseFloat(p.temperature) - 273.15 : parseFloat(p.temperature) || 0) > 37.5 ? 'danger' : ''}">${p.temperature ? (parseFloat(p.temperature) > 100 ? (parseFloat(p.temperature) - 273.15).toFixed(1) : parseFloat(p.temperature).toFixed(1)) : '--'} <span>°C</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">SpO2</span>
-                            <span class="metric-value health-spo2 ${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'} <span>%</span></span>
+                            <span class="metric-value health-spo2 ${(parseFloat(p.spo2) || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'} <span>%</span></span>
                         </div>
                     </div>
                     <div class="patient-footer">
                         <div class="patient-device">
                             <i class="fas fa-microchip"></i>
-                            ${p.device || 'N/A'}
+                            ${p.deviceId || p.device || 'N/A'}
                         </div>
-                        <div class="patient-battery">
-                            <i class="fas fa-battery-${(p.battery || 0) > 75 ? 'full' : (p.battery || 0) > 50 ? 'half' : 'quarter'}"></i>
-                            ${p.battery || '--'}%
+                        <div class="patient-condition">
+                            <span class="condition-label">Condition:</span>
+                            <span class="condition-badge ${p.actionStatus ? p.actionStatus.toLowerCase() : 'unknown'}">${p.actionStatus || 'Unknown'}</span>
                         </div>
                     </div>
                 </div>
@@ -562,6 +568,64 @@
         document.addEventListener('DOMContentLoaded', () => {
             initHealthListener();
         });
+
+        // Merge patient records with live health data from linked devices
+        function mergePatientsWithHealthData(patients, healthData) {
+            return patients.map(patient => {
+                let mergedPatient = { ...patient };
+
+                // If patient is linked to health device, add live sensor readings
+                if (patient.deviceId === 'health') {
+                    mergedPatient.heartRate = healthData.heartRate !== undefined ? healthData.heartRate : '--';
+                    mergedPatient.temperature = healthData.temperature !== undefined ? healthData.temperature : '--';
+                    mergedPatient.spo2 = healthData.spo2 !== undefined ? healthData.spo2 : '--';
+
+                    // Determine device status based on data availability and freshness
+                    const isDataAvailable = healthData.heartRate !== undefined ||
+                                          healthData.temperature !== undefined ||
+                                          healthData.spo2 !== undefined;
+                    mergedPatient.deviceStatus = isDataAvailable ? 'online' : 'offline';
+
+                    // Determine action status based on vital signs
+                    mergedPatient.actionStatus = calculateConditionStatus(mergedPatient);
+                } else {
+                    // For patients not linked to health device, use stored/default values
+                    mergedPatient.heartRate = patient.heartRate || '--';
+                    mergedPatient.temperature = patient.temperature || '--';
+                    mergedPatient.spo2 = patient.spo2 || '--';
+                    mergedPatient.deviceStatus = patient.status || 'unknown';
+                    mergedPatient.actionStatus = 'Unknown';
+                }
+
+                return mergedPatient;
+            });
+        }
+
+        // Calculate condition status based on vital signs
+        function calculateConditionStatus(patient) {
+            const hr = parseFloat(patient.heartRate) || 0;
+            const temp = parseFloat(patient.temperature) || 0;
+            const spo2 = parseFloat(patient.spo2) || 0;
+
+            // Skip calculation if no valid readings
+            if (hr === 0 && temp === 0 && spo2 === 0) return 'Unknown';
+
+            let issues = 0;
+
+            // Heart Rate: Normal range 60-100 BPM
+            if (hr < 60 || hr > 100) issues++;
+
+            // Temperature: Normal range 36.1-37.5°C (convert from sensor reading if needed)
+            const tempC = temp > 100 ? temp - 273.15 : temp; // Convert Kelvin to Celsius if needed
+            if (tempC < 36.1 || tempC > 37.5) issues++;
+
+            // SpO2: Normal >= 95%
+            if (spo2 < 95) issues++;
+
+            if (issues === 0) return 'Stable';
+            if (issues === 1) return 'Poor';
+            return 'Bad';
+        }
 
         // Load devices for patient assignment
         async function loadDevicesForPatientAssignment() {
