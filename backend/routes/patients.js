@@ -21,6 +21,8 @@ const formatPatientData = (key, data) => {
 // GET /api/patients - Get all patients
 router.get('/', async (req, res) => {
   try {
+    const { limit, skip } = req.query;
+
     const patientsRef = collection(COLLECTIONS.PATIENTS);
 
     if (!patientsRef) {
@@ -34,7 +36,7 @@ router.get('/', async (req, res) => {
     const patients = Object.keys(patientsData).map(key => {
       return formatPatientData(key, patientsData[key]);
     });
-    
+
     // Apply pagination
     const limitNum = parseInt(limit) || 50;
     const skipNum = parseInt(skip) || 0;
@@ -180,41 +182,56 @@ router.get('/:patientId', async (req, res) => {
 // POST /api/patients - Create new patient
 router.post('/', async (req, res) => {
   try {
+    console.log('POST /api/patients called with body:', req.body);
+
     const { firstName, lastName, age, deviceId } = req.body;
 
+    // Validation
     if (!firstName || !lastName || !age || !deviceId) {
-      return res.status(400).json({ error: 'firstName, lastName, age, and deviceId are required' });
+      return res.status(400).json({
+        error: 'firstName, lastName, age, and deviceId are required',
+        received: { firstName, lastName, age, deviceId }
+      });
+    }
+
+    if (isNaN(parseInt(age)) || parseInt(age) < 0 || parseInt(age) > 120) {
+      return res.status(400).json({ error: 'Age must be a valid number between 0 and 120' });
     }
 
     const patientsRef = collection(COLLECTIONS.PATIENTS);
     if (!patientsRef) {
+      console.warn('Patients collection not available for POST');
       return res.status(200).json({ patient: null, error: 'Database unavailable' });
     }
 
     // Generate patient ID
-    const patientId = `patient_${Date.now()}`;
+    const patientId = `patient_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
     // Patient data
     const patientData = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       age: parseInt(age),
-      deviceId,
+      deviceId: deviceId.trim(),
       status: 'offline',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
+    console.log('Saving patient data:', patientId, patientData);
+
     // Save to database
     await patientsRef.child(patientId).set(patientData);
+
+    console.log('Patient saved successfully:', patientId);
 
     res.status(201).json({
       patient: formatPatientData(patientId, patientData),
       message: 'Patient created successfully'
     });
   } catch (error) {
-    logger.error('Error creating patient:', error);
-    res.status(200).json({ patient: null, error: 'Failed to create patient' });
+    console.error('Error creating patient:', error);
+    res.status(200).json({ patient: null, error: 'Failed to create patient: ' + error.message });
   }
 });
 

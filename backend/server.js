@@ -50,21 +50,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Global error handler - MUST return JSON for API endpoints
-app.use('/api', (err, req, res, next) => {
-  console.error('API error:', err.message);
-  res.status(200).json({ error: 'Service temporarily unavailable' });
-});
-
-// Catch-all for other errors
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.message);
-  if (req.path.startsWith('/api/')) {
-    res.status(200).json({ error: 'Service temporarily unavailable' });
-  } else {
-    res.status(500).send('Internal Server Error');
-  }
-});
+// Error handling will be at the end of the file
 
 // ============================================
 // STATIC FILES (for frontend in production)
@@ -222,12 +208,28 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Global error handler
+// Global error handler - MUST return JSON for all API endpoints
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
-  });
+
+  // Always return JSON for API routes
+  if (req.path.startsWith('/api/')) {
+    return res.status(200).json({
+      error: 'Service temporarily unavailable',
+      message: err.message || 'Internal server error'
+    });
+  }
+
+  // HTML error for non-API routes
+  res.status(err.status || 500).send(`
+    <html>
+      <body>
+        <h1>Server Error</h1>
+        <p>An error occurred. Please try again later.</p>
+        <p>Error: ${err.message}</p>
+      </body>
+    </html>
+  `);
 });
 
 // ============================================

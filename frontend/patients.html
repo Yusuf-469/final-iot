@@ -373,23 +373,17 @@
                 submitBtn.disabled = true;
                 
                 // Call API to add patient
-                const response = await fetch('/api/patients', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        firstName,
-                        lastName,
-                        age,
-                        deviceId
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to add patient');
+                const patientData = {
+                    firstName,
+                    lastName,
+                    age,
+                    deviceId
+                };
+
+                const data = await safePost('/api/patients', patientData);
+
+                if (!data || data.error) {
+                    throw new Error(data?.error || 'Failed to add patient');
                 }
                 
                 // Close modal and show success
@@ -434,6 +428,41 @@
             } catch (error) {
                 console.error(`Fetch error for ${url}:`, error);
                 return null;
+            }
+        }
+
+        // Safe POST helper
+        async function safePost(url, data) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    console.warn(`HTTP ${response.status} for ${url}`);
+                    // Try to get error message from response
+                    try {
+                        const errorData = await response.json();
+                        return { error: errorData.error || `HTTP ${response.status}` };
+                    } catch (e) {
+                        return { error: `HTTP ${response.status}` };
+                    }
+                }
+
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    console.warn(`Non-JSON response for ${url}: ${contentType}`);
+                    return { error: 'Invalid response format' };
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error(`POST error for ${url}:`, error);
+                return { error: error.message || 'Network error' };
             }
         }
 
