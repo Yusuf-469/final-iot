@@ -544,7 +544,7 @@ const dashboardApp = {
         if (!list) return;
         
         list.innerHTML = this.data.alerts.slice(0, 5).map(alert => {
-            const alertTime = alert.time || alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'Unknown';
+            const alertTime = (alert.time || alert.createdAt) ? new Date(alert.createdAt || alert.time).toLocaleString() : 'Unknown';
             return `
             <div class="alert-item ${alert.type}">
                 <div class="alert-icon">
@@ -579,7 +579,7 @@ const dashboardApp = {
         }
         
         notificationList.innerHTML = this.data.alerts.slice(0, 5).map(alert => {
-            const notifTime = alert.time || alert.createdAt ? new Date(alert.createdAt).toLocaleString() : 'Just now';
+            const notifTime = (alert.time || alert.createdAt) ? new Date(alert.createdAt || alert.time).toLocaleString() : 'Just now';
             return `
             <div class="notification-item ${alert.type}">
                 <div class="notification-icon">
