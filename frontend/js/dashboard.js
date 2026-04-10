@@ -591,9 +591,10 @@ const dashboardApp = {
         const criticalAlerts = alerts.filter(a => a.type === 'critical').length;
         const warningAlerts = alerts.filter(a => a.type === 'warning').length;
         const totalAlerts = alerts.length;
+        const totalDevices = devices.length;
         const onlineDevices = devices.filter(d => d.status === 'online').length;
-        const avgBattery = devices.length > 0 
-            ? Math.round(devices.reduce((sum, d) => sum + (d.battery || 0), 0) / devices.length) 
+        const avgBattery = totalDevices > 0 
+            ? Math.round(devices.reduce((sum, d) => sum + (d.power?.batteryLevel || d.battery || 0), 0) / totalDevices) 
             : 0;
         
         // Update stat numbers with animation
@@ -654,17 +655,19 @@ const dashboardApp = {
         }
         
         // Update system health cards
-        document.getElementById('network-health').style.width = '95%';
-        document.getElementById('network-value').textContent = '95%';
+        const networkStatus = totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
+        document.getElementById('network-health').style.width = networkStatus + '%';
+        document.getElementById('network-value').textContent = networkStatus + '%';
         
         document.getElementById('battery-health').style.width = avgBattery + '%';
         document.getElementById('battery-value').textContent = avgBattery + '%';
         
-        document.getElementById('data-health').style.width = devices.length > 0 ? '100%' : '0%';
-        document.getElementById('data-value').textContent = devices.length > 0 ? '100%' : '0%';
+        const dataTransmission = totalDevices > 0 ? 100 : 0;
+        document.getElementById('data-health').style.width = dataTransmission + '%';
+        document.getElementById('data-value').textContent = dataTransmission + '%';
         
-        document.getElementById('ai-health').style.width = '89%';
-        document.getElementById('ai-value').textContent = '89%';
+        document.getElementById('ai-health').style.width = '0%';
+        document.getElementById('ai-value').textContent = 'N/A';
     },
     
     // Update stat number with animation
