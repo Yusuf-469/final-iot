@@ -407,8 +407,8 @@ const dashboardApp = {
                         type: 'linear',
                         display: true,
                         position: 'left',
-                        min: 20,
-                        max: 60,
+                        min: 0,
+                        max: 70,
                         grid: {
                             color: 'rgba(255, 255, 255, 0.05)'
                         },

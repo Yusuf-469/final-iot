@@ -451,7 +451,7 @@
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                         scales: {
-                            y: { beginAtZero: false, min: 20, max: 60, title: { display: true, text: 'BPM' } },
+                            y: { beginAtZero: true, min: 0, max: 70, title: { display: true, text: 'BPM' } },
                             x: { title: { display: true, text: 'Time' } }
                         }
                         }
@@ -614,7 +614,7 @@
             const maxSpo2 = spo2s.length > 0 ? Math.max(...spo2s) : 0;
 
             const warnings = [];
-            if (avgHeartRate < 30 || avgHeartRate > 50) warnings.push('Heart rate outside expected range (30-50 BPM)');
+            if (avgHeartRate < 0 || avgHeartRate > 60) warnings.push('Heart rate outside expected range (0-60 BPM)');
             if (avgTemperature < 20 || avgTemperature > 50) warnings.push('Temperature outside expected range (20-50°C)');
             if (avgSpo2 < 90) warnings.push('SpO2 below expected range (90-100%)');
 
