@@ -210,7 +210,7 @@
                 const response = await fetch('/api/patients');
                 if (response.ok) {
                     const data = await response.json();
-                    patients = data.patients || [];
+                    patients = data.data || data.patients || [];
                 }
             } catch (error) {
                 console.error('Error loading patients:', error);
@@ -429,7 +429,8 @@
         async function loadDevicesForPatientAssignment() {
             try {
                 const response = await fetch('/api/devices');
-                const devices = await response.json();
+                const result = await response.json();
+                const devices = result.data || result.devices || [];
 
                 const deviceSelect = document.getElementById('patient-device');
                 // Clear existing options except the first one
