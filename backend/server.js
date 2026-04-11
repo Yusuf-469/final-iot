@@ -160,6 +160,7 @@ app.use('/api/patients', require('./routes/patients'));
 app.use('/api/health-data', require('./routes/healthData'));
 app.use('/api/alerts', require('./routes/alerts'));
 app.use('/api/devices', require('./routes/devices'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Legacy routes (redirect)
 app.use('/api/login', require('./routes/auth'));

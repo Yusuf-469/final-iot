@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK (Official Google CDN) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -143,179 +146,538 @@
     <script src="js/page-scripts.js"></script>
     <script>
         let charts = {};
+        let firebaseInitialized = false;
+        let currentAnalyticsData = [];
 
         document.addEventListener('DOMContentLoaded', () => {
+            initFirebase();
             initAnalyticsCharts();
-            loadHealthInsights();
+            loadAnalyticsData();
+
+            // Update charts when range changes
+            document.getElementById('analytics-range')?.addEventListener('change', (e) => {
+                loadAnalyticsData(e.target.value);
+            });
         });
 
-        function getTimeLabels(range) {
-            switch(range) {
-                case '30d': return ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-                case '90d': return ['Month 1', 'Month 2', 'Month 3'];
-                default: return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        // Initialize Firebase
+        async function initFirebase() {
+            try {
+                if (firebaseInitialized) return;
+
+                // Get Firebase config from backend
+                const response = await fetch('/api/config/firebase');
+                if (!response.ok) throw new Error('Failed to get Firebase config');
+
+                const config = await response.json();
+                if (!config.success || !config.data) throw new Error('Invalid Firebase config');
+
+                const firebaseConfig = {
+                    apiKey: "demo", // Not needed for RTDB read-only
+                    databaseURL: config.data.databaseURL,
+                    projectId: config.data.projectId
+                };
+
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+
+                firebaseInitialized = true;
+                console.log('Firebase initialized for analytics');
+
+            } catch (error) {
+                console.warn('Firebase initialization failed:', error.message);
+                // Continue with API-only mode
             }
         }
 
-        function generateDemoData(baseValue, variance, range) {
-            const labels = getTimeLabels(range);
-            return labels.map(() => baseValue + (Math.random() * variance * 2 - variance));
-        }
-
-         function initAnalyticsCharts() {
-             const range = document.getElementById('analytics-range').value || '7d';
-             const labels = getTimeLabels(range);
-
-             // Heart Rate Chart
-             const hrCtx = document.getElementById('heartRateChart');
-             if (hrCtx) {
-                 charts.heartRate = new Chart(hrCtx, {
-                     type: 'line',
-                     data: {
-                         labels: labels,
-                         datasets: [{
-                             label: 'No Data',
-                             data: [],
-                             borderColor: '#64748b',
-                             borderDash: [5, 5],
-                             tension: 0.4
-                         }]
-                     },
-                     options: {
-                         responsive: true,
-                         maintainAspectRatio: false,
-                         plugins: { 
-                             legend: { 
-                                 position: 'bottom',
-                                 display: false
-                             } 
-                         },
-                         scales: { y: { beginAtZero: false, min: 50, max: 100 } }
-                     }
-                 });
-             }
-
-             // Temperature Chart
-             const tempCtx = document.getElementById('tempChart');
-             if (tempCtx) {
-                 charts.temp = new Chart(tempCtx, {
-                     type: 'line',
-                     data: {
-                         labels: labels,
-                         datasets: [{
-                             label: 'No Data',
-                             data: [],
-                             borderColor: '#64748b',
-                             backgroundColor: 'transparent',
-                             tension: 0.4
-                         }]
-                     },
-                     options: {
-                         responsive: true,
-                         maintainAspectRatio: false,
-                         plugins: { legend: { display: false } }
-                     }
-                 });
-             }
-
-             // SpO2 Chart
-             const spo2Ctx = document.getElementById('spo2Chart');
-             if (spo2Ctx) {
-                 charts.spo2 = new Chart(spo2Ctx, {
-                     type: 'line',
-                     data: {
-                         labels: labels,
-                         datasets: [{
-                             label: 'No Data',
-                             data: [],
-                             borderColor: '#64748b',
-                             backgroundColor: 'transparent',
-                             tension: 0.4
-                         }]
-                     },
-                     options: {
-                         responsive: true,
-                         maintainAspectRatio: false,
-                         plugins: { legend: { display: false } },
-                         scales: { y: { beginAtZero: false, min: 90, max: 100 } }
-                     }
-                 });
-             }
-
-             // Update charts when range changes
-             document.getElementById('analytics-range')?.addEventListener('change', (e) => {
-                 updateCharts(e.target.value);
-             });
-         }
-
-        function updateCharts(range) {
-            const labels = getTimeLabels(range);
-            
-            if (charts.heartRate) {
-                charts.heartRate.data.labels = labels;
-                // In production, this would be populated with real data from API
-                // For now, showing empty state until real data is implemented
-                charts.heartRate.data.datasets = [{
-                    label: 'Heart Rate',
-                    data: [],
-                    borderColor: '#ef4444',
-                    tension: 0.4,
-                    fill: false
-                }];
-                charts.heartRate.update();
+        // Initialize Chart.js charts
+        function initAnalyticsCharts() {
+            // Heart Rate Chart
+            const hrCtx = document.getElementById('heartRateChart');
+            if (hrCtx) {
+                charts.heartRate = new Chart(hrCtx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Heart Rate (BPM)',
+                            data: [],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                min: 50,
+                                max: 120,
+                                title: {
+                                    display: true,
+                                    text: 'BPM'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            }
+                        }
+                    }
+                });
             }
-            
-            if (charts.temp) {
-                charts.temp.data.labels = labels;
-                // In production, this would be populated with real data from API
-                charts.temp.data.datasets = [{
-                    label: 'Temperature',
-                    data: [],
-                    borderColor: '#f97316',
-                    tension: 0.4,
-                    fill: false
-                }];
-                charts.temp.update();
+
+            // Temperature Chart
+            const tempCtx = document.getElementById('tempChart');
+            if (tempCtx) {
+                charts.temp = new Chart(tempCtx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Temperature (°C)',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                min: 35,
+                                max: 42,
+                                title: {
+                                    display: true,
+                                    text: '°C'
+                                }
+                            }
+                        }
+                    }
+                });
             }
-            
-            if (charts.spo2) {
-                charts.spo2.data.labels = labels;
-                // In production, this would be populated with real data from API
-                charts.spo2.data.datasets = [{
-                    label: 'SpO2',
-                    data: [],
-                    borderColor: '#10b981',
-                    tension: 0.4,
-                    fill: false
-                }];
-                charts.spo2.update();
+
+            // SpO2 Chart
+            const spo2Ctx = document.getElementById('spo2Chart');
+            if (spo2Ctx) {
+                charts.spo2 = new Chart(spo2Ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'SpO2 (%)',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                min: 85,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: '%'
+                                }
+                            }
+                        }
+                    }
+                });
             }
         }
 
-        function loadHealthInsights() {
+        // Load analytics data from API
+        async function loadAnalyticsData(range = null) {
+            if (!range) {
+                range = document.getElementById('analytics-range').value || '7d';
+            }
+
+            try {
+                showToast('Loading analytics data...', 'info');
+
+                const response = await fetch(`/api/analytics/readings?range=${range}`);
+                if (!response.ok) throw new Error('Failed to load analytics data');
+
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error || 'Failed to load data');
+
+                currentAnalyticsData = result.data.readings || [];
+                updateAllCharts(range);
+                loadHealthInsights(result.data.readings);
+
+                showToast('Analytics data loaded', 'success');
+
+            } catch (error) {
+                console.error('Error loading analytics data:', error);
+                showToast('Failed to load analytics data: ' + error.message, 'error');
+                showEmptyCharts(range);
+            }
+        }
+
+        // Update all charts with data
+        function updateAllCharts(range) {
+            const chartData = prepareChartData(currentAnalyticsData, range);
+
+            updateChart('heartRate', chartData.labels, chartData.heartRate);
+            updateChart('temp', chartData.labels, chartData.temperature);
+            updateChart('spo2', chartData.labels, chartData.spo2);
+        }
+
+        // Prepare chart data for given range
+        function prepareChartData(readings, range) {
+            if (!readings || readings.length === 0) {
+                return {
+                    labels: getEmptyLabels(range),
+                    heartRate: [],
+                    temperature: [],
+                    spo2: []
+                };
+            }
+
+            const labels = [];
+            const heartRate = [];
+            const temperature = [];
+            const spo2 = [];
+
+            readings.forEach(reading => {
+                // Format label based on range
+                const date = new Date(reading.timestamp);
+                let label;
+
+                switch (range) {
+                    case '7d':
+                        label = date.toLocaleDateString('en-US', { weekday: 'short' });
+                        break;
+                    case '30d':
+                        label = `Week ${Math.ceil((date.getDate()) / 7)}`;
+                        break;
+                    case '90d':
+                        label = date.toLocaleDateString('en-US', { month: 'short' });
+                        break;
+                    default:
+                        label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }
+
+                labels.push(label);
+                heartRate.push(reading.heartRate);
+                temperature.push(reading.temperature);
+                spo2.push(reading.spo2);
+            });
+
+            return { labels, heartRate, temperature, spo2 };
+        }
+
+        // Get empty labels for no data state
+        function getEmptyLabels(range) {
+            switch (range) {
+                case '7d':
+                    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                case '30d':
+                    return ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+                case '90d':
+                    return ['Month 1', 'Month 2', 'Month 3'];
+                default:
+                    return ['No Data'];
+            }
+        }
+
+        // Update individual chart
+        function updateChart(chartKey, labels, data) {
+            const chart = charts[chartKey];
+            if (!chart) return;
+
+            // Destroy old chart to prevent memory leaks
+            chart.destroy();
+
+            // Create new chart with updated data
+            const ctx = document.getElementById(chartKey + 'Chart');
+            if (!ctx) return;
+
+            let config;
+            switch (chartKey) {
+                case 'heartRate':
+                    config = {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Heart Rate (BPM)',
+                                data: data,
+                                borderColor: '#ef4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: data.length > 0 ? 3 : 0,
+                                pointHoverRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: false, min: 50, max: 120, title: { display: true, text: 'BPM' } },
+                                x: { title: { display: true, text: 'Time' } }
+                            }
+                        }
+                    };
+                    break;
+
+                case 'temp':
+                    config = {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Temperature (°C)',
+                                data: data,
+                                borderColor: '#f59e0b',
+                                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: data.length > 0 ? 3 : 0,
+                                pointHoverRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: false, min: 35, max: 42, title: { display: true, text: '°C' } }
+                            }
+                        }
+                    };
+                    break;
+
+                case 'spo2':
+                    config = {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'SpO2 (%)',
+                                data: data,
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: data.length > 0 ? 3 : 0,
+                                pointHoverRadius: 5
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: { beginAtZero: false, min: 85, max: 100, title: { display: true, text: '%' } }
+                            }
+                        }
+                    };
+                    break;
+            }
+
+            charts[chartKey] = new Chart(ctx, config);
+        }
+
+        // Show empty state for all charts
+        function showEmptyCharts(range) {
+            const labels = getEmptyLabels(range);
+            updateChart('heartRate', labels, []);
+            updateChart('temp', labels, []);
+            updateChart('spo2', labels, []);
+        }
+
+        // Load health insights
+        function loadHealthInsights(readings) {
             const insightsGrid = document.getElementById('insights-grid');
             if (!insightsGrid) return;
 
-            // In production, this would be populated with real data from API
-            // For now, showing empty state until real data is implemented
+            if (!readings || readings.length === 0) {
+                insightsGrid.innerHTML = `
+                    <div class="insight-card">
+                        <div class="insight-icon info">
+                            <i class="fas fa-info-circle"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>No Data Available</h4>
+                            <p>Add patients and connect devices to see health analytics.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Calculate insights
+            const insights = calculateHealthInsights(readings);
+
             insightsGrid.innerHTML = `
                 <div class="insight-card">
-                    <div class="insight-icon info">
-                        <i class="fas fa-info-circle"></i>
+                    <div class="insight-icon success">
+                        <i class="fas fa-heartbeat"></i>
                     </div>
                     <div class="insight-content">
-                        <h4>No Data Available</h4>
-                        <p>Add patients and connect devices to see health analytics.</p>
+                        <h4>Average Heart Rate</h4>
+                        <p>${insights.avgHeartRate} BPM</p>
+                        <small>Range: ${insights.minHeartRate} - ${insights.maxHeartRate} BPM</small>
+                    </div>
+                </div>
+
+                <div class="insight-card">
+                    <div class="insight-icon warning">
+                        <i class="fas fa-thermometer-half"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Average Temperature</h4>
+                        <p>${insights.avgTemperature}°C</p>
+                        <small>Range: ${insights.minTemperature} - ${insights.maxTemperature}°C</small>
+                    </div>
+                </div>
+
+                <div class="insight-card">
+                    <div class="insight-icon info">
+                        <i class="fas fa-lungs"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Average SpO2</h4>
+                        <p>${insights.avgSpo2}%</p>
+                        <small>Range: ${insights.minSpo2} - ${insights.maxSpo2}%</small>
+                    </div>
+                </div>
+
+                <div class="insight-card">
+                    <div class="insight-icon ${insights.warnings.length > 0 ? 'danger' : 'success'}">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Health Status</h4>
+                        <p>${insights.warnings.length > 0 ? 'Attention Required' : 'Within Normal Range'}</p>
+                        ${insights.warnings.length > 0 ? '<small>' + insights.warnings.join('<br>') + '</small>' : '<small>All readings within safe ranges</small>'}
                     </div>
                 </div>
             `;
         }
 
-        function exportAnalytics() {
-            showToast('Generating analytics report...', 'info');
-            setTimeout(() => showToast('Report downloaded!', 'success'), 2000);
+        // Calculate health insights from readings
+        function calculateHealthInsights(readings) {
+            const heartRates = readings.map(r => r.heartRate).filter(v => v != null);
+            const temperatures = readings.map(r => r.temperature).filter(v => v != null);
+            const spo2s = readings.map(r => r.spo2).filter(v => v != null);
+
+            const avgHeartRate = heartRates.length > 0 ? Math.round(heartRates.reduce((a, b) => a + b, 0) / heartRates.length) : 0;
+            const avgTemperature = temperatures.length > 0 ? Math.round((temperatures.reduce((a, b) => a + b, 0) / temperatures.length) * 10) / 10 : 0;
+            const avgSpo2 = spo2s.length > 0 ? Math.round(spo2s.reduce((a, b) => a + b, 0) / spo2s.length) : 0;
+
+            const minHeartRate = heartRates.length > 0 ? Math.min(...heartRates) : 0;
+            const maxHeartRate = heartRates.length > 0 ? Math.max(...heartRates) : 0;
+            const minTemperature = temperatures.length > 0 ? Math.min(...temperatures) : 0;
+            const maxTemperature = temperatures.length > 0 ? Math.max(...temperatures) : 0;
+            const minSpo2 = spo2s.length > 0 ? Math.min(...spo2s) : 0;
+            const maxSpo2 = spo2s.length > 0 ? Math.max(...spo2s) : 0;
+
+            const warnings = [];
+            if (avgHeartRate < 60 || avgHeartRate > 100) warnings.push('Heart rate outside normal range');
+            if (avgTemperature < 36.1 || avgTemperature > 37.5) warnings.push('Temperature outside normal range');
+            if (avgSpo2 < 95) warnings.push('SpO2 below normal range');
+
+            return {
+                avgHeartRate, avgTemperature, avgSpo2,
+                minHeartRate, maxHeartRate,
+                minTemperature, maxTemperature,
+                minSpo2, maxSpo2,
+                warnings
+            };
         }
-    <div class="toast-container" id="toast-container"></div>
+
+        // Export analytics data as CSV
+        function exportAnalytics() {
+            if (currentAnalyticsData.length === 0) {
+                showToast('No data to export', 'warning');
+                return;
+            }
+
+            try {
+                showToast('Generating CSV export...', 'info');
+
+                // Convert data to CSV
+                const csvHeaders = ['Date', 'Heart Rate (BPM)', 'Temperature (°C)', 'SpO2 (%)'];
+                const csvRows = currentAnalyticsData.map(row => [
+                    row.date || new Date(row.timestamp).toLocaleDateString(),
+                    row.heartRate || '',
+                    row.temperature || '',
+                    row.spo2 || ''
+                ]);
+
+                const csvContent = [csvHeaders, ...csvRows]
+                    .map(row => row.map(cell => `"${cell}"`).join(','))
+                    .join('\n');
+
+                // Download CSV file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `health-analytics-${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                showToast('Analytics data exported successfully!', 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showToast('Failed to export analytics data', 'error');
+            }
+        }
+
+        // Show toast notifications (assumes showToast function exists from page-scripts.js)
+        function showToast(message, type = 'info') {
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, type);
+            } else {
+                console.log(`Toast [${type}]: ${message}`);
+            }
+        }
     </script>
+    <div class="toast-container" id="toast-container"></div>
 </body>
 </html>
