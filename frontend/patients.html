@@ -9,9 +9,6 @@
     <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Firebase SDK (v8 compat for regular scripts) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -105,7 +102,7 @@
                             <i class="fas fa-users"></i>
                         </div>
                         <div class="stat-details">
-                            <span class="stat-number">4</span>
+                            <span class="stat-number">0</span>
                             <span class="stat-label">Total Patients</span>
                         </div>
                     </div>
@@ -114,7 +111,7 @@
                             <i class="fas fa-user-check"></i>
                         </div>
                         <div class="stat-details">
-                            <span class="stat-number">3</span>
+                            <span class="stat-number">0</span>
                             <span class="stat-label">Online Now</span>
                         </div>
                     </div>
@@ -123,7 +120,7 @@
                             <i class="fas fa-user-injured"></i>
                         </div>
                         <div class="stat-details">
-                            <span class="stat-number">1</span>
+                            <span class="stat-number">0</span>
                             <span class="stat-label">Critical</span>
                         </div>
                     </div>
@@ -132,7 +129,7 @@
                             <i class="fas fa-microchip"></i>
                         </div>
                         <div class="stat-details">
-                            <span class="stat-number">4</span>
+                            <span class="stat-number">0</span>
                             <span class="stat-label">Devices</span>
                         </div>
                     </div>
@@ -206,16 +203,26 @@
         });
 
         async function loadPatientsPage() {
-            // Fetch patients with merged live data from backend
-            const patientsData = await safeFetch('/api/patients');
-            const patients = patientsData && patientsData.success && patientsData.data ? patientsData.data : [];
-
+            let patients = [];
+            
+            // Fetch from API
+            try {
+                const response = await fetch('/api/patients');
+                if (response.ok) {
+                    const data = await response.json();
+                    patients = data.patients || [];
+                }
+            } catch (error) {
+                console.error('Error loading patients:', error);
+                patients = [];
+            }
+            
             // Update stats
             updateStats(patients);
-
+            
             // Populate table
             renderTable(patients);
-
+            
             // Populate cards
             renderCards(patients);
         }
@@ -225,11 +232,11 @@
             const onlineNow = document.querySelector('.stat-card:nth-child(2) .stat-number');
             const criticalNow = document.querySelector('.stat-card:nth-child(3) .stat-number');
             const devicesNow = document.querySelector('.stat-card:nth-child(4) .stat-number');
-
+            
             if (totalPatients) totalPatients.textContent = patients.length;
-            if (onlineNow) onlineNow.textContent = patients.filter(p => p.deviceStatus === 'Online').length;
-            if (criticalNow) criticalNow.textContent = patients.filter(p => p.actionStatus === 'Bad' || p.actionStatus === 'Poor').length;
-            if (devicesNow) devicesNow.textContent = patients.filter(p => p.deviceId).length;
+            if (onlineNow) onlineNow.textContent = patients.filter(p => p.status === 'online').length;
+            if (criticalNow) criticalNow.textContent = patients.filter(p => p.status === 'critical' || p.status === 'warning').length;
+            if (devicesNow) devicesNow.textContent = patients.filter(p => p.device).length;
         }
 
         function renderTable(patients) {
@@ -245,19 +252,23 @@
                 <tr>
                     <td>
                         <div class="patient-cell">
-                            <div class="patient-avatar">${(p.firstName || p.name || 'U').substring(0,2).toUpperCase()}</div>
-                            <span>${p.firstName ? p.firstName + ' ' + p.lastName : p.name || 'Unknown Patient'}</span>
+                            <div class="patient-avatar">${(p.firstName || p.name).substring(0,2).toUpperCase()}</div>
+                            <span>${p.firstName ? p.firstName + ' ' + p.lastName : p.name}</span>
                         </div>
                     </td>
                     <td>${p.age || 'N/A'}</td>
-                    <td><span class="health-heartRate ${(parseFloat(p.heartRate) || 0) > 90 ? 'danger' : (parseFloat(p.heartRate) || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
-                    <td><span class="health-temperature ${(parseFloat(p.temperature) > 100 ? parseFloat(p.temperature) - 273.15 : parseFloat(p.temperature) || 0) > 37.5 ? 'danger' : ''}">${p.temperature ? (parseFloat(p.temperature) > 100 ? (parseFloat(p.temperature) - 273.15).toFixed(1) : parseFloat(p.temperature).toFixed(1)) : '--'}°C</span></td>
-                    <td><span class="health-spo2 ${(parseFloat(p.spo2) || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
-                    <td>${p.deviceId || p.device || 'N/A'}</td>
-                    <td><span class="status-badge ${p.deviceStatus ? p.deviceStatus.toLowerCase() : 'offline'}">${p.deviceStatus || 'Offline'}</span></td>
-                    <td>
-                        <span class="condition-badge ${p.actionStatus ? p.actionStatus.toLowerCase() : 'unknown'}">${p.actionStatus || 'Unknown'}</span>
-                    </td>
+                    <td><span class="${(p.heartRate || 0) > 90 ? 'danger' : (p.heartRate || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} BPM</span></td>
+                    <td><span class="${(p.temperature || 0) > 37.5 ? 'danger' : ''}">${p.temperature || '--'}°C</span></td>
+                    <td><span class="${(p.spo2 || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'}%</span></td>
+                    <td>${p.device || 'N/A'}</td>
+                    <td><span class="status-badge ${p.status || 'offline'}">${p.status || 'offline'}</span></td>
+                     <td>
+                         <button class="action-btn" title="View"><i class="fas fa-eye"></i></button>
+                         <button class="action-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                         <button class="action-btn delete-btn" title="Delete" onclick="deletePatient('${p.id}')">
+                             <i class="fas fa-trash"></i>
+                         </button>
+                     </td>
                 </tr>
             `).join('');
         }
@@ -274,35 +285,35 @@
             grid.innerHTML = patients.map(p => `
                 <div class="patient-card">
                     <div class="patient-header">
-                        <div class="patient-avatar">${(p.firstName || p.name || 'U').substring(0,2).toUpperCase()}</div>
+                        <div class="patient-avatar">${(p.firstName || p.name).substring(0,2).toUpperCase()}</div>
                         <div class="patient-info">
-                            <h4>${p.firstName ? p.firstName + ' ' + p.lastName : p.name || 'Unknown Patient'}</h4>
+                            <h4>${p.firstName ? p.firstName + ' ' + p.lastName : p.name}</h4>
                             <p>Age: ${p.age || 'N/A'}</p>
                         </div>
-                        <div class="patient-status ${p.deviceStatus ? p.deviceStatus.toLowerCase() : 'offline'}"></div>
+                        <div class="patient-status ${p.status || 'offline'}"></div>
                     </div>
                     <div class="patient-metrics">
                         <div class="metric">
                             <span class="metric-label">Heart Rate</span>
-                            <span class="metric-value health-heartRate ${(parseFloat(p.heartRate) || 0) > 90 ? 'danger' : (parseFloat(p.heartRate) || 0) > 75 ? 'warning' : ''}">${p.heartRate || '--'} <span>BPM</span></span>
+                            <span class="metric-value">${p.heartRate || '--'} <span>BPM</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">Temperature</span>
-                            <span class="metric-value health-temperature ${(parseFloat(p.temperature) > 100 ? parseFloat(p.temperature) - 273.15 : parseFloat(p.temperature) || 0) > 37.5 ? 'danger' : ''}">${p.temperature ? (parseFloat(p.temperature) > 100 ? (parseFloat(p.temperature) - 273.15).toFixed(1) : parseFloat(p.temperature).toFixed(1)) : '--'} <span>°C</span></span>
+                            <span class="metric-value">${p.temperature || '--'} <span>°C</span></span>
                         </div>
                         <div class="metric">
                             <span class="metric-label">SpO2</span>
-                            <span class="metric-value health-spo2 ${(parseFloat(p.spo2) || 0) < 95 ? 'danger' : ''}">${p.spo2 || '--'} <span>%</span></span>
+                            <span class="metric-value">${p.spo2 || '--'} <span>%</span></span>
                         </div>
                     </div>
                     <div class="patient-footer">
                         <div class="patient-device">
                             <i class="fas fa-microchip"></i>
-                            ${p.deviceId || p.device || 'N/A'}
+                            ${p.device || 'N/A'}
                         </div>
-                        <div class="patient-condition">
-                            <span class="condition-label">Condition:</span>
-                            <span class="condition-badge ${p.actionStatus ? p.actionStatus.toLowerCase() : 'unknown'}">${p.actionStatus || 'Unknown'}</span>
+                        <div class="patient-battery">
+                            <i class="fas fa-battery-${(p.battery || 0) > 75 ? 'full' : (p.battery || 0) > 50 ? 'half' : 'quarter'}"></i>
+                            ${p.battery || '--'}%
                         </div>
                     </div>
                 </div>
@@ -370,25 +381,31 @@
                 submitBtn.disabled = true;
                 
                 // Call API to add patient
-                const patientData = {
-                    firstName,
-                    lastName,
-                    age,
-                    deviceId
-                };
-
-                const data = await safePost('/api/patients', patientData);
-
-                if (!data || !data.success) {
-                    throw new Error(data?.error || 'Failed to add patient');
+                const response = await fetch('/api/patients', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        firstName,
+                        lastName,
+                        age,
+                        deviceId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to add patient');
                 }
                 
                 // Close modal and show success
                 closeModal();
                 showToast('Patient added successfully!', 'success');
-
+                
                 // Reload patients list to show the new patient
-                setTimeout(() => loadPatientsPage(), 1000);
+                loadPatientsPage();
                 
                 // Reset form
                 e.target.reset();
@@ -399,8 +416,8 @@
                 
             } catch (error) {
                 console.error('Error adding patient:', error);
-                showToast('Failed to add patient', 'error');
-
+                showToast(error.message || 'Failed to add patient', 'error');
+                
                 // Reset button state
                 const submitBtn = e.target.querySelector('button[type="submit"]');
                 submitBtn.innerHTML = '<i class="fas fa-plus"></i> Add Patient';
@@ -408,189 +425,54 @@
             }
         }
 
-        // Safe fetch helper
-        async function safeFetch(url) {
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    console.warn(`HTTP ${response.status} for ${url}`);
-                    return null;
-                }
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.warn(`Non-JSON response for ${url}: ${contentType}`);
-                    return null;
-                }
-                return await response.json();
-            } catch (error) {
-                console.error(`Fetch error for ${url}:`, error);
-                return null;
-            }
-        }
-
-        // Safe POST helper
-        async function safePost(url, data) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) {
-                    console.warn(`HTTP ${response.status} for ${url}`);
-                    // Try to get error message from response
-                    try {
-                        const errorData = await response.json();
-                        return { error: errorData.error || `HTTP ${response.status}` };
-                    } catch (e) {
-                        return { error: `HTTP ${response.status}` };
-                    }
-                }
-
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    console.warn(`Non-JSON response for ${url}: ${contentType}`);
-                    return { error: 'Invalid response format' };
-                }
-
-                return await response.json();
-            } catch (error) {
-                console.error(`POST error for ${url}:`, error);
-                return { error: error.message || 'Network error' };
-            }
-        }
-
-        // Get Firebase config from backend and initialize health listener
-        async function initHealthListener() {
-            try {
-                // Fetch Firebase config from backend
-                const response = await safeFetch('/api/config/firebase');
-                if (!response || !response.success || !response.data) {
-                    console.warn('Firebase config not available, using fallback');
-                    return;
-                }
-
-                const config = response.data;
-                if (!config.databaseURL) {
-                    console.warn('Firebase config not available, using fallback');
-                    return;
-                }
-
-                const firebaseConfig = {
-                    apiKey: config.apiKey || "demo",
-                    authDomain: config.authDomain,
-                    databaseURL: config.databaseURL,
-                    projectId: config.projectId
-                };
-
-                // Initialize Firebase (only once)
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                }
-
-                // Listen to health data in real-time
-                const healthRef = firebase.database().ref('health');
-                
-                healthRef.on('value', (snapshot) => {
-                    const healthData = snapshot.val();
-                    if (healthData) {
-                        updateHealthDisplay(healthData);
-                    }
-                }, (error) => {
-                    console.error('Error reading health data:', error);
-                });
-            } catch (error) {
-                console.error('Failed to initialize health listener:', error);
-            }
-        }
-
-        // Update health display elements
-        function updateHealthDisplay(data) {
-            const heartRate = data.heartRate !== undefined ? data.heartRate : '--';
-            const spo2 = data.spo2 !== undefined ? data.spo2 : '--';
-            const temperature = data.temperature !== undefined ? data.temperature : '--';
-
-            // Update all elements with class 'health-heartRate'
-            document.querySelectorAll('.health-heartRate').forEach(el => {
-                el.textContent = heartRate + ' BPM';
-                el.className = 'health-heartRate ' + getMetricClass(heartRate, 'heartRate');
-            });
-
-            // Update all elements with class 'health-spo2'
-            document.querySelectorAll('.health-spo2').forEach(el => {
-                el.textContent = spo2 + ' %';
-                el.className = 'health-spo2 ' + getMetricClass(spo2, 'spo2');
-            });
-
-            // Update all elements with class 'health-temperature'
-            document.querySelectorAll('.health-temperature').forEach(el => {
-                el.textContent = temperature + ' °C';
-                el.className = 'health-temperature ' + getMetricClass(temperature, 'temperature');
-            });
-
-            // Update raw values for other uses
-            window.latestHealthData = data;
-        }
-
-        // Get CSS class based on metric value
-        function getMetricClass(value, type) {
-            if (value === '--') return '';
-            const num = parseFloat(value);
-            if (type === 'heartRate') {
-                if (num > 100 || num < 50) return 'danger';
-                if (num > 90 || num < 60) return 'warning';
-                return 'success';
-            } else if (type === 'temperature') {
-                if (num > 38 || num < 35) return 'danger';
-                if (num > 37.5 || num < 35.5) return 'warning';
-                return 'success';
-            } else if (type === 'spo2') {
-                if (num < 90) return 'danger';
-                if (num < 95) return 'warning';
-                return 'success';
-            }
-            return '';
-        }
-
-        // Initialize health listener on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            initHealthListener();
-        });
-
-
-
         // Load devices for patient assignment
         async function loadDevicesForPatientAssignment() {
             try {
-                const data = await safeFetch('/api/devices');
-                const devices = data && data.success && data.data ? data.data : [];
+                const response = await fetch('/api/devices');
+                const devices = await response.json();
 
                 const deviceSelect = document.getElementById('patient-device');
+                // Clear existing options except the first one
                 deviceSelect.innerHTML = '<option value="">Select Device</option>';
 
                 // Add devices from API
                 devices.forEach(device => {
                     const option = document.createElement('option');
                     option.value = device.id || device.deviceId;
-                    option.textContent = device.name || device.deviceId || device.id || 'Unknown Device';
+                    option.textContent = device.deviceId || device.id || 'Unknown Device';
                     deviceSelect.appendChild(option);
                 });
-
-                // If no devices, add health device as fallback
-                if (devices.length === 0) {
-                    const option = document.createElement('option');
-                    option.value = 'health';
-                    option.textContent = 'ESP32 Health Device';
-                    deviceSelect.appendChild(option);
-                }
             } catch (error) {
                 console.error('Error loading devices:', error);
-                // Fallback to health device
+                // Fallback to show a message
                 const deviceSelect = document.getElementById('patient-device');
-                deviceSelect.innerHTML = '<option value="">Select Device</option><option value="health">ESP32 Health Device</option>';
+                deviceSelect.innerHTML = '<option value="">Unable to load devices</option>';
+            }
+        }
+
+        // Delete patient function
+        async function deletePatient(patientId) {
+            if (!confirm('Are you sure you want to delete this patient? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/patients/${patientId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete patient');
+                }
+
+                showToast('Patient deleted successfully!', 'success');
+                // Reload patients list
+                loadPatientsPage();
+
+            } catch (error) {
+                console.error('Error deleting patient:', error);
+                showToast(error.message || 'Failed to delete patient', 'error');
             }
         }
     </script>

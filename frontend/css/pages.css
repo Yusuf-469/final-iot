@@ -143,6 +143,16 @@
     color: var(--text-primary);
 }
 
+.action-btn.delete-btn {
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.action-btn.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
 .battery-indicator {
     display: flex;
     align-items: center;
