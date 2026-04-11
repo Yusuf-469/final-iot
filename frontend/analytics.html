@@ -450,10 +450,10 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
-                            scales: {
-                                y: { beginAtZero: false, min: 50, max: 120, title: { display: true, text: 'BPM' } },
-                                x: { title: { display: true, text: 'Time' } }
-                            }
+                        scales: {
+                            y: { beginAtZero: false, min: 20, max: 60, title: { display: true, text: 'BPM' } },
+                            x: { title: { display: true, text: 'Time' } }
+                        }
                         }
                     };
                     break;
@@ -479,9 +479,9 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
-                            scales: {
-                                y: { beginAtZero: false, min: 35, max: 42, title: { display: true, text: '°C' } }
-                            }
+                        scales: {
+                            y: { beginAtZero: false, min: 15, max: 55, title: { display: true, text: '°C' } }
+                        }
                         }
                     };
                     break;
@@ -614,9 +614,9 @@
             const maxSpo2 = spo2s.length > 0 ? Math.max(...spo2s) : 0;
 
             const warnings = [];
-            if (avgHeartRate < 60 || avgHeartRate > 100) warnings.push('Heart rate outside normal range');
-            if (avgTemperature < 36.1 || avgTemperature > 37.5) warnings.push('Temperature outside normal range');
-            if (avgSpo2 < 95) warnings.push('SpO2 below normal range');
+            if (avgHeartRate < 30 || avgHeartRate > 50) warnings.push('Heart rate outside expected range (30-50 BPM)');
+            if (avgTemperature < 20 || avgTemperature > 50) warnings.push('Temperature outside expected range (20-50°C)');
+            if (avgSpo2 < 90) warnings.push('SpO2 below expected range (90-100%)');
 
             return {
                 avgHeartRate, avgTemperature, avgSpo2,

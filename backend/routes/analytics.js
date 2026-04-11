@@ -54,18 +54,18 @@ router.get('/readings', async (req, res) => {
 
       // Create mock historical readings based on patient data
       // In production, this would read from actual historical data
-      const baseHeartRate = 70 + Math.random() * 20;
-      const baseTemp = 36.5 + Math.random() * 1.5;
-      const baseSpo2 = 95 + Math.random() * 5;
+      const baseHeartRate = 35 + Math.random() * 10; // 35-45 BPM range
+      const baseTemp = 25 + Math.random() * 20; // 25-45°C range
+      const baseSpo2 = 95 + Math.random() * 5; // Keep 90-100% range
 
       for (let i = 25; i <= 45; i++) { // Generate readings from 25 to 45
         const timestamp = startTime + ((i - 25) * (now - startTime) / 21); // Distribute over time range
         readings.push({
           id: `${pid}_${i}`,
           patientId: pid,
-          heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 10),
-          temperature: Math.round((baseTemp + (Math.random() - 0.5) * 0.5) * 10) / 10,
-          spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 5),
+          heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 5), // +/- 5 variation
+          temperature: Math.round((baseTemp + (Math.random() - 0.5) * 5) * 10) / 10, // +/- 5°C variation
+          spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 5), // +/- 5% variation
           timestamp: timestamp
         });
       }
