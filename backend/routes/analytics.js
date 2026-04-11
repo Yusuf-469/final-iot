@@ -58,8 +58,8 @@ router.get('/readings', async (req, res) => {
       const baseTemp = 36.5 + Math.random() * 1.5;
       const baseSpo2 = 95 + Math.random() * 5;
 
-      for (let i = 0; i < 20; i++) { // Generate 20 sample readings
-        const timestamp = startTime + (i * (now - startTime) / 20);
+      for (let i = 25; i <= 45; i++) { // Generate readings from 25 to 45
+        const timestamp = startTime + ((i - 25) * (now - startTime) / 21); // Distribute over time range
         readings.push({
           id: `${pid}_${i}`,
           patientId: pid,
