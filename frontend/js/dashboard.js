@@ -429,7 +429,7 @@ const dashboardApp = {
             const response = await fetch('/api/patients');
             if (response.ok) {
                 const data = await response.json();
-                this.data.patients = data.patients || [];
+                this.data.patients = data.data || data.patients || [];
                 this.renderPatients();
             } else {
                 throw new Error('Failed to load patients');
@@ -530,7 +530,7 @@ const dashboardApp = {
             const response = await fetch('/api/alerts');
             if (response.ok) {
                 const data = await response.json();
-                this.data.alerts = data.alerts || data || [];
+                this.data.alerts = data.data || data.alerts || [];
                 this.renderAlerts();
             } else {
                 throw new Error('Failed to load alerts');
@@ -622,7 +622,7 @@ const dashboardApp = {
             const response = await fetch('/api/devices');
             if (response.ok) {
                 const data = await response.json();
-                this.data.devices = data.devices || data || [];
+                this.data.devices = data.data || data.devices || [];
                 this.renderDevices();
             } else {
                 throw new Error('Failed to load devices');
@@ -678,12 +678,12 @@ const dashboardApp = {
         
         // Calculate stats
         const totalPatients = patients.length;
-        const onlinePatients = patients.filter(p => p.status === 'online').length;
+        const onlinePatients = patients.filter(p => p.deviceStatus === 'Online').length;
         const criticalAlerts = alerts.filter(a => a.type === 'critical').length;
         const warningAlerts = alerts.filter(a => a.type === 'warning').length;
         const totalAlerts = alerts.length;
         const totalDevices = devices.length;
-        const onlineDevices = devices.filter(d => d.status === 'online').length;
+        const onlineDevices = devices.filter(d => d.status === 'Online').length;
         const avgBattery = totalDevices > 0 
             ? Math.round(devices.reduce((sum, d) => sum + (d.power?.batteryLevel || d.battery || 0), 0) / totalDevices) 
             : 0;

@@ -982,7 +982,19 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.device-status.Online {
     background: var(--success);
+}
+
+.device-status.Offline {
+    background: var(--text-muted);
+}
+
+.device-status.Stale {
+    background: var(--warning);
 }
 
 .device-status.offline {
