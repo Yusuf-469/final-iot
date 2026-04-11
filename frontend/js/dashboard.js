@@ -26,10 +26,10 @@ const dashboardApp = {
         this.initFirebaseHealth();
     },
 
-    // Initialize Firebase realtime health listener
+    // Initialize real-time data updates via API polling
     async initFirebaseHealth() {
         try {
-            // First try backend API endpoint
+            // Load initial health data
             const response = await fetch('/api/health');
             if (response.ok) {
                 const data = await response.json();
@@ -37,37 +37,8 @@ const dashboardApp = {
                     this.updateLiveHealthDisplay(data.health);
                 }
             }
-            
-            // Also listen via Firebase for real-time updates
-            const configRes = await fetch('/api/config/firebase');
-            if (!configRes.ok) return;
-            
-            const config = await configRes.json();
-            if (!config.databaseURL) return;
-
-            const firebaseConfig = {
-                apiKey: config.apiKey || "demo",
-                authDomain: config.authDomain,
-                databaseURL: config.databaseURL,
-                projectId: config.projectId
-            };
-
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-
-            const healthRef = firebase.database().ref('health');
-            
-            healthRef.on('value', (snapshot) => {
-                const healthData = snapshot.val();
-                if (healthData) {
-                    this.updateLiveHealthDisplay(healthData);
-                }
-            }, (error) => {
-                console.warn('Firebase realtime update failed:', error.message);
-            });
         } catch (error) {
-            console.warn('Health listener setup failed:', error.message);
+            console.warn('Initial health data load failed:', error.message);
         }
     },
 
@@ -836,31 +807,35 @@ const dashboardApp = {
     
     // Start real-time updates simulation
     startRealTimeUpdates() {
-        // Simulate real-time updates every 5 seconds
+        // Poll API for real-time updates every 10 seconds
         setInterval(() => {
-            this.simulateHealthDataUpdate();
-        }, 5000);
+            this.pollRealtimeData();
+        }, 10000);
     },
-    
-    // Simulate health data update
-    simulateHealthDataUpdate() {
-        if (this.data.patients.length > 0) {
-            const randomPatient = this.data.patients[Math.floor(Math.random() * this.data.patients.length)];
-            
-            // Update values slightly
-            randomPatient.heartRate = Math.max(50, Math.min(120, randomPatient.heartRate + Math.floor(Math.random() * 5) - 2));
-            randomPatient.temperature = Math.max(35, Math.min(39, randomPatient.temperature + (Math.random() * 0.2 - 0.1)));
-            randomPatient.spo2 = Math.max(90, Math.min(100, randomPatient.spo2 + Math.floor(Math.random() * 3) - 1));
-            
-            // Re-render
-            this.renderPatients();
-            
-            // Update chart
-            if (this.charts.health) {
-                const newData = [...this.charts.health.data.datasets[0].data.slice(1), randomPatient.heartRate];
-                this.charts.health.data.datasets[0].data = newData;
-                this.charts.health.update('active');
+
+    // Poll API for real-time data updates
+    async pollRealtimeData() {
+        try {
+            // Update health data
+            const healthResponse = await fetch('/api/health');
+            if (healthResponse.ok) {
+                const healthData = await healthResponse.json();
+                if (healthData.health) {
+                    this.updateLiveHealthDisplay(healthData.health);
+                }
             }
+
+            // Update patients data (includes live health readings)
+            await this.loadPatients();
+
+            // Update devices data
+            await this.loadDevices();
+
+            // Re-render stats and components
+            this.renderStats();
+
+        } catch (error) {
+            console.warn('Real-time data poll failed:', error.message);
         }
     },
     
