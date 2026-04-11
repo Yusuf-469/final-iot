@@ -48,6 +48,9 @@ const dashboardApp = {
         const spo2 = data.spo2 !== undefined ? data.spo2 : '--';
         const temperature = data.temperature !== undefined ? data.temperature : '--';
 
+        // Update health chart with real-time data
+        this.updateHealthChart(data);
+
         // Update heart rate
         const hrEl = document.getElementById('live-heartRate');
         if (hrEl) {
@@ -77,6 +80,56 @@ const dashboardApp = {
 
         // Store for other uses
         window.latestHealthData = data;
+    },
+
+    // Update health overview chart with real data
+    updateHealthChart(healthData) {
+        if (!this.charts.health) return;
+
+        const now = new Date();
+        const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        // Add current readings to the chart
+        const hr = healthData.heartRate;
+        const temp = healthData.temperature;
+        const spo2 = healthData.spo2;
+
+        // Update datasets with current values (shift data and add new value)
+        if (hr !== undefined && hr !== null) {
+            this.updateChartDataset(this.charts.health, 0, hr, currentTime);
+        }
+
+        if (temp !== undefined && temp !== null) {
+            this.updateChartDataset(this.charts.health, 1, temp, currentTime);
+        }
+
+        if (spo2 !== undefined && spo2 !== null) {
+            this.updateChartDataset(this.charts.health, 2, spo2, currentTime);
+        }
+
+        this.charts.health.update('active');
+    },
+
+    // Helper to update chart dataset with new value
+    updateChartDataset(chart, datasetIndex, value, timeLabel) {
+        const dataset = chart.data.datasets[datasetIndex];
+        const maxPoints = chart.data.labels.length; // Match label count
+
+        // Add new value
+        dataset.data.push(value);
+
+        // Remove old values if exceeding max points
+        if (dataset.data.length > maxPoints) {
+            dataset.data.shift();
+        }
+
+        // Update labels to show time progression (only for the latest value)
+        if (datasetIndex === 0) { // Only update labels once
+            if (chart.data.labels.length >= maxPoints) {
+                chart.data.labels.shift();
+            }
+            chart.data.labels.push(timeLabel);
+        }
     },
     
     // Check authentication - Redirect to login if not authenticated
@@ -189,50 +242,141 @@ const dashboardApp = {
         this.initHealthChart();
         this.initAlertChart();
         this.animateCounters();
+        // Load initial health data for charts
+        this.loadInitialHealthData();
+        // Setup time range controls
+        this.setupTimeRangeControls();
+    },
+
+    // Setup time range selector controls
+    setupTimeRangeControls() {
+        const rangeButtons = document.querySelectorAll('.range-btn');
+        rangeButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Remove active class from all buttons
+                rangeButtons.forEach(btn => btn.classList.remove('active'));
+                // Add active class to clicked button
+                e.target.classList.add('active');
+
+                const range = e.target.getAttribute('data-range');
+                this.updateChartTimeRange(range);
+            });
+        });
+    },
+
+    // Update chart based on time range selection
+    updateChartTimeRange(range) {
+        if (!this.charts.health) return;
+
+        let labelCount, timeStep;
+
+        switch (range) {
+            case '24h':
+                labelCount = 12; // Every 2 hours
+                timeStep = 2;
+                break;
+            case '7d':
+                labelCount = 7; // Daily
+                timeStep = 24;
+                break;
+            case '30d':
+                labelCount = 10; // Every 3 days
+                timeStep = 72;
+                break;
+            default:
+                labelCount = 12;
+                timeStep = 2;
+        }
+
+        // Generate new labels
+        const now = new Date();
+        const labels = [];
+        for (let i = (labelCount - 1) * timeStep; i >= 0; i -= timeStep) {
+            const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+            if (range === '7d') {
+                labels.push(time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            } else if (range === '30d') {
+                labels.push(time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            } else {
+                labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+            }
+        }
+
+        this.charts.health.data.labels = labels;
+
+        // Clear existing data (will be refilled with real-time updates)
+        this.charts.health.data.datasets.forEach(dataset => {
+            dataset.data = Array(labelCount).fill(null);
+        });
+
+        this.charts.health.update();
+    },
+
+    // Load initial health data for charts
+    async loadInitialHealthData() {
+        try {
+            const response = await fetch('/api/health');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.health) {
+                    this.updateHealthChart(data.health);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load initial health data for chart:', error.message);
+        }
     },
     
     // Initialize health overview chart
     initHealthChart() {
         const ctx = document.getElementById('healthChart');
         if (!ctx) return;
-        
+
+        // Generate time labels for last 24 hours (every 2 hours)
+        const now = new Date();
+        const labels = [];
+        for (let i = 23; i >= 0; i -= 2) {
+            const time = new Date(now.getTime() - i * 60 * 60 * 1000);
+            labels.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+        }
+
         this.charts.health = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                labels: labels,
                 datasets: [
                     {
                         label: 'Heart Rate',
-                        data: [68, 65, 70, 72, 75, 71],
+                        data: Array(12).fill(null), // Will be filled with real data
                         borderColor: '#ef4444',
                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                         borderWidth: 2
                     },
                     {
                         label: 'Temperature',
-                        data: [36.5, 36.4, 36.6, 36.8, 36.7, 36.5],
+                        data: Array(12).fill(null), // Will be filled with real data
                         borderColor: '#f59e0b',
                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                         borderWidth: 2,
                         yAxisID: 'y1'
                     },
                     {
                         label: 'SpO2',
-                        data: [97, 98, 97, 98, 99, 98],
+                        data: Array(12).fill(null), // Will be filled with real data
                         borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
                         fill: true,
                         tension: 0.4,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
                         borderWidth: 2,
                         yAxisID: 'y2'
                     }
@@ -264,11 +408,19 @@ const dashboardApp = {
                         display: true,
                         position: 'left',
                         min: 50,
-                        max: 100,
+                        max: 120,
                         grid: {
                             color: 'rgba(255, 255, 255, 0.05)'
                         },
                         ticks: {
+                            color: '#ef4444',
+                            callback: function(value) {
+                                return value + ' BPM';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Heart Rate',
                             color: '#ef4444'
                         }
                     },
@@ -277,18 +429,26 @@ const dashboardApp = {
                         display: true,
                         position: 'right',
                         min: 35,
-                        max: 40,
+                        max: 42,
                         grid: {
                             drawOnChartArea: false
                         },
                         ticks: {
+                            color: '#f59e0b',
+                            callback: function(value) {
+                                return value + '°C';
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Temperature',
                             color: '#f59e0b'
                         }
                     },
                     y2: {
                         type: 'linear',
                         display: false,
-                        min: 90,
+                        min: 85,
                         max: 100
                     }
                 },
