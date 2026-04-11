@@ -149,9 +149,21 @@
         let firebaseInitialized = false;
         let currentAnalyticsData = [];
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initFirebase();
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Analytics page loaded, initializing...');
+
+            await initFirebase();
             initAnalyticsCharts();
+
+            // Test API connectivity
+            try {
+                console.log('Testing API connectivity...');
+                const testResponse = await fetch('/api/config/firebase');
+                console.log('API test response:', testResponse.status);
+            } catch (e) {
+                console.error('API connectivity test failed:', e);
+            }
+
             loadAnalyticsData();
 
             // Update charts when range changes
@@ -165,11 +177,17 @@
             try {
                 if (firebaseInitialized) return;
 
+                console.log('Initializing Firebase for analytics...');
+
                 // Get Firebase config from backend
                 const response = await fetch('/api/config/firebase');
+                console.log('Firebase config response status:', response.status);
+
                 if (!response.ok) throw new Error('Failed to get Firebase config');
 
                 const config = await response.json();
+                console.log('Firebase config:', config);
+
                 if (!config.success || !config.data) throw new Error('Invalid Firebase config');
 
                 const firebaseConfig = {
@@ -178,15 +196,19 @@
                     projectId: config.data.projectId
                 };
 
+                console.log('Firebase config object:', firebaseConfig);
+
                 if (!firebase.apps.length) {
                     firebase.initializeApp(firebaseConfig);
+                    console.log('Firebase app initialized');
                 }
 
                 firebaseInitialized = true;
-                console.log('Firebase initialized for analytics');
+                console.log('Firebase initialized for analytics successfully');
 
             } catch (error) {
                 console.warn('Firebase initialization failed:', error.message);
+                console.warn('Falling back to API-only mode');
                 // Continue with API-only mode
             }
         }
@@ -326,16 +348,28 @@
                 range = document.getElementById('analytics-range').value || '7d';
             }
 
+            console.log('Loading analytics data for range:', range);
+
             try {
                 showToast('Loading analytics data...', 'info');
 
                 const response = await fetch(`/api/analytics/readings?range=${range}`);
-                if (!response.ok) throw new Error('Failed to load analytics data');
+                console.log('API response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API error response:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
 
                 const result = await response.json();
+                console.log('API response data:', result);
+
                 if (!result.success) throw new Error(result.error || 'Failed to load data');
 
                 currentAnalyticsData = result.data.readings || [];
+                console.log('Loaded readings:', currentAnalyticsData.length);
+
                 updateAllCharts(range);
                 loadHealthInsights(result.data.readings);
 
@@ -344,13 +378,17 @@
             } catch (error) {
                 console.error('Error loading analytics data:', error);
                 showToast('Failed to load analytics data: ' + error.message, 'error');
+                // Show empty state with message
                 showEmptyCharts(range);
+                loadHealthInsights([]);
             }
         }
 
         // Update all charts with data
         function updateAllCharts(range) {
+            console.log('Updating charts with data:', currentAnalyticsData.length, 'readings for range:', range);
             const chartData = prepareChartData(currentAnalyticsData, range);
+            console.log('Prepared chart data:', chartData);
 
             updateChart('heartRate', chartData.labels, chartData.heartRate);
             updateChart('temp', chartData.labels, chartData.temperature);
@@ -359,6 +397,7 @@
 
         // Prepare chart data for given range
         function prepareChartData(readings, range) {
+            console.log('Preparing chart data for range:', range, 'with readings:', readings);
             if (!readings || readings.length === 0) {
                 return {
                     labels: getEmptyLabels(range),
@@ -373,31 +412,36 @@
             const temperature = [];
             const spo2 = [];
 
+            // Backend already groups data by time periods, so we just use it directly
             readings.forEach(reading => {
-                // Format label based on range
-                const date = new Date(reading.timestamp);
-                let label;
+                // Use the date field from backend (already formatted)
+                let label = reading.date;
 
-                switch (range) {
-                    case '7d':
-                        label = date.toLocaleDateString('en-US', { weekday: 'short' });
-                        break;
-                    case '30d':
-                        label = `Week ${Math.ceil((date.getDate()) / 7)}`;
-                        break;
-                    case '90d':
-                        label = date.toLocaleDateString('en-US', { month: 'short' });
-                        break;
-                    default:
-                        label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                // If no date field, format from timestamp
+                if (!label && reading.timestamp) {
+                    const date = new Date(reading.timestamp);
+                    switch (range) {
+                        case '7d':
+                            label = date.toLocaleDateString('en-US', { weekday: 'short' });
+                            break;
+                        case '30d':
+                            label = `Week ${Math.ceil((date.getDate()) / 7)}`;
+                            break;
+                        case '90d':
+                            label = date.toLocaleDateString('en-US', { month: 'short' });
+                            break;
+                        default:
+                            label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    }
                 }
 
-                labels.push(label);
+                labels.push(label || 'Unknown');
                 heartRate.push(reading.heartRate);
                 temperature.push(reading.temperature);
                 spo2.push(reading.spo2);
             });
 
+            console.log('Prepared chart data:', { labels, heartRate: heartRate.slice(0, 3), temperature: temperature.slice(0, 3) });
             return { labels, heartRate, temperature, spo2 };
         }
 
