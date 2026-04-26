@@ -28,7 +28,7 @@ class AIInsightsService {
         try {
             const prompt = this.buildInsightsPrompt(analyticsData, timeRange);
 
-            const response = await this.client.chat.completions.create({
+            const response = await this.client.chat.send({
                 model: "openrouter/free",
                 messages: [
                     {
@@ -40,11 +40,12 @@ class AIInsightsService {
                         content: prompt
                     }
                 ],
-                max_tokens: 500,
-                temperature: 0.3
+                maxTokens: 500,
+                temperature: 0.3,
+                stream: false // Disable streaming for serverless compatibility
             });
 
-            const insights = response.choices[0]?.message?.content || "Unable to generate AI insights at this time.";
+            const insights = response.choices?.[0]?.message?.content || "Unable to generate AI insights at this time.";
 
             return {
                 insights: insights,

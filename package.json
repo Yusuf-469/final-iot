@@ -12,7 +12,7 @@
     "lint": "eslint . --ext .js"
   },
   "dependencies": {
-    "@openrouter/sdk": "^0.0.7",
+    "@openrouter/sdk": "^0.12.21",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
