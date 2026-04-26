@@ -1,11 +1,22 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-  // Handle private key: if it contains escaped newlines (\n), convert to actual newlines
-  // If already formatted with newlines, use as-is
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (privateKey && privateKey.includes('\\n')) {
-    privateKey = privateKey.replace(/\\n/g, '\n');
+  // Decode base64 encoded private key from Vercel environment variable
+  const encodedPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+  let privateKey;
+
+  if (encodedPrivateKey) {
+    try {
+      // Decode from base64
+      privateKey = Buffer.from(encodedPrivateKey, 'base64').toString('ascii');
+      // If still contains escaped newlines (for local compatibility), convert them
+      if (privateKey.includes('\\n')) {
+        privateKey = privateKey.replace(/\\n/g, '\n');
+      }
+    } catch (error) {
+      console.error('Failed to decode Firebase private key:', error);
+      throw new Error('Invalid FIREBASE_PRIVATE_KEY format');
+    }
   }
 
   admin.initializeApp({
