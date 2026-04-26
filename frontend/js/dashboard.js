@@ -20,7 +20,11 @@ const dashboardApp = {
         this.setupEventListeners();
         this.initScrollReveal();
         this.initCharts();
-        this.loadDashboardData();
+
+        // Load dashboard data after a short delay to ensure DOM is ready
+        setTimeout(() => {
+            this.loadDashboardData();
+        }, 100);
 
         // Initialize Firebase real-time listeners
         await initFirebaseRealtime();
@@ -887,18 +891,26 @@ const dashboardApp = {
         
         // Update system health cards
         const networkStatus = totalDevices > 0 ? Math.round((onlineDevices / totalDevices) * 100) : 0;
-        document.getElementById('network-health').style.width = networkStatus + '%';
-        document.getElementById('network-value').textContent = networkStatus + '%';
-        
-        document.getElementById('battery-health').style.width = avgBattery + '%';
-        document.getElementById('battery-value').textContent = avgBattery + '%';
-        
+        const networkHealthEl = document.getElementById('network-health');
+        const networkValueEl = document.getElementById('network-value');
+        if (networkHealthEl) networkHealthEl.style.width = networkStatus + '%';
+        if (networkValueEl) networkValueEl.textContent = networkStatus + '%';
+
+        const batteryHealthEl = document.getElementById('battery-health');
+        const batteryValueEl = document.getElementById('battery-value');
+        if (batteryHealthEl) batteryHealthEl.style.width = avgBattery + '%';
+        if (batteryValueEl) batteryValueEl.textContent = avgBattery + '%';
+
         const dataTransmission = totalDevices > 0 ? 100 : 0;
-        document.getElementById('data-health').style.width = dataTransmission + '%';
-        document.getElementById('data-value').textContent = dataTransmission + '%';
+        const dataHealthEl = document.getElementById('data-health');
+        const dataValueEl = document.getElementById('data-value');
+        if (dataHealthEl) dataHealthEl.style.width = dataTransmission + '%';
+        if (dataValueEl) dataValueEl.textContent = dataTransmission + '%';
         
-        document.getElementById('ai-health').style.width = '0%';
-        document.getElementById('ai-value').textContent = 'N/A';
+        const aiHealthEl = document.getElementById('ai-health');
+        const aiValueEl = document.getElementById('ai-value');
+        if (aiHealthEl) aiHealthEl.style.width = '0%';
+        if (aiValueEl) aiValueEl.textContent = 'N/A';
     },
     
     // Update stat number with animation
