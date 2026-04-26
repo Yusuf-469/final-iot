@@ -1,51 +1,21 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-  console.log('Initializing Firebase...');
-
+  // Handle private key: if it contains escaped newlines (\n), convert to actual newlines
+  // If already formatted with newlines, use as-is
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-  // Handle different private key formats
-  if (privateKey) {
-    if (privateKey.includes('\\n')) {
-      // Escaped newlines - convert to actual newlines
-      privateKey = privateKey.replace(/\\n/g, '\n');
-      console.log('Converted escaped newlines in private key');
-    } else if (!privateKey.includes('\n')) {
-      // No newlines at all - might be a single line, try to format it
-      console.log('Private key appears to be single line, attempting to format...');
-      // This is a fallback, but usually not needed
-    }
+  if (privateKey && privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  console.log('Firebase Project ID:', process.env.FIREBASE_PROJECT_ID);
-  console.log('Firebase Client Email:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Missing');
-  console.log('Firebase Private Key:', privateKey ? 'Set (length: ' + privateKey.length + ')' : 'Missing');
-
-  // Ensure we have all required environment variables
-  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
-    console.error('Missing Firebase environment variables:', {
-      projectId: !!process.env.FIREBASE_PROJECT_ID,
-      clientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: !!privateKey
-    });
-    throw new Error('Firebase configuration incomplete');
-  }
-
-  try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: privateKey,
-      }),
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
-    });
-    console.log('Firebase initialized successfully');
-  } catch (error) {
-    console.error('Firebase initialization failed:', error.message);
-    throw error;
-  }
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: privateKey,
+    }),
+    databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
+  });
 }
 
 const db = admin.database();

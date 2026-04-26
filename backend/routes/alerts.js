@@ -375,14 +375,6 @@ router.get('/predictions/status', async (req, res) => {
   }
 });
 
-    logger.info(`Prediction alerts generated: ${alertsCreated.length} alerts created`);
-
-  } catch (error) {
-    logger.error('Error generating prediction alerts:', error);
-    res.status(500).json({ error: 'Failed to generate prediction alerts' });
-  }
-});
-
 // GET /api/alerts/statistics - Get alert statistics
 router.get('/statistics', async (req, res) => {
   try {
