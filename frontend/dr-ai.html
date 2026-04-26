@@ -1003,9 +1003,9 @@
                 scene = new THREE.Scene();
                 scene.background = new THREE.Color(0x0f0f23);
 
-                // Camera
-                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                camera.position.set(0, 0, 5);
+            // Camera positioned for optimal model viewing
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 3.5);
 
                 // Renderer
                 renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -1017,16 +1017,16 @@
                 // Lighting
                 setupLighting();
 
-                // Controls
-                controls = new THREE.OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.dampingFactor = 0.05;
-                controls.enableZoom = true;
-                controls.enablePan = false;
-                controls.autoRotate = true;
-                controls.autoRotateSpeed = 0.5;
-                controls.minDistance = 2;
-                controls.maxDistance = 8;
+            // Controls optimized for screen-fitting model
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = false;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3;
+            controls.minDistance = 2;
+            controls.maxDistance = 5;
 
                 // Mouse interaction
                 raycaster = new THREE.Raycaster();
@@ -1098,9 +1098,9 @@
                     try {
                         aiModel = gltf.scene;
 
-                        // Scale for optimal viewing as chatbot interface
-                        aiModel.scale.setScalar(2.5);
-                        aiModel.position.set(0, -1.5, 0);
+                        // Scale to fit screen appropriately as chatbot interface
+                        aiModel.scale.setScalar(1.2);
+                        aiModel.position.set(0, -1.2, 0);
 
                         // Center the model
                         const box = new THREE.Box3().setFromObject(aiModel);
