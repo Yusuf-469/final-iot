@@ -981,11 +981,12 @@
         let currentHealthData = {};
         let isThinking = false;
 
-        // Initialize Interactive 3D GLB Model
+        // Initialize Interactive 3D GLB Model (Chatbot Interface)
         let scene, camera, renderer, aiModel, controls, raycaster, mouse;
         let animationId;
         let chatInterfaceVisible = false;
         let modelLoaded = false;
+        let chatbotActive = false;
 
         function initInteractiveGLBModel() {
             console.log('🚀 Initializing Dr. AI 3D Interface...');
@@ -1085,48 +1086,53 @@
         }
 
         function loadGLBModelFirst() {
-            console.log('🎯 Loading GLB model as priority...');
+            console.log('🎯 Loading GLB Chatbot Model...');
 
             const loader = new THREE.GLTFLoader();
 
             loader.load(
                 'models/medical-doctor-3d-model.glb',
                 function (gltf) {
-                    console.log('✅ GLB model loaded successfully!', gltf);
+                    console.log('✅ GLB Chatbot model loaded successfully!', gltf);
 
                     try {
                         aiModel = gltf.scene;
 
-                        // Scale and position
-                        aiModel.scale.setScalar(2);
-                        aiModel.position.set(0, -1, 0);
+                        // Scale for optimal viewing as chatbot interface
+                        aiModel.scale.setScalar(2.5);
+                        aiModel.position.set(0, -1.5, 0);
 
                         // Center the model
                         const box = new THREE.Box3().setFromObject(aiModel);
                         const center = box.getCenter(new THREE.Vector3());
                         aiModel.position.sub(center);
 
-                        // Enable shadows
+                        // Make model interactive and emissive
                         aiModel.traverse(function (child) {
                             if (child.isMesh) {
                                 child.castShadow = true;
                                 child.receiveShadow = true;
-                                console.log('🔧 Processed mesh:', child.name || 'unnamed');
+                                // Add subtle emissive glow
+                                if (child.material) {
+                                    child.material.emissive = new THREE.Color(0x002222);
+                                }
+                                console.log('🔧 Processed chatbot mesh:', child.name || 'unnamed');
                             }
                         });
 
                         scene.add(aiModel);
                         modelLoaded = true;
+                        chatbotActive = true;
 
-                        // Hide loading, show interaction hint
+                        // Hide loading, show chatbot interface
                         hideLoadingIndicator();
-                        showInteractionHint();
+                        showChatbotInterface();
 
-                        console.log('🎉 GLB model fully integrated into scene');
+                        console.log('🎉 GLB Chatbot model ready for interaction');
 
                     } catch (error) {
-                        console.error('❌ Error processing GLB model:', error);
-                        createFallbackModel();
+                        console.error('❌ Error processing GLB chatbot model:', error);
+                        createFallbackChatbot();
                     }
                 },
                 function (progress) {
@@ -1139,15 +1145,15 @@
                     }
                 },
                 function (error) {
-                    console.error('❌ GLB model failed to load:', error);
+                    console.error('❌ GLB Chatbot model failed to load:', error);
                     console.error('Error details:', {
                         message: error.message,
                         type: error.name,
                         status: error.status,
                         url: 'models/medical-doctor-3d-model.glb'
                     });
-                    console.log('🔄 Falling back to procedural model...');
-                    createFallbackModel();
+                    console.log('🔄 Creating fallback chatbot model...');
+                    createFallbackChatbot();
                 }
             );
         }
@@ -1309,8 +1315,8 @@
             );
         }
 
-        function createFallbackModel() {
-            console.log('Creating detailed medical AI fallback model');
+        function createFallbackChatbot() {
+            console.log('🤖 Creating interactive chatbot AI model');
 
             aiModel = new THREE.Group();
 
@@ -1411,26 +1417,38 @@
             }
 
             scene.add(aiModel);
-            console.log('🏥 Detailed medical AI fallback model created');
+            console.log('🤖 Interactive chatbot AI model created');
             modelLoaded = true;
+            chatbotActive = true;
 
             // Hide loading indicator
             hideLoadingIndicator();
 
-            // Add click interaction hint
-            showInteractionHint();
+            // Show chatbot interface immediately
+            showChatbotInterface();
 
-            console.log('🎉 Fallback model ready for interaction');
+            console.log('🎉 Chatbot model ready for interaction');
         }
 
-        function showInteractionHint() {
+        function showChatbotInterface() {
             const clickPrompt = document.getElementById('dr-ai-click-prompt');
             if (clickPrompt) {
+                // Update the prompt for chatbot interaction
+                clickPrompt.innerHTML = `
+                    <div class="dr-ai-click-animation">
+                        <i class="fas fa-comments"></i>
+                        <span>Click the 3D AI to start conversation</span>
+                    </div>
+                `;
                 clickPrompt.style.display = 'block';
+
+                // Keep it visible longer for chatbot interaction
                 setTimeout(() => {
                     clickPrompt.style.display = 'none';
-                }, 8000);
+                }, 10000);
             }
+
+            console.log('💬 Chatbot interface activated - click 3D model to chat');
         }
 
         function onMouseMove(event) {
@@ -1441,17 +1459,27 @@
         }
 
         function onModelClick(event) {
-            if (!aiModel) return;
+            if (!aiModel || !chatbotActive) return;
 
             // Update raycaster
             raycaster.setFromCamera(mouse, camera);
 
-            // Check for intersections
+            // Check for intersections with the chatbot model
             const intersects = raycaster.intersectObject(aiModel, true);
 
             if (intersects.length > 0) {
-                console.log('Model clicked! Opening chat interface');
+                console.log('🤖 Chatbot AI clicked! Opening conversation interface');
                 toggleChatInterface();
+
+                // Provide haptic feedback (visual)
+                if (aiModel) {
+                    // Quick scale animation for click feedback
+                    const originalScale = aiModel.scale.x;
+                    aiModel.scale.setScalar(originalScale * 1.1);
+                    setTimeout(() => {
+                        aiModel.scale.setScalar(originalScale);
+                    }, 150);
+                }
             }
         }
 
@@ -1491,27 +1519,19 @@
         function animate() {
             animationId = requestAnimationFrame(animate);
 
-            if (aiModel && !chatInterfaceVisible) {
-                // Gentle floating animation
+            if (aiModel && chatbotActive && !chatInterfaceVisible) {
+                // Smooth chatbot animation - breathing effect
                 const time = Date.now() * 0.001;
-                aiModel.position.y = -1 + Math.sin(time * 0.5) * 0.1;
-                aiModel.rotation.y += 0.005;
+                const breath = Math.sin(time * 2) * 0.05;
+                aiModel.position.y = -1.5 + breath;
+
+                // Gentle rotation for life-like movement
+                aiModel.rotation.y += 0.002;
             } else if (!aiModel && !chatInterfaceVisible) {
-                // If no model loaded yet, add a visible test object
+                // If no chatbot model loaded, create emergency visible object
                 if (scene.children.length <= 3) { // Only lighting objects
-                    console.log('⚠️ No 3D model loaded, adding visible test object');
-                    const geometry = new THREE.SphereGeometry(1, 16, 16);
-                    const material = new THREE.MeshPhongMaterial({
-                        color: 0xff6b6b,
-                        emissive: 0x331111,
-                        transparent: true,
-                        opacity: 0.8
-                    });
-                    const testSphere = new THREE.Mesh(geometry, material);
-                    testSphere.position.set(0, 0, 0);
-                    scene.add(testSphere);
-                    aiModel = testSphere; // Set as aiModel so it animates
-                    console.log('✅ Added visible test sphere');
+                    console.log('🚨 No chatbot model loaded, creating emergency interface');
+                    createFallbackChatbot();
                 }
             }
 
@@ -1519,7 +1539,7 @@
             if (renderer && scene && camera) {
                 renderer.render(scene, camera);
             } else {
-                console.error('❌ Missing renderer, scene, or camera for rendering');
+                console.error('❌ Missing renderer, scene, or camera for chatbot rendering');
             }
         }
 
@@ -1532,36 +1552,36 @@
             }
         }
 
-        // Initialize Dr. AI
+        // Initialize Dr. AI 3D Chatbot
         function initDrAI() {
-            console.log('🤖 Dr. AI Assistant initializing...');
+            console.log('🤖 Dr. AI 3D Chatbot initializing...');
 
             // Check if Three.js is available
             if (typeof THREE === 'undefined') {
-                console.error('❌ Three.js not loaded - showing basic interface');
+                console.error('❌ Three.js not loaded - cannot display 3D chatbot');
                 showFallbackInterface();
                 return;
             }
 
             if (typeof THREE.GLTFLoader === 'undefined') {
-                console.error('❌ GLTFLoader not available - showing basic interface');
+                console.error('❌ GLTFLoader not available - cannot load 3D chatbot model');
                 showFallbackInterface();
                 return;
             }
 
-            console.log('✅ Three.js loaded, version:', THREE.REVISION);
+            console.log('✅ Three.js ready for 3D chatbot interface');
 
             // Check if canvas exists
             const canvas = document.getElementById('dr-ai-canvas');
             if (!canvas) {
-                console.error('❌ Canvas element not found!');
+                console.error('❌ Canvas element not found for 3D chatbot!');
                 showFallbackInterface();
                 return;
             }
 
-            console.log('✅ Canvas element found, initializing 3D interface...');
+            console.log('✅ 3D Canvas ready, loading chatbot model...');
 
-            // Initialize 3D interface immediately
+            // Initialize 3D chatbot interface
             initInteractiveGLBModel();
         }
 
