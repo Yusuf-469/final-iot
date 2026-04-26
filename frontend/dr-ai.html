@@ -1437,14 +1437,12 @@
                         });
 
                         scene.add(aiModel);
-                        modelLoaded = true;
-                        chatbotActive = true;
 
-                        // Hide loading, show chatbot interface
-                        hideLoadingIndicator();
-                        showChatbotInterface();
+                        // Hide loading
+                        const loading = document.getElementById('dr-ai-loading');
+                        if (loading) loading.style.display = 'none';
 
-                        console.log('🎉 GLB Chatbot model ready for interaction');
+                        console.log('🎉 GLB model loaded and ready');
 
                     } catch (error) {
                         console.error('❌ Error processing GLB chatbot model:', error);
@@ -1578,18 +1576,10 @@
                     showInteractionHint();
                 },
                 function (progress) {
-                    if (progress.total > 0) {
-                        const percent = Math.round((progress.loaded / progress.total * 100));
-                        console.log('Loading progress:', percent + '%');
-
-                        // Update progress bar
-                        const progressEl = document.getElementById('dr-ai-loading-progress');
-                        if (progressEl) {
-                            progressEl.style.width = percent + '%';
-                        }
-                    } else {
-                        console.log('Loading progress: ' + progress.loaded + ' bytes');
-                    }
+                    const loaded = progress.loaded || 0;
+                    const total = progress.total || 1; // Avoid division by zero
+                    const percent = Math.min(Math.round((loaded / total * 100)), 100);
+                    console.log(`Loading progress: ${percent}% (${loaded} bytes)`);
                 },
                 function (error) {
                     console.error('Error loading GLB model:', error);
@@ -1833,33 +1823,22 @@
         }
 
         function animate() {
-            animationId = requestAnimationFrame(animate);
+            requestAnimationFrame(animate);
 
-            if (aiModel && chatbotActive && !chatInterfaceVisible) {
-                // Smooth chatbot animation - breathing effect
+            if (model) {
+                // Gentle floating animation for the 3D model
                 const time = Date.now() * 0.001;
-                const breath = Math.sin(time * 2) * 0.05;
-                aiModel.position.y = -1.2 + breath;
-                aiModel.rotation.y += 0.002;
-            } else if (!aiModel && !chatInterfaceVisible) {
-                // If no chatbot model loaded, show visible placeholder
-                if (scene.children.length <= 3) { // Only lighting objects
-                    console.log('🔵 Adding visible placeholder while waiting for GLB');
-                    const placeholderGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-                    const placeholderMaterial = new THREE.MeshPhongMaterial({
-                        color: 0x00ffff,
-                        emissive: 0x002244,
-                        transparent: true,
-                        opacity: 0.8
-                    });
-                    const placeholder = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
-                    placeholder.position.set(0, 0, 0);
-                    scene.add(placeholder);
+                model.position.y = -1 + Math.sin(time * 0.5) * 0.1;
+                model.rotation.y += 0.005;
+            }
 
-                    // Add subtle animation to show it's working
-                    placeholder.rotation.y += 0.01;
-                    placeholder.position.y = Math.sin(Date.now() * 0.001) * 0.1;
-                }
+            if (controls) controls.update();
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            } else {
+                console.error('❌ Missing renderer, scene, or camera');
+            }
+        }
             }
             }
 
