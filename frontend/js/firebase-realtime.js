@@ -3,8 +3,9 @@
  * Real-time database listeners for live data streaming
  */
 
-// Firebase configuration (will be loaded from API)
-let firebaseConfig = {
+// Firebase configuration for real-time database (will be loaded from API)
+// Note: Avoid global firebaseConfig to prevent conflicts with auth.js
+let realtimeFirebaseConfig = {
   apiKey: "demo", // Not needed for RTDB read-only
   databaseURL: "",
   projectId: ""
@@ -32,12 +33,12 @@ async function initFirebaseRealtime() {
     }
 
     // Update config with real values
-    firebaseConfig.databaseURL = config.data.databaseURL;
-    firebaseConfig.projectId = config.data.projectId;
+    realtimeFirebaseConfig.databaseURL = config.data.databaseURL;
+    realtimeFirebaseConfig.projectId = config.data.projectId;
 
     // Initialize Firebase if not already done
     if (!firebaseApp && typeof firebase !== 'undefined') {
-      firebaseApp = firebase.initializeApp(firebaseConfig);
+      firebaseApp = firebase.initializeApp(realtimeFirebaseConfig);
       database = firebase.database();
       console.log('✅ Firebase real-time initialized');
     }

@@ -1,5 +1,6 @@
-// Firebase configuration
-const firebaseConfig = {
+// Firebase configuration for authentication
+// Scoped to avoid conflicts with firebase-realtime.js
+const authFirebaseConfig = {
   apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
   authDomain: "final-iot-delta.vercel.app",
   databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
@@ -22,7 +23,7 @@ function initializeFirebase() {
       console.log('Using existing Firebase app');
     } catch (e) {
       // App doesn't exist, initialize new one
-      app = firebase.initializeApp(firebaseConfig);
+      app = firebase.initializeApp(authFirebaseConfig);
       console.log('Initialized new Firebase app');
     }
 
@@ -222,9 +223,9 @@ try {
   initializeFirebase();
   firebaseInitialized = true;
   console.log('🔍 Firebase config used:', {
-    apiKey: firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-10) : 'missing',
-    authDomain: firebaseConfig.authDomain,
-    projectId: firebaseConfig.projectId
+    apiKey: authFirebaseConfig.apiKey ? '***' + authFirebaseConfig.apiKey.slice(-10) : 'missing',
+    authDomain: authFirebaseConfig.authDomain,
+    projectId: authFirebaseConfig.projectId
   });
 } catch (error) {
   console.error('❌ Firebase initialization failed:', error);
