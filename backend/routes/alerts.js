@@ -236,13 +236,17 @@ router.get('/active', async (req, res) => {
 // POST /api/alerts/generate-predictions - Generate prediction-based alerts
 router.post('/generate-predictions', async (req, res) => {
   try {
+    logger.info('Starting prediction-based alert generation...');
     const alertsCreated = await generatePredictionAlerts();
 
     res.json({
       success: true,
       message: `Generated ${alertsCreated.length} prediction-based alerts`,
-      alertsCreated: alertsCreated.length
+      alertsCreated: alertsCreated.length,
+      alerts: alertsCreated
     });
+
+    logger.info(`Prediction alerts generated: ${alertsCreated.length} alerts created`);
 
   } catch (error) {
     logger.error('Error generating prediction alerts:', error);

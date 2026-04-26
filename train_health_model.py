@@ -140,8 +140,8 @@ def main():
     # Save model
     model_path = save_model(model, scaler, features, risk_mapping)
 
-    print("
-🎉 Model training completed successfully!"    print(f"Model saved at: {model_path}")
+    print("\n🎉 Model training completed successfully!")
+    print(f"Model saved at: {model_path}")
     print("\nTo use this model in production:")
     print("1. Deploy the model files to your server")
     print("2. Update the prediction service to load and use the model")
