@@ -85,7 +85,10 @@
                 
                 <div class="header-right">
                     <button class="btn btn-primary" onclick="generatePredictionAlerts()">
-                        <i class="fas fa-brain"></i> Generate AI Alerts
+                        <i class="fas fa-brain"></i> AI Risk Analysis
+                    </button>
+                    <button class="btn btn-info" onclick="showPredictionStatus()">
+                        <i class="fas fa-chart-line"></i> System Status
                     </button>
                     <button class="btn btn-secondary" onclick="markAllRead()">
                         <i class="fas fa-check-double"></i> Mark All Read
@@ -151,8 +154,8 @@
                     </div>
                 </section>
 
-                <!-- Alert Chart -->
-                <section class="charts-section reveal-scroll">
+                <!-- Alert Charts -->
+                <section class="alert-charts-section reveal-scroll">
                     <div class="chart-card">
                         <div class="chart-header">
                             <h3><i class="fas fa-chart-pie"></i> Alert Distribution</h3>
@@ -160,18 +163,64 @@
                         <div class="chart-container doughnut-container">
                             <canvas id="alertChart"></canvas>
                             <div class="chart-center-text">
-                                <span class="center-value">0</span>
+                                <span class="center-value" id="total-alerts-value">0</span>
                                 <span class="center-label">Total</span>
                             </div>
                         </div>
+                        <div class="alert-legend">
+                            <div class="legend-row">
+                                <span><i class="fas fa-square" style="color: #ef4444;"></i> Critical</span>
+                                <span id="critical-count">0</span>
+                            </div>
+                            <div class="legend-row">
+                                <span><i class="fas fa-square" style="color: #f59e0b;"></i> Warning</span>
+                                <span id="warning-count">0</span>
+                            </div>
+                            <div class="legend-row">
+                                <span><i class="fas fa-square" style="color: #3b82f6;"></i> Info</span>
+                                <span id="info-count">0</span>
+                            </div>
+                            <div class="legend-row ai-legend">
+                                <span><i class="fas fa-square" style="color: #8b5cf6;"></i> AI Predictions</span>
+                                <span id="ai-prediction-count">0</span>
+                            </div>
+                        </div>
                     </div>
-                    
+
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3><i class="fas fa-chart-bar"></i> Alerts Over Time</h3>
+                            <h3><i class="fas fa-brain"></i> AI Risk Analysis</h3>
+                            <div class="ai-status">
+                                <span class="status-dot active"></span>
+                                <span class="status-text">Active</span>
+                            </div>
                         </div>
-                        <div class="chart-container">
-                            <canvas id="alertsTimeChart"></canvas>
+                        <div class="ai-insights-content">
+                            <div class="ai-stats">
+                                <div class="ai-stat">
+                                    <span class="ai-stat-value" id="patients-monitored">0</span>
+                                    <span class="ai-stat-label">Patients Monitored</span>
+                                </div>
+                                <div class="ai-stat">
+                                    <span class="ai-stat-value" id="risk-assessments">0</span>
+                                    <span class="ai-stat-label">Risk Assessments</span>
+                                </div>
+                                <div class="ai-stat">
+                                    <span class="ai-stat-value" id="active-alerts">0</span>
+                                    <span class="ai-stat-label">Active AI Alerts</span>
+                                </div>
+                            </div>
+                            <div class="ai-actions">
+                                <button class="btn btn-sm btn-primary" onclick="generatePredictionAlerts()">
+                                    <i class="fas fa-sync"></i> Run Analysis
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="showPredictionStatus()">
+                                    <i class="fas fa-info-circle"></i> System Info
+                                </button>
+                            </div>
+                            <div class="ai-last-update">
+                                <small>Last Analysis: <span id="last-analysis-time">Never</span></small>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -211,6 +260,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOMContentLoaded fired');
             loadAlertsPage();
+            loadPredictionStatus();
         });
 
         async function loadAlertsPage() {
@@ -283,10 +333,10 @@
                 window.alertChart = new Chart(alertChartCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Critical', 'Warning', 'Info'],
+                        labels: ['Critical', 'Warning', 'Info', 'AI Predictions'],
                         datasets: [{
-                            data: [0, 0, 0],
-                            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6'],
+                            data: [0, 0, 0, 0],
+                            backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6'],
                             borderWidth: 0
                         }]
                     },
@@ -331,12 +381,16 @@
             const criticalAlerts = alerts.filter(a => (a.severity || a.type) === 'critical').length;
             const warningAlerts = alerts.filter(a => (a.severity || a.type) === 'warning').length;
             const infoAlerts = alerts.filter(a => (a.severity || a.type) === 'info').length;
+            const aiPredictionAlerts = alerts.filter(a => a.source === 'ml_prediction').length;
 
             // Update stats cards
             document.querySelectorAll('.stat-card .stat-number')[0].textContent = totalAlerts;
             document.querySelectorAll('.stat-card .stat-number')[1].textContent = criticalAlerts;
             document.querySelectorAll('.stat-card .stat-number')[2].textContent = warningAlerts;
             document.querySelectorAll('.stat-card .stat-number')[3].textContent = infoAlerts;
+
+            // Update AI prediction count
+            document.getElementById('ai-prediction-count').textContent = aiPredictionAlerts;
         }
 
         function updateAlertCharts(alerts) {
@@ -344,11 +398,18 @@
             const criticalCount = alerts.filter(a => (a.severity || a.type) === 'critical').length;
             const warningCount = alerts.filter(a => (a.severity || a.type) === 'warning').length;
             const infoCount = alerts.filter(a => (a.severity || a.type) === 'info').length;
+            const aiPredictionCount = alerts.filter(a => a.source === 'ml_prediction').length;
 
-            // Update donut chart data
+            // Update donut chart data (include AI predictions as a separate category)
             if (window.alertChart) {
-                window.alertChart.data.datasets[0].data = [criticalCount, warningCount, infoCount];
+                window.alertChart.data.datasets[0].data = [criticalCount, warningCount, infoCount, aiPredictionCount];
                 window.alertChart.update();
+            }
+
+            // Update center text
+            const centerValue = document.getElementById('total-alerts-value');
+            if (centerValue) {
+                centerValue.textContent = totalAlerts;
             }
 
             // Update center text
@@ -363,44 +424,125 @@
             showToast('Alert dismissed', 'info');
         }
 
-        // Make function globally available
-        window.generatePredictionAlerts = function() {
-            console.log('generatePredictionAlerts function called');
+        // Make functions globally available
+        window.generatePredictionAlerts = async function() {
+            console.log('🤖 Starting AI prediction analysis...');
 
-            alert('Generating AI-powered health risk alerts...');
+            // Show loading state
+            const button = document.querySelector('button[onclick*="generatePredictionAlerts"]');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+            button.disabled = true;
 
-            fetch('/api/alerts/generate-predictions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => {
-                console.log('API response status:', response.status);
-                return response.text();
-            })
-            .then(text => {
-                console.log('API response text:', text.substring(0, 200));
-                try {
-                    const data = JSON.parse(text);
-                    if (data.success) {
-                        alert(`Generated ${data.alertsCreated} AI alerts!`);
-                        // Refresh alerts list
-                        if (typeof loadAlerts === 'function') loadAlerts();
-                        if (typeof updateStats === 'function') updateStats();
-                    } else {
-                        throw new Error(data.error || 'Failed to generate alerts');
+            try {
+                const response = await fetch('/api/alerts/generate-predictions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                console.log('AI Analysis Result:', result);
+
+                if (result.success) {
+                    let message = `🧠 AI Analysis Complete!\n\n`;
+                    message += `📊 Patients Analyzed: ${result.analysis.patientsAnalyzed}\n`;
+                    message += `🚨 Alerts Generated: ${result.alertsCreated}\n`;
+
+                    if (result.alertsCreated > 0) {
+                        message += `\n⚠️ Risk Breakdown:\n`;
+                        Object.entries(result.analysis.riskLevels).forEach(([level, count]) => {
+                            message += `• ${level.toUpperCase()}: ${count}\n`;
+                        });
+                        message += `\n🔄 Refreshing alerts list...`;
                     }
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    alert('Error: Invalid response from server');
+
+                    alert(message);
+
+                    // Refresh alerts and stats
+                    if (typeof loadAlerts === 'function') loadAlerts();
+                    if (typeof updateStats === 'function') updateStats();
+
+                } else {
+                    throw new Error(result.error || 'AI analysis failed');
                 }
-            })
-            .catch(error => {
-                console.error('Error generating prediction alerts:', error);
-                alert('Failed to generate AI alerts: ' + error.message);
-            });
+
+            } catch (error) {
+                console.error('AI Analysis Error:', error);
+                alert('❌ AI Analysis Failed: ' + error.message);
+            } finally {
+                // Reset button
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
         };
+
+        window.showPredictionStatus = async function() {
+            console.log('Getting AI prediction system status...');
+
+            try {
+                const response = await fetch('/api/alerts/predictions/status');
+                const result = await response.json();
+
+                if (result.success) {
+                    const status = result.status;
+                    let message = `🤖 AI Prediction System Status\n\n`;
+                    message += `📈 Patients Monitored: ${status.patients}\n`;
+                    message += `🚨 Total Alerts: ${status.totalAlerts}\n`;
+                    message += `🧠 AI Prediction Alerts: ${status.predictionAlerts}\n`;
+                    message += `⚡ System Active: ${status.systemActive ? '✅' : '❌'}\n`;
+                    message += `🎯 AI Model: ${status.aiModel}\n`;
+                    message += `🕒 Last Check: ${new Date(status.lastCheck).toLocaleString()}\n`;
+
+                    alert(message);
+                } else {
+                    throw new Error(result.error || 'Failed to get status');
+                }
+
+            } catch (error) {
+                console.error('Status check error:', error);
+                alert('❌ Could not get system status: ' + error.message);
+            }
+        };
+
+        // Load AI prediction system status
+        async function loadPredictionStatus() {
+            try {
+                const response = await fetch('/api/alerts/predictions/status');
+                const result = await response.json();
+
+                if (result.success) {
+                    const status = result.status;
+
+                    // Update AI stats
+                    document.getElementById('patients-monitored').textContent = status.patients || 0;
+                    document.getElementById('risk-assessments').textContent = status.totalAlerts || 0;
+                    document.getElementById('active-alerts').textContent = status.predictionAlerts || 0;
+                    document.getElementById('ai-prediction-count').textContent = status.predictionAlerts || 0;
+
+                    // Update last analysis time
+                    const lastUpdate = status.lastCheck ? new Date(status.lastCheck).toLocaleString() : 'Never';
+                    document.getElementById('last-analysis-time').textContent = lastUpdate;
+
+                    // Update system status
+                    const statusDot = document.querySelector('.status-dot');
+                    const statusText = document.querySelector('.status-text');
+                    if (status.systemActive) {
+                        statusDot.classList.add('active');
+                        statusText.textContent = 'Active';
+                        statusText.style.color = 'var(--success)';
+                    } else {
+                        statusDot.classList.remove('active');
+                        statusText.textContent = 'Inactive';
+                        statusText.style.color = 'var(--danger)';
+                    }
+
+                    console.log('AI Prediction status loaded:', status);
+                }
+            } catch (error) {
+                console.error('Error loading prediction status:', error);
+                // Don't show error to user, just log it
+            }
+        }
 
         function markAllRead() {
             if (typeof showToast === 'function') {
