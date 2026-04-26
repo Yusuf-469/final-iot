@@ -965,20 +965,7 @@
 
         <canvas id="dr-ai-canvas" width="1920" height="1080"></canvas>
 
-        <!-- Fallback content if 3D fails -->
-        <div class="dr-ai-fallback-content" id="dr-ai-fallback">
-            <div class="dr-ai-fallback-icon">
-                <i class="fas fa-user-md"></i>
-            </div>
-            <h2>Dr. AI Medical Assistant</h2>
-            <p>3D interface failed to load</p>
-            <div class="dr-ai-fallback-buttons">
-                <button onclick="showChatInterface()" class="dr-ai-fallback-btn">
-                    <i class="fas fa-comments"></i>
-                    Start Chat Anyway
-                </button>
-            </div>
-        </div>
+
 
             <!-- Floating Health Indicators -->
             <div class="dr-ai-floating-indicators">
@@ -1242,8 +1229,8 @@
                     console.log('Total meshes found:', meshCount);
 
                     if (meshCount === 0) {
-                        console.error('No meshes found in GLB! Creating fallback.');
-                        createFallbackModel();
+                        console.error('No meshes found in GLB!');
+                        showError('No 3D model found in the file.');
                         return;
                     }
 
@@ -1302,8 +1289,7 @@
                 },
                 function (error) {
                     console.error('GLB loading failed:', error);
-                    console.log('Creating fallback model');
-                    createFallbackModel();
+                    showError('Failed to load 3D model.');
                 }
             );
         }
@@ -1314,61 +1300,20 @@
             tryLoadPath();
         }
 
-        function createFallbackModel() {
-            console.log('Creating fallback 3D model');
 
-            // Remove any existing test objects
-            const testObjects = scene.children.filter(child =>
-                child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'CylinderGeometry')
-            );
-            testObjects.forEach(obj => scene.remove(obj));
-
-            // Create a simple floating medical AI model
-            const group = new THREE.Group();
-
-            // Main body
-            const bodyGeometry = new THREE.CylinderGeometry(0.8, 1, 2, 16);
-            const bodyMaterial = new THREE.MeshPhongMaterial({
-                color: 0x0066cc,
-                emissive: 0x001122
-            });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            group.add(body);
-
-            // Head
-            const headGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-            const headMaterial = new THREE.MeshPhongMaterial({
-                color: 0x00ffff,
-                emissive: 0x002244
-            });
-            const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.y = 1.2;
-            group.add(head);
-
-            // Medical cross
-            const crossGeometry = new THREE.BoxGeometry(0.05, 0.8, 0.05);
-            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const vertical = new THREE.Mesh(crossGeometry, crossMaterial);
-            const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.05), crossMaterial);
-            horizontal.position.y = 0.2;
-            group.add(vertical);
-            group.add(horizontal);
-
-            model = group;
-            scene.add(model);
-            console.log('Fallback model added to scene');
-
-            // Hide loading
-            const loading = document.getElementById('dr-ai-loading');
-            if (loading) loading.style.display = 'none';
-
-            console.log('Fallback 3D model created');
-        }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function showError(message) {
+            const loading = document.getElementById('dr-ai-loading');
+            if (loading) {
+                loading.innerHTML = `<i class="fas fa-exclamation-triangle"></i><div>Error: ${message}</div>`;
+            }
+            console.error(message);
         }
 
         // Initialize when page loads
