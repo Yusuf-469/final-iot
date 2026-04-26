@@ -1,14 +1,27 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
   "outputDirectory": "frontend",
   "functions": {
-    "api/server.js": {
-      "maxDuration": 10
+    "api/**/*.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
+      "destination": "/api/server.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/server.js"
+    },
+    {
+      "source": "/ready",
+      "destination": "/api/server.js"
+    },
+    {
+      "source": "/ping",
       "destination": "/api/server.js"
     },
     {
