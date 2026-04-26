@@ -1138,7 +1138,7 @@
     <script src="js/page-scripts.js"></script>
     <script>
         // Simple 3D model viewer for Dr. AI
-        let scene, camera, renderer, model, controls;
+        let scene, camera, renderer, model, controls, loader;
 
         function initDrAIModel() {
             console.log('🤖 Initializing Dr. AI 3D Model...');
@@ -1151,11 +1151,12 @@
 
             // Scene setup
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0f0f23);
+            scene.background = new THREE.Color(0x1a1a3a); // Dark background
 
-            // Camera
+            // Camera positioned for optimal model viewing
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 5);
+            camera.position.set(0, 0, 3);
+            camera.lookAt(0, 0, 0); // Look at origin where model is placed
 
             // Renderer
             renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -1180,75 +1181,132 @@
             controls.autoRotate = true;
             controls.autoRotateSpeed = 0.5;
 
-            // Load GLB model
-            loadGLBModel();
-
-            // Animation loop
-            animate();
-
             // Handle resize
             window.addEventListener('resize', onWindowResize);
 
+            // Start animation loop
+            animate();
+
             console.log('✅ Dr. AI 3D Model initialized');
+
+            // Load GLB model after setup
+            loadGLBModel();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            // Debug: log once per second
+            if (Math.floor(Date.now() / 1000) % 5 === 0 && !window.logged) {
+                console.log('Animation loop running, scene children:', scene.children.length);
+                window.logged = true;
+                setTimeout(() => window.logged = false, 1000);
+            }
         }
 
         function loadGLBModel() {
             console.log('Loading GLB model...');
 
-            const loader = new THREE.GLTFLoader();
+            loader = new THREE.GLTFLoader();
 
-            // Try different paths for the GLB file
-            const glbPaths = [
-                'models/medical-doctor-3d-model.glb',
-                './models/medical-doctor-3d-model.glb',
-                '/models/medical-doctor-3d-model.glb'
-            ];
+            const glbPath = 'models/medical-doctor-3d-model.glb';
+            console.log(`Loading GLB from: ${glbPath}`);
 
-            let pathIndex = 0;
+            loader.load(
+                glbPath,
+                function (gltf) {
+                    console.log('GLB model loaded successfully!');
+                    console.log('GLTF scene:', gltf.scene);
+                    console.log('Scene children:', gltf.scene.children.length);
 
-            function tryLoadPath() {
-                if (pathIndex >= glbPaths.length) {
-                    console.log('GLB loading failed, using fallback model');
-                    createFallbackModel();
-                    return;
-                }
+                    model = gltf.scene;
 
-                const currentPath = glbPaths[pathIndex];
-                console.log(`Trying to load GLB from: ${currentPath}`);
-
-                loader.load(
-                    currentPath,
-                    function (gltf) {
-                        console.log('GLB model loaded successfully!');
-                        model = gltf.scene;
-
-                        // Scale and position
-                        model.scale.setScalar(1.5);
-                        model.position.set(0, -1, 0);
-
-                        // Enable shadows
-                        model.traverse(function (child) {
-                            if (child.isMesh) {
-                                child.castShadow = true;
-                                child.receiveShadow = true;
+                    // Deep inspection of the loaded model
+                    let meshCount = 0;
+                    model.traverse(function (child) {
+                        console.log('Child:', child.type, child.name || 'unnamed');
+                        if (child.isMesh) {
+                            meshCount++;
+                            console.log('  Mesh geometry:', child.geometry.type);
+                            console.log('  Mesh material:', child.material ? child.material.type : 'none');
+                            if (child.material) {
+                                console.log('  Material color:', child.material.color ? child.material.color.getHexString() : 'none');
+                                console.log('  Material transparent:', child.material.transparent);
+                                console.log('  Material opacity:', child.material.opacity);
                             }
-                        });
+                            console.log('  Mesh position:', child.position);
+                            console.log('  Mesh scale:', child.scale);
+                        }
+                    });
+                    console.log('Total meshes found:', meshCount);
 
-                        scene.add(model);
+                    if (meshCount === 0) {
+                        console.error('No meshes found in GLB! Creating fallback.');
+                        createFallbackModel();
+                        return;
+                    }
 
-                        // Hide loading
-                        const loading = document.getElementById('dr-ai-loading');
-                        if (loading) loading.style.display = 'none';
+                    // Scale and position - adjust for better visibility
+                    model.scale.setScalar(1.0); // Normal scale
+                    model.position.set(0, -0.5, 0); // Slightly below center
 
-                        console.log('3D model ready for interaction');
-                    },
-                    function (progress) {
-                        console.log('Loading progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
-                    },
-                    function (error) {
-                        console.log(`Failed to load from ${currentPath}, trying next path`);
-                        pathIndex++;
-                        tryLoadPath();
+                    // Enable shadows and ensure materials are visible
+                    model.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            // Ensure material is visible
+                            if (child.material) {
+                                child.material.transparent = false;
+                                child.material.opacity = 1.0;
+                                // Force visible color if too dark
+                                if (child.material.color) {
+                                    const hex = child.material.color.getHex();
+                                    if (hex === 0x000000 || hex < 0x333333) {
+                                        child.material.color.setHex(0xcccccc);
+                                        console.log('Lightened dark material color');
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Remove any existing test objects
+                    const testObjects = scene.children.filter(child =>
+                        child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'CylinderGeometry')
+                    );
+                    testObjects.forEach(obj => scene.remove(obj));
+
+                    scene.add(model);
+                    console.log('GLB Model added to scene at position:', model.position);
+                    console.log('Model scale:', model.scale);
+                    console.log('Scene children count after adding model:', scene.children.length);
+
+                    // Add a visible bounding box for debugging (remove in production)
+                    const box = new THREE.BoxHelper(model, 0xff0000);
+                    scene.add(box);
+                    console.log('Added red bounding box for debugging');
+
+                    // Compute bounding box to check size
+                    const bbox = new THREE.Box3().setFromObject(model);
+                    console.log('Model bounding box:', bbox.min, bbox.max);
+
+                    // Hide loading indicator
+                    const loading = document.getElementById('dr-ai-loading');
+                    if (loading) loading.style.display = 'none';
+                },
+                function (progress) {
+                    const percent = progress.total > 0 ? Math.round((progress.loaded / progress.total * 100)) : 0;
+                    console.log('Loading progress:', percent + '%');
+                },
+                function (error) {
+                    console.error('GLB loading failed:', error);
+                    console.log('Creating fallback model');
+                    createFallbackModel();
+                }
+            );
+        }
                     }
                 );
             }
@@ -1258,6 +1316,12 @@
 
         function createFallbackModel() {
             console.log('Creating fallback 3D model');
+
+            // Remove any existing test objects
+            const testObjects = scene.children.filter(child =>
+                child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'CylinderGeometry')
+            );
+            testObjects.forEach(obj => scene.remove(obj));
 
             // Create a simple floating medical AI model
             const group = new THREE.Group();
@@ -1292,6 +1356,7 @@
 
             model = group;
             scene.add(model);
+            console.log('Fallback model added to scene');
 
             // Hide loading
             const loading = document.getElementById('dr-ai-loading');
@@ -1300,403 +1365,27 @@
             console.log('Fallback 3D model created');
         }
 
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Dr. AI 3D Model page loaded');
             initDrAIModel();
         });
-    </script>            console.log('🚀 Initializing Dr. AI 3D Interface...');
+    </script>
+            <i class="fas fa-cog"></i>
+            <div>Loading 3D Model...</div>
+        </div>
 
-            const canvas = document.getElementById('dr-ai-canvas');
-            if (!canvas) {
-                console.error('❌ Canvas element not found!');
-                showFallbackInterface();
-                return;
-            }
-
-            try {
-                // Scene setup
-                scene = new THREE.Scene();
-                scene.background = new THREE.Color(0x0f0f23);
-
-            // Camera positioned for optimal model viewing
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 3.5);
-
-                // Renderer
-                renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setClearColor(0x0f0f23);
-
-        }
-
-        function setupLighting() {
-            // Ambient light
-            const ambient = new THREE.AmbientLight(0x404040, 0.6);
-            scene.add(ambient);
-
-            // Main directional light
-            const directional = new THREE.DirectionalLight(0xffffff, 1);
-            directional.position.set(5, 5, 5);
-            directional.castShadow = true;
-            directional.shadow.mapSize.width = 2048;
-            directional.shadow.mapSize.height = 2048;
-            scene.add(directional);
-
-            // Accent lights
-            const blueLight = new THREE.PointLight(0x0088ff, 0.5, 100);
-            blueLight.position.set(-5, 5, 5);
-            scene.add(blueLight);
-
-            const purpleLight = new THREE.PointLight(0x8800ff, 0.3, 100);
-            purpleLight.position.set(5, -5, 5);
-            scene.add(purpleLight);
-        }
-
-        function showLoadingIndicator() {
-            const loadingEl = document.getElementById('dr-ai-loading');
-            if (loadingEl) {
-                loadingEl.style.display = 'block';
-                console.log('📊 Showing loading indicator');
-            }
-        }
-
-        function loadGLBModelFirst() {
-            console.log('🎯 Loading GLB Chatbot Model from: models/medical-doctor-3d-model.glb');
-
-            // Check if the file exists by trying to fetch it first
-            const glbPaths = [
-                'models/medical-doctor-3d-model.glb',
-                './models/medical-doctor-3d-model.glb',
-                '/models/medical-doctor-3d-model.glb'
-            ];
-
-            let pathIndex = 0;
-            const tryNextPath = () => {
-                if (pathIndex >= glbPaths.length) {
-                    console.error('❌ All GLB file paths failed');
-                    createFallbackChatbot();
-                    return;
-                }
-
-                const currentPath = glbPaths[pathIndex];
-                console.log(`🔍 Checking GLB accessibility at: ${currentPath}`);
-
-                fetch(currentPath, { method: 'HEAD' })
-                    .then(response => {
-                        if (response.ok) {
-                            console.log(`✅ GLB file accessible at: ${currentPath}`);
-                            loadGLBWithThreeJS(currentPath);
-                        } else {
-                            console.log(`❌ Path ${currentPath} not accessible (${response.status}), trying next path`);
-                            pathIndex++;
-                            tryNextPath();
-                        }
-                    })
-                    .catch(error => {
-                        console.log(`❌ Error accessing ${currentPath}:`, error.message);
-                        pathIndex++;
-                        tryNextPath();
-                    });
-            };
-
-            tryNextPath();
-        }
-
-        function loadGLBWithThreeJS(glbPath) {
-            console.log(`🎨 Loading GLB with Three.js from: ${glbPath}`);
-
-            loader.load(
-                glbPath,
-                function (gltf) {
-                    console.log('✅ GLB Chatbot model loaded successfully!', gltf);
-
-                    try {
-                        aiModel = gltf.scene;
-
-                        // Scale to fit screen appropriately as chatbot interface
-                        aiModel.scale.setScalar(1.2);
-                        aiModel.position.set(0, -1.2, 0);
-
-                        // Center the model
-                        const box = new THREE.Box3().setFromObject(aiModel);
-                        const center = box.getCenter(new THREE.Vector3());
-                        aiModel.position.sub(center);
-
-                        // Make model interactive and emissive
-                        aiModel.traverse(function (child) {
-                            if (child.isMesh) {
-                                child.castShadow = true;
-                                child.receiveShadow = true;
-                                // Add subtle emissive glow
-                                if (child.material) {
-                                    child.material.emissive = new THREE.Color(0x002222);
-                                }
-                                console.log('🔧 Processed chatbot mesh:', child.name || 'unnamed');
-                            }
-                        });
-
-                        scene.add(aiModel);
-
-                        // Hide loading
-                        const loading = document.getElementById('dr-ai-loading');
-                        if (loading) loading.style.display = 'none';
-
-                        console.log('🎉 GLB model loaded and ready');
-
-                    } catch (error) {
-                        console.error('❌ Error processing GLB chatbot model:', error);
-                        createFallbackChatbot();
-                    }
-                },
-                function (progress) {
-                    const percent = Math.round((progress.loaded / progress.total * 100));
-                    console.log(`📈 Loading progress: ${percent}%`);
-
-                    const progressEl = document.getElementById('dr-ai-loading-progress');
-                    if (progressEl) {
-                        progressEl.style.width = percent + '%';
-                    }
-                },
-                function (error) {
-                    console.error('❌ GLB Chatbot model failed to load:', error);
-                    console.error('Error details:', {
-                        message: error.message,
-                        type: error.name,
-                        status: error.status,
-                        url: 'models/medical-doctor-3d-model.glb'
-                    });
-                    console.log('🔄 Creating fallback chatbot model...');
-                    createFallbackChatbot();
-                }
-            );
-        }
-
-        function loadGLBModel() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a0a0a);
-
-            // Camera
-            camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-            camera.position.set(0, 0, 3);
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
-            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(5, 5, 5);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
-
-            const pointLight1 = new THREE.PointLight(0x00ffff, 0.5);
-            pointLight1.position.set(-3, 3, 3);
-            scene.add(pointLight1);
-
-            const pointLight2 = new THREE.PointLight(0xff00ff, 0.5);
-            pointLight2.position.set(3, -3, 3);
-            scene.add(pointLight2);
-
-            // Raycaster for mouse interaction
-            raycaster = new THREE.Raycaster();
-            mouse = new THREE.Vector2();
-
-            // Load GLB model
-            loadGLBModel();
-
-            // Controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.enableZoom = true;
-            controls.enablePan = false;
-            controls.autoRotate = true;
-            controls.autoRotateSpeed = 0.3;
-            controls.minDistance = 2;
-            controls.maxDistance = 5;
-
-            // Mouse event listeners
-            canvas.addEventListener('click', onModelClick);
-            canvas.addEventListener('mousemove', onMouseMove);
-
-            // Animation loop
-            animate();
-
-            // Handle resize
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        function loadGLBModel() {
-            console.log('Attempting to load GLB model from: models/medical-doctor-3d-model.glb');
-
-            const loader = new THREE.GLTFLoader();
-
-            loader.load(
-                'models/medical-doctor-3d-model.glb',
-                function (gltf) {
-                    console.log('GLTF loaded:', gltf);
-                    aiModel = gltf.scene;
-
-                    if (!aiModel) {
-                        console.error('GLTF scene is null');
-                        createFallbackModel();
-                        return;
-                    }
-
-                    // Scale and position the model
-                    aiModel.scale.set(2, 2, 2);
-                    aiModel.position.set(0, -1, 0);
-
-                    // Enable shadows
-                    aiModel.traverse(function (child) {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            console.log('Added mesh to model:', child.name);
-                        }
-                    });
-
-                    scene.add(aiModel);
-                    console.log('GLB model added to scene successfully');
-
-                    // Hide loading indicator
-                    const loadingEl = document.getElementById('dr-ai-loading');
-                    if (loadingEl) {
-                        loadingEl.style.display = 'none';
-                    }
-
-                    // Add click interaction hint
-                    showInteractionHint();
-                },
-                function (progress) {
-                    const loaded = progress.loaded || 0;
-                    const total = progress.total || 1; // Avoid division by zero
-                    const percent = Math.min(Math.round((loaded / total * 100)), 100);
-                    console.log(`Loading progress: ${percent}% (${loaded} bytes)`);
-                },
-                function (error) {
-                    console.error('Error loading GLB model:', error);
-                    console.error('Error details:', {
-                        message: error.message,
-                        type: error.type,
-                        target: error.target
-                    });
-
-                    // Try alternative path
-                    console.log('Trying alternative path...');
-                    loader.load(
-                        './models/medical-doctor-3d-model.glb',
-                        function (gltf) {
-                            console.log('GLB loaded from alternative path');
-                            aiModel = gltf.scene;
-                            aiModel.scale.set(2, 2, 2);
-                            aiModel.position.set(0, -1, 0);
-                            scene.add(aiModel);
-
-                            // Hide loading indicator
-                            const loadingEl = document.getElementById('dr-ai-loading');
-                            if (loadingEl) {
-                                loadingEl.style.display = 'none';
-                            }
-
-                            showInteractionHint();
-                        },
-                        function (progress) {
-                            console.log('Alt path progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
-                        },
-                        function (altError) {
-                            console.error('Alternative path also failed:', altError);
-                            // Fallback to procedural model if GLB fails
-                            createFallbackModel();
-                        }
-                    );
-                }
-            );
-        }
-
-        function createFallbackChatbot() {
-            console.log('🤖 Creating interactive chatbot AI model');
-
-            aiModel = new THREE.Group();
-
-            // Main body - sophisticated medical AI core
-            const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.8, 2, 16);
-            const bodyMaterial = new THREE.MeshPhongMaterial({
-                color: 0x0066cc,
-                emissive: 0x001122,
-                transparent: true,
-                opacity: 0.9
-            });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            aiModel.add(body);
-
-            // Head/brain area
-            const headGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-            const headMaterial = new THREE.MeshPhongMaterial({
-                color: 0x00ffff,
-                emissive: 0x002244,
-                transparent: true,
-                opacity: 0.8
-            });
-            const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.y = 1.2;
-            aiModel.add(head);
-
-            // Medical cross symbol
-            const crossGroup = new THREE.Group();
-
-            const verticalGeometry = new THREE.BoxGeometry(0.05, 0.8, 0.05);
-            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444 });
-            const vertical = new THREE.Mesh(verticalGeometry, crossMaterial);
-
-            const horizontalGeometry = new THREE.BoxGeometry(0.4, 0.05, 0.05);
-            const horizontal = new THREE.Mesh(horizontalGeometry, crossMaterial);
-            horizontal.position.y = 0.2;
-
-            crossGroup.add(vertical);
-            crossGroup.add(horizontal);
-            crossGroup.position.set(0, 0.5, 0.61); // Front of body
-            aiModel.add(crossGroup);
-
-            // Neural network rings
-            for (let i = 0; i < 3; i++) {
-                const ringGeometry = new THREE.TorusGeometry(0.9 + i * 0.2, 0.02, 8, 32);
-                const ringMaterial = new THREE.MeshBasicMaterial({
-                    color: i === 0 ? 0xff00ff : i === 1 ? 0x00ffff : 0xffff00,
-                    transparent: true,
-                    opacity: 0.7
-                });
-                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-                ring.position.y = 0.5;
-                ring.rotation.x = Math.PI / 2;
-                aiModel.add(ring);
-            }
-
-            // Data streams (animated lines)
-            for (let i = 0; i < 8; i++) {
-                const points = [];
-                for (let j = 0; j < 10; j++) {
-                    points.push(new THREE.Vector3(
-                        Math.sin(j * 0.5) * 0.3,
-                        j * 0.1 - 0.5,
-                        Math.cos(j * 0.5) * 0.3
-                    ));
-                }
-                const geometry = new THREE.BufferGeometry().setFromPoints(points);
-                const material = new THREE.LineBasicMaterial({
-                    color: 0x00ff88,
-                    transparent: true,
-                    opacity: 0.6
-                });
-                const line = new THREE.Line(geometry, material);
-                line.position.x = Math.cos(i * Math.PI / 4) * 1.2;
+        <!-- 3D Canvas -->
+        <canvas id="dr-ai-canvas"></canvas>
+    </div>
+</body>
+</html>
                 line.position.z = Math.sin(i * Math.PI / 4) * 1.2;
                 aiModel.add(line);
             }
