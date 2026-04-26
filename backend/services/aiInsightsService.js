@@ -9,26 +9,37 @@ class AIInsightsService {
     constructor() {
         this.client = null;
         this.apiKey = process.env.OPENROUTER_API_KEY;
+    }
 
-        if (this.apiKey) {
-            this.client = new OpenRouter({
-                apiKey: this.apiKey
-            });
+    // Lazy initialization of the client
+    getClient() {
+        if (!this.apiKey) {
+            throw new Error('OpenRouter API key not configured');
         }
+
+        if (!this.client) {
+            try {
+                this.client = new OpenRouter({
+                    apiKey: this.apiKey
+                });
+            } catch (error) {
+                console.error('Failed to initialize OpenRouter client:', error);
+                throw error;
+            }
+        }
+
+        return this.client;
     }
 
     /**
      * Generate AI-powered insights from health data
      */
     async generateInsights(analyticsData, timeRange = '7d') {
-        if (!this.client) {
-            return this.generateFallbackInsights(analyticsData, timeRange);
-        }
-
         try {
+            const client = this.getClient();
             const prompt = this.buildInsightsPrompt(analyticsData, timeRange);
 
-            const response = await this.client.chat.send({
+            const response = await client.chat.send({
                 model: "openrouter/free",
                 messages: [
                     {

@@ -52,3 +52,4 @@
 {"level":"info","message":"MongoDB connected successfully","service":"iot-health-monitor","timestamp":"2026-02-05T11:49:12.486Z"}
 {"level":"info","message":"Server running on port 5000","service":"iot-health-monitor","timestamp":"2026-02-05T11:49:12.491Z"}
 {"level":"info","message":"Environment: development","service":"iot-health-monitor","timestamp":"2026-02-05T11:49:12.491Z"}
+{"level":"error","message":"Error fetching patients: limit is not defined","service":"iot-health-monitor","stack":"ReferenceError: limit is not defined\n    at C:\\medical iot\\backend\\routes\\patients.js:39:31\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)","timestamp":"2026-04-10T10:10:47.288Z"}

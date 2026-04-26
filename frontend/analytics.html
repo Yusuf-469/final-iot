@@ -175,8 +175,6 @@
         // Initialize Firebase
         async function initFirebase() {
             try {
-                if (firebaseInitialized) return;
-
                 console.log('Initializing Firebase for analytics...');
 
                 // Get Firebase config from backend
@@ -202,6 +200,125 @@
                     firebase.initializeApp(firebaseConfig);
                     console.log('Firebase app initialized');
                 }
+
+                firebaseInitialized = true;
+                console.log('Firebase initialized for analytics successfully');
+
+            } catch (error) {
+                console.warn('Firebase initialization failed:', error.message);
+                console.warn('Falling back to API-only mode');
+                // Continue with API-only mode
+            }
+        }
+
+        // Load health insights from real-time database
+        async function loadHealthInsights(readings) {
+            const insightsGrid = document.getElementById('insights-grid');
+            if (!insightsGrid) return;
+
+            // Show loading state
+            insightsGrid.innerHTML = `
+                <div class="insight-card">
+                    <div class="insight-icon info">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="insight-content">
+                        <h4>Loading Health Insights...</h4>
+                        <p>Analyzing real-time health data</p>
+                    </div>
+                </div>
+            `;
+
+            try {
+                // Get current time range
+                const range = document.getElementById('analytics-range').value || '7d';
+
+                // Fetch real-time health data from Firebase
+                const healthRef = firebase.database().ref('health');
+                const healthSnapshot = await healthRef.once('value');
+                const currentHealth = healthSnapshot.val() || {};
+
+                // Get patients data
+                const patientsRef = firebase.database().ref('patients');
+                const patientsSnapshot = await patientsRef.once('value');
+                const patientsData = patientsSnapshot.val() || {};
+
+                // Calculate insights from real data
+                const basicInsights = calculateHealthInsights(readings);
+
+                // Build comprehensive insights
+                let insightsHTML = `
+                    <div class="insight-card">
+                        <div class="insight-icon success">
+                            <i class="fas fa-heartbeat"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average Heart Rate</h4>
+                            <p>${basicInsights.avgHeartRate} BPM</p>
+                            <small>Range: ${basicInsights.minHeartRate} - ${basicInsights.maxHeartRate} BPM</small>
+                        </div>
+                    </div>
+
+                    <div class="insight-card">
+                        <div class="insight-icon warning">
+                            <i class="fas fa-thermometer-half"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average Temperature</h4>
+                            <p>${basicInsights.avgTemperature}°C</p>
+                            <small>Range: ${basicInsights.minTemperature} - ${basicInsights.maxTemperature}°C</small>
+                        </div>
+                    </div>
+
+                    <div class="insight-card">
+                        <div class="insight-icon info">
+                            <i class="fas fa-lungs"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average SpO2</h4>
+                            <p>${basicInsights.avgSpo2}%</p>
+                            <small>Range: ${basicInsights.minSpo2} - ${basicInsights.maxSpo2}%</small>
+                        </div>
+                    </div>
+                `;
+
+                // Add current health status if available
+                if (currentHealth.heartRate || currentHealth.temperature || currentHealth.spo2) {
+                    insightsHTML += `
+                        <div class="insight-card">
+                            <div class="insight-icon primary">
+                                <i class="fas fa-vitals"></i>
+                            </div>
+                            <div class="insight-content">
+                                <h4>Current Health Status</h4>
+                                <p>Live readings from monitoring device</p>
+                                <small>
+                                    HR: ${currentHealth.heartRate || 'N/A'} BPM | 
+                                    Temp: ${currentHealth.temperature || 'N/A'}°C | 
+                                    SpO2: ${currentHealth.spo2 || 'N/A'}%
+                                </small>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                insightsGrid.innerHTML = insightsHTML;
+
+            } catch (error) {
+                console.error('Error loading health insights:', error);
+                insightsGrid.innerHTML = `
+                    <div class="insight-card">
+                        <div class="insight-icon warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Insights Unavailable</h4>
+                            <p>Unable to load health insights. Basic analytics still available.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
 
                 firebaseInitialized = true;
                 console.log('Firebase initialized for analytics successfully');

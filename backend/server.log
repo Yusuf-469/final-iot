@@ -1,0 +1,44 @@
+Firebase config check:
+  projectId: (set) iothealth-2335a
+  privateKeyRaw: (set) (length: 1732)
+  privateKey: (set) (length: 1704)
+  clientEmail: (set) firebase-adminsdk-fbsvc@iothealth-2335a.iam.gserviceaccount.com
+✅ Firebase Admin SDK initialized with credentials
+✅ Firebase Realtime Database initialized
+
+╔════════════════════════════════════════════════════╗
+║     Medical IoT Backend Server                    ║
+╠════════════════════════════════════════════════════╣
+║  Server running on: http://0.0.0.0:3017                    ║
+║  Environment: development                        ║
+║  Health check: http://0.0.0.0:3017/health               ║
+║  Ping endpoint: http://0.0.0.0:3017/ping                ║
+╚════════════════════════════════════════════════════╝
+  
+POST /api/patients called
+Request body: { firstName: 'Debug', age: 25, deviceId: 'health' }
+Content-Type: application/json
+Database available: true
+Parsed data: {
+  firstName: 'Debug',
+  lastName: undefined,
+  age: 25,
+  deviceId: 'health'
+}
+Generated patientId: patient_1775825279807_owv24o
+About to save patient data to Firebase
+Patient saved successfully to Firebase
+Sending response: {
+  success: true,
+  data: {
+    id: 'patient_1775825279807_owv24o',
+    firstName: 'Debug',
+    lastName: '',
+    age: 25,
+    deviceId: 'health',
+    status: 'offline',
+    createdAt: '2026-04-10T12:47:59.807Z',
+    updatedAt: '2026-04-10T12:47:59.807Z'
+  }
+}
+POST / 201 1425ms
