@@ -193,11 +193,13 @@ app.use('/api/signup', require('./routes/auth'));
         filePath = path.join(filePath, 'settings.html');
       } else if (req.path.startsWith('/login')) {
         filePath = path.join(filePath, 'login.html');
-      } else if (req.path.startsWith('/signup')) {
-        filePath = path.join(filePath, 'signup.html');
-      } else {
-        filePath = path.join(filePath, 'index.html');
-      }
+       } else if (req.path.startsWith('/signup')) {
+         filePath = path.join(filePath, 'signup.html');
+       } else if (req.path.startsWith('/dr-ai')) {
+         filePath = path.join(filePath, 'dr-ai.html');
+       } else {
+         filePath = path.join(filePath, 'index.html');
+       }
 
       res.sendFile(filePath, (err) => {
         if (err) {
