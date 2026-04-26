@@ -300,6 +300,52 @@
             100% { transform: rotate(360deg); }
         }
 
+        .dr-ai-loading-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 150;
+            display: none;
+        }
+
+        .dr-ai-loading-content {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            color: #ffffff;
+            font-weight: 500;
+            box-shadow: 0 20px 60px rgba(0, 255, 255, 0.2);
+            min-width: 300px;
+        }
+
+        .dr-ai-loading-content i {
+            color: #00ffff;
+            font-size: 2rem;
+        }
+
+        .dr-ai-loading-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .dr-ai-loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #0080ff);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
         .dr-ai-header {
             padding: 1.5rem 2rem;
             background: rgba(0, 0, 0, 0.3);
@@ -745,6 +791,17 @@
                 </div>
             </div>
 
+            <!-- Model Loading Indicator -->
+            <div class="dr-ai-loading-overlay" id="dr-ai-loading">
+                <div class="dr-ai-loading-content">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Loading 3D Medical AI Model...</span>
+                    <div class="dr-ai-loading-bar">
+                        <div class="dr-ai-loading-progress" id="dr-ai-loading-progress"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Thinking Indicator -->
             <div class="dr-ai-thinking-overlay" id="dr-ai-thinking">
                 <div class="dr-ai-thinking-content">
@@ -875,11 +932,74 @@
         let chatInterfaceVisible = false;
 
         function initInteractiveGLBModel() {
+            // Show loading indicator
+            const loadingEl = document.getElementById('dr-ai-loading');
+            if (loadingEl) {
+                loadingEl.style.display = 'block';
+            }
+
             const canvas = document.getElementById('dr-ai-canvas');
             if (!canvas) {
                 console.error('Canvas not found');
                 return;
             }
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 3);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            const pointLight1 = new THREE.PointLight(0x00ffff, 0.5);
+            pointLight1.position.set(-3, 3, 3);
+            scene.add(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0xff00ff, 0.5);
+            pointLight2.position.set(3, -3, 3);
+            scene.add(pointLight2);
+
+            // Load GLB model
+            loadGLBModel();
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = false;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.3;
+            controls.minDistance = 2;
+            controls.maxDistance = 5;
+
+            // Mouse event listeners
+            canvas.addEventListener('click', onModelClick);
+            canvas.addEventListener('mousemove', onMouseMove);
+
+            // Animation loop
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+        }
 
             // Scene setup
             scene = new THREE.Scene();
@@ -975,12 +1095,25 @@
                     scene.add(aiModel);
                     console.log('GLB model added to scene successfully');
 
+                    // Hide loading indicator
+                    const loadingEl = document.getElementById('dr-ai-loading');
+                    if (loadingEl) {
+                        loadingEl.style.display = 'none';
+                    }
+
                     // Add click interaction hint
                     showInteractionHint();
                 },
                 function (progress) {
                     if (progress.total > 0) {
-                        console.log('Loading progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
+                        const percent = Math.round((progress.loaded / progress.total * 100));
+                        console.log('Loading progress:', percent + '%');
+
+                        // Update progress bar
+                        const progressEl = document.getElementById('dr-ai-loading-progress');
+                        if (progressEl) {
+                            progressEl.style.width = percent + '%';
+                        }
                     } else {
                         console.log('Loading progress: ' + progress.loaded + ' bytes');
                     }
@@ -1003,6 +1136,13 @@
                             aiModel.scale.set(2, 2, 2);
                             aiModel.position.set(0, -1, 0);
                             scene.add(aiModel);
+
+                            // Hide loading indicator
+                            const loadingEl = document.getElementById('dr-ai-loading');
+                            if (loadingEl) {
+                                loadingEl.style.display = 'none';
+                            }
+
                             showInteractionHint();
                         },
                         function (progress) {
@@ -1019,31 +1159,117 @@
         }
 
         function createFallbackModel() {
-            console.log('Creating fallback sci-fi model');
+            console.log('Creating detailed medical AI fallback model');
 
             aiModel = new THREE.Group();
 
-            // Core sphere (AI brain)
-            const coreGeometry = new THREE.SphereGeometry(0.8, 32, 32);
-            const coreMaterial = new THREE.MeshPhongMaterial({
-                color: 0x00ffff,
-                emissive: 0x002222,
+            // Main body - sophisticated medical AI core
+            const bodyGeometry = new THREE.CylinderGeometry(0.6, 0.8, 2, 16);
+            const bodyMaterial = new THREE.MeshPhongMaterial({
+                color: 0x0066cc,
+                emissive: 0x001122,
                 transparent: true,
                 opacity: 0.9
             });
-            const core = new THREE.Mesh(coreGeometry, coreMaterial);
-            aiModel.add(core);
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            aiModel.add(body);
 
-            // Medical cross
-            const crossGeometry = new THREE.BoxGeometry(0.1, 1, 0.1);
-            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const vertical = new THREE.Mesh(crossGeometry, crossMaterial);
-            const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.1), crossMaterial);
-            horizontal.position.y = 0.3;
-            aiModel.add(vertical);
-            aiModel.add(horizontal);
+            // Head/brain area
+            const headGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+            const headMaterial = new THREE.MeshPhongMaterial({
+                color: 0x00ffff,
+                emissive: 0x002244,
+                transparent: true,
+                opacity: 0.8
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 1.2;
+            aiModel.add(head);
+
+            // Medical cross symbol
+            const crossGroup = new THREE.Group();
+
+            const verticalGeometry = new THREE.BoxGeometry(0.05, 0.8, 0.05);
+            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff4444 });
+            const vertical = new THREE.Mesh(verticalGeometry, crossMaterial);
+
+            const horizontalGeometry = new THREE.BoxGeometry(0.4, 0.05, 0.05);
+            const horizontal = new THREE.Mesh(horizontalGeometry, crossMaterial);
+            horizontal.position.y = 0.2;
+
+            crossGroup.add(vertical);
+            crossGroup.add(horizontal);
+            crossGroup.position.set(0, 0.5, 0.61); // Front of body
+            aiModel.add(crossGroup);
+
+            // Neural network rings
+            for (let i = 0; i < 3; i++) {
+                const ringGeometry = new THREE.TorusGeometry(0.9 + i * 0.2, 0.02, 8, 32);
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: i === 0 ? 0xff00ff : i === 1 ? 0x00ffff : 0xffff00,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.y = 0.5;
+                ring.rotation.x = Math.PI / 2;
+                aiModel.add(ring);
+            }
+
+            // Data streams (animated lines)
+            for (let i = 0; i < 8; i++) {
+                const points = [];
+                for (let j = 0; j < 10; j++) {
+                    points.push(new THREE.Vector3(
+                        Math.sin(j * 0.5) * 0.3,
+                        j * 0.1 - 0.5,
+                        Math.cos(j * 0.5) * 0.3
+                    ));
+                }
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({
+                    color: 0x00ff88,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const line = new THREE.Line(geometry, material);
+                line.position.x = Math.cos(i * Math.PI / 4) * 1.2;
+                line.position.z = Math.sin(i * Math.PI / 4) * 1.2;
+                aiModel.add(line);
+            }
+
+            // Holographic interface panels
+            const panelGeometry = new THREE.PlaneGeometry(0.3, 0.2);
+            const panelMaterial = new THREE.MeshBasicMaterial({
+                color: 0x004466,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+
+            for (let i = 0; i < 4; i++) {
+                const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+                const angle = (i / 4) * Math.PI * 2;
+                panel.position.set(
+                    Math.cos(angle) * 1.1,
+                    0.2,
+                    Math.sin(angle) * 1.1
+                );
+                panel.lookAt(0, 0.2, 0);
+                aiModel.add(panel);
+            }
 
             scene.add(aiModel);
+            console.log('Detailed medical AI fallback model created');
+
+            // Hide loading indicator
+            const loadingEl = document.getElementById('dr-ai-loading');
+            if (loadingEl) {
+                loadingEl.style.display = 'none';
+            }
+
+            // Add click interaction hint
+            showInteractionHint();
         }
 
         function showInteractionHint() {
