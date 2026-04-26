@@ -3,16 +3,7 @@
  * Real-time database listeners for live data streaming
  */
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", // Will be loaded from API
-  authDomain: "iothealth-2335a.firebaseapp.com",
-  databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
-  projectId: "iothealth-2335a",
-  storageBucket: "iothealth-2335a.appspot.com",
-  messagingSenderId: "XXXXXXXXXXXX",
-  appId: "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXXXXXXXX"
-};
+// Firebase configuration (will be loaded from API)
 
 // Global Firebase app instance
 let firebaseApp = null;

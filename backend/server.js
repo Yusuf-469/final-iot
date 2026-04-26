@@ -170,6 +170,23 @@ app.use('/api/signup', require('./routes/auth'));
 // DEBUG ROUTES (for testing)
 // ============================================
 
+// Test environment variables
+app.get('/api/test-env', (req, res) => {
+  res.json({
+    success: true,
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET',
+      FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET',
+      FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'SET (length: ' + process.env.FIREBASE_PRIVATE_KEY.length + ')' : 'NOT SET',
+      FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL ? 'SET' : 'NOT SET',
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? 'SET' : 'NOT SET'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Test Firebase connection
 app.get('/api/test-firebase', async (req, res) => {
   try {
