@@ -205,6 +205,14 @@ class ApiService {
     localStorage.removeItem('authToken');
   }
 
+  // Chat API
+  async sendChatMessage(message) {
+    return this.fetch('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message })
+    });
+  }
+
 
 }
 

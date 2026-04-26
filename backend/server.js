@@ -166,6 +166,38 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/login', require('./routes/auth'));
 app.use('/api/signup', require('./routes/auth'));
 
+// Chat endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Simple AI response logic - replace with actual AI integration
+    let response = 'I\'m sorry, I\'m still learning. Can you rephrase your question?';
+
+    // Basic keyword matching for demo
+    const lowerMessage = message.toLowerCase();
+    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+      response = 'Hello! How can I help you with your health data today?';
+    } else if (lowerMessage.includes('status') || lowerMessage.includes('health')) {
+      response = 'Based on your recent readings, your overall health status looks good. Your heart rate is within normal range, and your temperature is stable. Is there anything specific you\'d like to know about?';
+    } else if (lowerMessage.includes('alert') || lowerMessage.includes('concern')) {
+      response = 'I don\'t see any concerning readings in your recent data. All your vital signs are within normal parameters. If you notice any symptoms, please let me know!';
+    } else if (lowerMessage.includes('trend') || lowerMessage.includes('history')) {
+      response = 'Your health trends show consistent patterns. Your heart rate has been stable around 72-78 BPM, and your temperature readings are normal. Would you like me to show you a detailed chart?';
+    } else if (lowerMessage.includes('recommend') || lowerMessage.includes('advice')) {
+      response = 'Based on your data, I recommend maintaining your current healthy lifestyle. Stay hydrated, get regular exercise, and continue monitoring your health metrics. Do you have any specific concerns?';
+    }
+
+    res.json({ response });
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ============================================
 // DEBUG ROUTES (for testing)
 // ============================================
