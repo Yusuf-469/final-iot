@@ -167,6 +167,48 @@ app.use('/api/login', require('./routes/auth'));
 app.use('/api/signup', require('./routes/auth'));
 
 // ============================================
+// DEBUG ROUTES (for testing)
+// ============================================
+
+// Test Firebase connection
+app.get('/api/test-firebase', async (req, res) => {
+  try {
+    const { getDb, getDbConnected } = require('./database');
+    const db = getDb();
+
+    if (!getDbConnected()) {
+      return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    // Test reading from patients
+    const patientsSnap = await db.ref('patients').once('value');
+    const patientsData = patientsSnap.val() || {};
+
+    // Test reading from health
+    const healthSnap = await db.ref('health').once('value');
+    const healthData = healthSnap.val() || {};
+
+    res.json({
+      success: true,
+      message: 'Firebase connection successful',
+      data: {
+        patientsCount: Object.keys(patientsData).length,
+        healthData: !!healthData,
+        dbConnected: getDbConnected()
+      }
+    });
+
+  } catch (error) {
+    console.error('Firebase test error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Firebase connection failed',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
 // FRONTEND ROUTES (SPA support)
 // ============================================
 
