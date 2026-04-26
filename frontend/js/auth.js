@@ -20,12 +20,27 @@ function initializeFirebase() {
     // Check if Firebase app already exists to prevent duplicate app error
     try {
       app = firebase.app(); // Try to get existing app
-      console.log('Using existing Firebase app');
-    } catch (e) {
+      console.log('Using existing Firebase app for auth');
+    } catch (error) {
       // App doesn't exist, initialize new one
       app = firebase.initializeApp(authFirebaseConfig);
-      console.log('Initialized new Firebase app');
+      console.log('Initialized new Firebase app for auth');
     }
+
+    auth = firebase.auth(app);
+    googleProvider = new firebase.auth.GoogleAuthProvider();
+    githubProvider = new firebase.auth.GithubAuthProvider();
+    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
+
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    githubProvider.setCustomParameters({ prompt: 'select_account' });
+    microsoftProvider.setCustomParameters({ prompt: 'select_account' });
+
+    console.log('✅ Firebase auth initialized');
+  } else {
+    console.error('❌ Firebase SDK not loaded');
+  }
+}
 
     auth = firebase.auth(app);
 

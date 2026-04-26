@@ -38,7 +38,17 @@ async function initFirebaseRealtime() {
 
     // Initialize Firebase if not already done
     if (!firebaseApp && typeof firebase !== 'undefined') {
-      firebaseApp = firebase.initializeApp(realtimeFirebaseConfig);
+      try {
+        // Try to use existing Firebase app first
+        const existingApp = firebase.app();
+        firebaseApp = existingApp;
+        console.log('Using existing Firebase app for real-time');
+      } catch (error) {
+        // No existing app, initialize new one
+        firebaseApp = firebase.initializeApp(realtimeFirebaseConfig);
+        console.log('Initialized new Firebase app for real-time');
+      }
+
       database = firebase.database();
       console.log('✅ Firebase real-time initialized');
     }
