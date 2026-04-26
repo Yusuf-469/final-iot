@@ -127,6 +127,12 @@
             width: 100%;
             height: 100%;
             display: block;
+            cursor: pointer;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
         }
 
         .dr-ai-3d-placeholder {
@@ -566,13 +572,17 @@
         let currentHealthData = {};
         let isThinking = false;
 
-        // Initialize 3D Sci-Fi AI Model
-        let scene, camera, renderer, aiModel, controls;
+        // Initialize Interactive 3D GLB Model
+        let scene, camera, renderer, aiModel, controls, raycaster, mouse;
         let animationId;
+        let chatInterfaceVisible = false;
 
-        function initSciFiAIModel() {
+        function initInteractiveGLBModel() {
             const canvas = document.getElementById('dr-ai-canvas');
-            if (!canvas) return;
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
 
             // Scene setup
             scene = new THREE.Scene();
@@ -580,36 +590,53 @@
 
             // Camera
             camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-            camera.position.set(0, 0, 5);
+            camera.position.set(0, 0, 3);
 
             // Renderer
             renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
             renderer.setSize(canvas.clientWidth, canvas.clientHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
             // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
             scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0x00ffff, 1);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
             directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
             scene.add(directionalLight);
 
-            const pointLight = new THREE.PointLight(0xff00ff, 0.5);
-            pointLight.position.set(-5, -5, 5);
-            scene.add(pointLight);
+            const pointLight1 = new THREE.PointLight(0x00ffff, 0.5);
+            pointLight1.position.set(-3, 3, 3);
+            scene.add(pointLight1);
 
-            // Create sci-fi AI model
-            createSciFiAIModel();
+            const pointLight2 = new THREE.PointLight(0xff00ff, 0.5);
+            pointLight2.position.set(3, -3, 3);
+            scene.add(pointLight2);
+
+            // Raycaster for mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Load GLB model
+            loadGLBModel();
 
             // Controls
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
-            controls.enableZoom = false;
+            controls.enableZoom = true;
             controls.enablePan = false;
             controls.autoRotate = true;
-            controls.autoRotateSpeed = 0.5;
+            controls.autoRotateSpeed = 0.3;
+            controls.minDistance = 2;
+            controls.maxDistance = 5;
+
+            // Mouse event listeners
+            canvas.addEventListener('click', onModelClick);
+            canvas.addEventListener('mousemove', onMouseMove);
 
             // Animation loop
             animate();
@@ -618,91 +645,152 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-        function createSciFiAIModel() {
+        function loadGLBModel() {
+            const loader = new THREE.GLTFLoader();
+
+            loader.load(
+                'models/medical-doctor-3d-model.glb', // Make sure to copy your GLB file here
+                function (gltf) {
+                    aiModel = gltf.scene;
+
+                    // Scale and position the model
+                    aiModel.scale.set(2, 2, 2);
+                    aiModel.position.set(0, -1, 0);
+
+                    // Enable shadows
+                    aiModel.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    scene.add(aiModel);
+                    console.log('GLB model loaded successfully');
+
+                    // Add click interaction hint
+                    showInteractionHint();
+                },
+                function (progress) {
+                    console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
+                },
+                function (error) {
+                    console.error('Error loading GLB model:', error);
+                    // Fallback to procedural model if GLB fails
+                    createFallbackModel();
+                }
+            );
+        }
+
+        function createFallbackModel() {
+            console.log('Creating fallback sci-fi model');
+
             aiModel = new THREE.Group();
 
             // Core sphere (AI brain)
-            const coreGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const coreGeometry = new THREE.SphereGeometry(0.8, 32, 32);
             const coreMaterial = new THREE.MeshPhongMaterial({
                 color: 0x00ffff,
                 emissive: 0x002222,
                 transparent: true,
-                opacity: 0.8
+                opacity: 0.9
             });
             const core = new THREE.Mesh(coreGeometry, coreMaterial);
             aiModel.add(core);
 
-            // Energy rings
-            for (let i = 0; i < 3; i++) {
-                const ringGeometry = new THREE.TorusGeometry(1.2 + i * 0.3, 0.05, 8, 64);
-                const ringMaterial = new THREE.MeshBasicMaterial({
-                    color: i === 0 ? 0xff00ff : i === 1 ? 0x00ffff : 0xffff00,
-                    transparent: true,
-                    opacity: 0.6
-                });
-                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-                ring.rotation.x = Math.PI / 2;
-                aiModel.add(ring);
-            }
-
-            // Neural network nodes
-            for (let i = 0; i < 20; i++) {
-                const nodeGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-                const nodeMaterial = new THREE.MeshBasicMaterial({
-                    color: Math.random() > 0.5 ? 0xff00ff : 0x00ffff
-                });
-                const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
-
-                // Position randomly on sphere surface
-                const phi = Math.random() * Math.PI * 2;
-                const theta = Math.random() * Math.PI;
-                node.position.set(
-                    1.5 * Math.sin(theta) * Math.cos(phi),
-                    1.5 * Math.sin(theta) * Math.sin(phi),
-                    1.5 * Math.cos(theta)
-                );
-
-                aiModel.add(node);
-            }
-
-            // Holographic effect
-            const hologramGeometry = new THREE.CylinderGeometry(0.8, 1.2, 2, 32);
-            const hologramMaterial = new THREE.MeshBasicMaterial({
-                color: 0x00ffff,
-                transparent: true,
-                opacity: 0.1,
-                wireframe: true
-            });
-            const hologram = new THREE.Mesh(hologramGeometry, hologramMaterial);
-            hologram.position.y = -1;
-            aiModel.add(hologram);
+            // Medical cross
+            const crossGeometry = new THREE.BoxGeometry(0.1, 1, 0.1);
+            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const vertical = new THREE.Mesh(crossGeometry, crossMaterial);
+            const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.1), crossMaterial);
+            horizontal.position.y = 0.3;
+            aiModel.add(vertical);
+            aiModel.add(horizontal);
 
             scene.add(aiModel);
+        }
+
+        function showInteractionHint() {
+            // Create interaction hint overlay
+            const hint = document.createElement('div');
+            hint.id = 'interaction-hint';
+            hint.innerHTML = `
+                <div style="
+                    position: absolute;
+                    top: 10px;
+                    left: 10px;
+                    background: rgba(0, 255, 255, 0.8);
+                    color: black;
+                    padding: 5px 10px;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    z-index: 100;
+                    animation: fadeOut 3s ease-in-out 2s forwards;
+                ">
+                    💡 Click the 3D model to open chat
+                </div>
+            `;
+            document.querySelector('.dr-ai-3d-model').appendChild(hint);
+
+            setTimeout(() => {
+                const hintEl = document.getElementById('interaction-hint');
+                if (hintEl) hintEl.remove();
+            }, 5000);
+        }
+
+        function onMouseMove(event) {
+            const canvas = document.getElementById('dr-ai-canvas');
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        }
+
+        function onModelClick(event) {
+            if (!aiModel) return;
+
+            // Update raycaster
+            raycaster.setFromCamera(mouse, camera);
+
+            // Check for intersections
+            const intersects = raycaster.intersectObject(aiModel, true);
+
+            if (intersects.length > 0) {
+                console.log('Model clicked! Opening chat interface');
+                toggleChatInterface();
+            }
+        }
+
+        function toggleChatInterface() {
+            const chatContainer = document.querySelector('.dr-ai-chat-container');
+            const modelContainer = document.querySelector('.dr-ai-3d-container');
+
+            if (!chatInterfaceVisible) {
+                // Show chat, hide 3D model
+                chatContainer.style.display = 'flex';
+                modelContainer.style.display = 'none';
+                chatInterfaceVisible = true;
+
+                // Stop auto-rotation when chatting
+                if (controls) controls.autoRotate = false;
+            } else {
+                // Show 3D model, hide chat
+                chatContainer.style.display = 'none';
+                modelContainer.style.display = 'flex';
+                chatInterfaceVisible = false;
+
+                // Resume auto-rotation
+                if (controls) controls.autoRotate = true;
+            }
         }
 
         function animate() {
             animationId = requestAnimationFrame(animate);
 
-            if (aiModel) {
-                // Rotate the model
-                aiModel.rotation.y += 0.005;
-
-                // Pulse effect on core
+            if (aiModel && !chatInterfaceVisible) {
+                // Gentle floating animation
                 const time = Date.now() * 0.001;
-                const core = aiModel.children[0];
-                if (core && core.material) {
-                    core.material.emissive.setHSL(0.5, 1, 0.3 + Math.sin(time * 2) * 0.1);
-                }
-
-                // Animate rings
-                aiModel.children.slice(1, 4).forEach((ring, index) => {
-                    ring.rotation.z += 0.01 * (index + 1);
-                });
-
-                // Animate nodes
-                aiModel.children.slice(4).forEach((node, index) => {
-                    node.position.y += Math.sin(time + index) * 0.001;
-                });
+                aiModel.position.y = -1 + Math.sin(time * 0.5) * 0.1;
+                aiModel.rotation.y += 0.005;
             }
 
             if (controls) controls.update();
@@ -722,8 +810,8 @@
         function initDrAI() {
             console.log('Dr. AI Assistant loaded');
 
-            // Initialize 3D model
-            initSciFiAIModel();
+            // Initialize interactive GLB model
+            initInteractiveGLBModel();
 
             // Initialize Firebase real-time listeners
             await initFirebaseRealtime();
