@@ -113,20 +113,10 @@ app.get('/api/health', async (req, res) => {
 app.get('/api/config/firebase', (req, res) => {
   console.log('GET /api/config/firebase called');
   try {
-    // Decode the service account JSON from environment variable
-    const encodedServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-    if (!encodedServiceAccount) {
-      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is required');
-    }
-
-    const serviceAccountJson = Buffer.from(encodedServiceAccount, 'base64').toString('utf8');
-    const serviceAccount = JSON.parse(serviceAccountJson);
-
     const config = {
-      databaseURL: serviceAccount.databaseURL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
-      projectId: serviceAccount.project_id || 'iothealth-2335a',
-      authDomain: serviceAccount.project_id ? `${serviceAccount.project_id}.firebaseapp.com` : 'iothealth-2335a.firebaseapp.com'
+      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
+      projectId: process.env.FIREBASE_PROJECT_ID || 'iothealth-2335a',
+      authDomain: process.env.FIREBASE_PROJECT_ID ? `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com` : 'iothealth-2335a.firebaseapp.com'
     };
 
     console.log('Returning Firebase config');

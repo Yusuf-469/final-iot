@@ -1,26 +1,27 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-  // Use base64 encoded service account JSON for Vercel compatibility
-  const encodedServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-  if (!encodedServiceAccount) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is required');
+  // Handle private key: if it contains escaped newlines (\n), convert to actual newlines
+  // If already formatted with newlines, use as-is
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (privateKey && privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  try {
-    // Decode and parse the service account JSON
-    const serviceAccountJson = Buffer.from(encodedServiceAccount, 'base64').toString('utf8');
-    const serviceAccount = JSON.parse(serviceAccountJson);
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: serviceAccount.databaseURL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
-    });
-  } catch (error) {
-    console.error('Failed to decode/parse Firebase service account:', error);
-    throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_KEY format');
+  // Ensure we have all required environment variables
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !privateKey) {
+    console.error('Missing Firebase environment variables');
+    throw new Error('Firebase configuration incomplete');
   }
+
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: privateKey,
+    }),
+    databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
+  });
 }
 
 const db = admin.database();
