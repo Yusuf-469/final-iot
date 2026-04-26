@@ -943,12 +943,21 @@
         }
 
         function loadGLBModel() {
+            console.log('Attempting to load GLB model from: models/medical-doctor-3d-model.glb');
+
             const loader = new THREE.GLTFLoader();
 
             loader.load(
-                'models/medical-doctor-3d-model.glb', // Make sure to copy your GLB file here
+                'models/medical-doctor-3d-model.glb',
                 function (gltf) {
+                    console.log('GLTF loaded:', gltf);
                     aiModel = gltf.scene;
+
+                    if (!aiModel) {
+                        console.error('GLTF scene is null');
+                        createFallbackModel();
+                        return;
+                    }
 
                     // Scale and position the model
                     aiModel.scale.set(2, 2, 2);
@@ -959,22 +968,52 @@
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
+                            console.log('Added mesh to model:', child.name);
                         }
                     });
 
                     scene.add(aiModel);
-                    console.log('GLB model loaded successfully');
+                    console.log('GLB model added to scene successfully');
 
                     // Add click interaction hint
                     showInteractionHint();
                 },
                 function (progress) {
-                    console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
+                    if (progress.total > 0) {
+                        console.log('Loading progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
+                    } else {
+                        console.log('Loading progress: ' + progress.loaded + ' bytes');
+                    }
                 },
                 function (error) {
                     console.error('Error loading GLB model:', error);
-                    // Fallback to procedural model if GLB fails
-                    createFallbackModel();
+                    console.error('Error details:', {
+                        message: error.message,
+                        type: error.type,
+                        target: error.target
+                    });
+
+                    // Try alternative path
+                    console.log('Trying alternative path...');
+                    loader.load(
+                        './models/medical-doctor-3d-model.glb',
+                        function (gltf) {
+                            console.log('GLB loaded from alternative path');
+                            aiModel = gltf.scene;
+                            aiModel.scale.set(2, 2, 2);
+                            aiModel.position.set(0, -1, 0);
+                            scene.add(aiModel);
+                            showInteractionHint();
+                        },
+                        function (progress) {
+                            console.log('Alt path progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
+                        },
+                        function (altError) {
+                            console.error('Alternative path also failed:', altError);
+                            // Fallback to procedural model if GLB fails
+                            createFallbackModel();
+                        }
+                    );
                 }
             );
         }
@@ -1099,26 +1138,22 @@
         function initDrAI() {
             console.log('Dr. AI Assistant loaded');
 
+            // Check if Three.js is available
+            if (typeof THREE === 'undefined') {
+                console.error('Three.js is not loaded');
+                return;
+            }
+
+            console.log('Three.js version:', THREE.REVISION);
+
             // Initialize interactive GLB model
-            initInteractiveGLBModel();
-
-            // Initialize Firebase real-time listeners
-            await initFirebaseRealtime();
-
-            loadCurrentHealthData();
-            startHealthMonitoring();
-        });
-
-        // Load current health data from Firebase
-        async function loadCurrentHealthData() {
             try {
-                const response = await fetch('/api/health');
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.health) {
-                        currentHealthData = data.health;
-                        updateHealthDisplay();
-                    }
+                initInteractiveGLBModel();
+                console.log('GLB model initialization started');
+            } catch (error) {
+                console.error('Error initializing GLB model:', error);
+            }
+        }
                 }
             } catch (error) {
                 console.error('Error loading health data:', error);
