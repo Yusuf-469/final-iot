@@ -116,11 +116,11 @@
             width: 100vw !important;
             height: 100vh !important;
             display: block !important;
-            cursor: pointer;
-            background: #0f0f23;
+            background: linear-gradient(45deg, #1a1a3a, #0f0f23) !important;
             position: absolute;
             top: 0;
             left: 0;
+            border: 2px solid #00ffff;
         }
 
         .dr-ai-fallback-content {
@@ -357,6 +357,63 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        .dr-ai-initial-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .dr-ai-loading-text h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .dr-ai-loading-text p {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            opacity: 0.8;
+        }
+
+        .dr-ai-loading-text i {
+            font-size: 3rem;
+            color: #00ffff;
+            margin-bottom: 1rem;
+            animation: pulse 2s infinite;
+        }
+
+        .dr-ai-loading-dots {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+
+        .dr-ai-loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: #00ffff;
+            border-radius: 50%;
+            animation: loading-dots 1.4s infinite ease-in-out both;
+        }
+
+        .dr-ai-loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .dr-ai-loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes loading-dots {
+            0%, 80%, 100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .dr-ai-loading-overlay {
@@ -804,6 +861,20 @@
 
     <!-- Full-Screen 3D Interface -->
     <div class="dr-ai-3d-fullscreen">
+        <!-- Initial loading text -->
+        <div class="dr-ai-initial-loading" id="dr-ai-initial-loading">
+            <div class="dr-ai-loading-text">
+                <i class="fas fa-robot"></i>
+                <h2>Loading Dr. AI 3D Interface...</h2>
+                <p>Initializing medical chatbot</p>
+                <div class="dr-ai-loading-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
         <canvas id="dr-ai-canvas" width="1920" height="1080"></canvas>
 
         <!-- Fallback content if 3D fails -->
@@ -1581,6 +1652,13 @@
 
             console.log('✅ 3D Canvas ready, loading chatbot model...');
 
+            // Hide initial loading text and show 3D interface
+            const initialLoading = document.getElementById('dr-ai-initial-loading');
+            if (initialLoading) {
+                initialLoading.style.display = 'none';
+                console.log('📱 Initial loading hidden, showing 3D interface');
+            }
+
             // Initialize 3D chatbot interface
             initInteractiveGLBModel();
         }
@@ -1827,17 +1905,36 @@ Is there anything specific about these readings you'd like me to explain?`;
     <script>
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Dr. AI page loaded');
+            console.log('🚀 Dr. AI page DOM loaded - initializing 3D chatbot interface');
+
+            // Show immediate visual confirmation
+            const initialLoading = document.getElementById('dr-ai-initial-loading');
+            if (initialLoading) {
+                initialLoading.innerHTML = `
+                    <div class="dr-ai-loading-text">
+                        <i class="fas fa-check-circle" style="color: #00ff00;"></i>
+                        <h2>Dr. AI Interface Ready</h2>
+                        <p>Loading 3D medical chatbot...</p>
+                    </div>
+                `;
+            }
 
             // Initialize Firebase real-time listeners
             if (typeof initFirebaseRealtime === 'function') {
                 initFirebaseRealtime();
             }
 
-            // Initialize Dr. AI
-            if (typeof initDrAI === 'function') {
-                initDrAI();
-            }
+            // Initialize Dr. AI with slight delay to show loading state
+            setTimeout(() => {
+                if (typeof initDrAI === 'function') {
+                    initDrAI();
+                } else {
+                    console.error('❌ initDrAI function not found');
+                    // Show fallback
+                    const fallback = document.getElementById('dr-ai-fallback');
+                    if (fallback) fallback.style.display = 'block';
+                }
+            }, 1000);
         });
     </script>
 </body>
