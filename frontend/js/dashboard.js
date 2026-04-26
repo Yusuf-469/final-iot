@@ -189,6 +189,12 @@ const dashboardApp = {
         // Navigation items
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                // If item has href attribute, allow normal navigation
+                if (item.hasAttribute('href')) {
+                    return; // Allow default behavior
+                }
+
+                // Otherwise, handle SPA navigation
                 e.preventDefault();
                 const page = item.dataset.page;
                 this.navigateTo(page);

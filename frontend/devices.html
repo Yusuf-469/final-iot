@@ -231,17 +231,28 @@
         }
 
         function updateDeviceStats(devices) {
+            console.log('Updating device stats for', devices.length, 'devices');
+
             const totalDevices = devices.length;
-            const onlineDevices = devices.filter(d => d.status === 'online').length;
+            const onlineDevices = devices.filter(d => d.status?.toLowerCase() === 'online').length;
             const lowBatteryDevices = devices.filter(d => (d.power?.batteryLevel || d.battery || 0) < 20).length;
             const avgBattery = devices.length > 0 ?
                 Math.round(devices.reduce((sum, d) => sum + (d.power?.batteryLevel || d.battery || 0), 0) / devices.length) : 0;
 
-            // Update stats cards
-            document.querySelector('.stat-card .stat-number').textContent = totalDevices;
-            document.querySelectorAll('.stat-card .stat-number')[1].textContent = onlineDevices;
-            document.querySelectorAll('.stat-card .stat-number')[2].textContent = lowBatteryDevices;
-            document.querySelectorAll('.stat-card .stat-number')[3].textContent = `${avgBattery}%`;
+            console.log('Stats calculated:', { totalDevices, onlineDevices, lowBatteryDevices, avgBattery });
+
+            // Update stats cards - be more specific with selectors
+            const statNumbers = document.querySelectorAll('.stat-card .stat-number');
+            if (statNumbers.length >= 4) {
+                statNumbers[0].textContent = totalDevices;
+                statNumbers[1].textContent = onlineDevices;
+                statNumbers[2].textContent = lowBatteryDevices;
+                statNumbers[3].textContent = `${avgBattery}%`;
+
+                console.log('Stats updated successfully');
+            } else {
+                console.error('Could not find stat number elements:', statNumbers.length, 'found');
+            }
         }
 
         function showAddDeviceModal() {

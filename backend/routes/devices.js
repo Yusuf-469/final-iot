@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
         deviceId: 'esp32-001',
         name: 'ESP32 Health Monitor #1',
         type: 'ESP32',
-        status: 'Online',
+        status: 'online',
         lastReading: {
           heartRate: 72,
           temperature: 36.8,
@@ -75,14 +75,15 @@ router.get('/', async (req, res) => {
           timestamp: new Date().toISOString()
         },
         updatedAt: new Date().toISOString(),
-        firmware: '2.1.0'
+        firmware: '2.1.0',
+        battery: 85
       },
       {
         id: 'esp32-002',
         deviceId: 'esp32-002',
         name: 'ESP32 Health Monitor #2',
         type: 'ESP32',
-        status: 'Online',
+        status: 'online',
         lastReading: {
           heartRate: 68,
           temperature: 37.1,
@@ -90,17 +91,19 @@ router.get('/', async (req, res) => {
           timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString() // 30 min ago
         },
         updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        firmware: '2.1.0'
+        firmware: '2.1.0',
+        battery: 92
       },
       {
         id: 'esp32-003',
         deviceId: 'esp32-003',
         name: 'ESP32 Health Monitor #3',
         type: 'ESP32',
-        status: 'Offline',
+        status: 'offline',
         lastReading: null,
         updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        firmware: '2.1.0'
+        firmware: '2.1.0',
+        battery: 15
       }
     ];
 
