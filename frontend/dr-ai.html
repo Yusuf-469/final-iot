@@ -1140,6 +1140,12 @@
                 },
                 function (error) {
                     console.error('❌ GLB model failed to load:', error);
+                    console.error('Error details:', {
+                        message: error.message,
+                        type: error.name,
+                        status: error.status,
+                        url: 'models/medical-doctor-3d-model.glb'
+                    });
                     console.log('🔄 Falling back to procedural model...');
                     createFallbackModel();
                 }
@@ -1413,6 +1419,8 @@
 
             // Add click interaction hint
             showInteractionHint();
+
+            console.log('🎉 Fallback model ready for interaction');
         }
 
         function showInteractionHint() {
@@ -1488,10 +1496,31 @@
                 const time = Date.now() * 0.001;
                 aiModel.position.y = -1 + Math.sin(time * 0.5) * 0.1;
                 aiModel.rotation.y += 0.005;
+            } else if (!aiModel && !chatInterfaceVisible) {
+                // If no model loaded yet, add a visible test object
+                if (scene.children.length <= 3) { // Only lighting objects
+                    console.log('⚠️ No 3D model loaded, adding visible test object');
+                    const geometry = new THREE.SphereGeometry(1, 16, 16);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: 0xff6b6b,
+                        emissive: 0x331111,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    const testSphere = new THREE.Mesh(geometry, material);
+                    testSphere.position.set(0, 0, 0);
+                    scene.add(testSphere);
+                    aiModel = testSphere; // Set as aiModel so it animates
+                    console.log('✅ Added visible test sphere');
+                }
             }
 
             if (controls) controls.update();
-            if (renderer) renderer.render(scene, camera);
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            } else {
+                console.error('❌ Missing renderer, scene, or camera for rendering');
+            }
         }
 
         function onWindowResize() {
@@ -1521,6 +1550,16 @@
             }
 
             console.log('✅ Three.js loaded, version:', THREE.REVISION);
+
+            // Check if canvas exists
+            const canvas = document.getElementById('dr-ai-canvas');
+            if (!canvas) {
+                console.error('❌ Canvas element not found!');
+                showFallbackInterface();
+                return;
+            }
+
+            console.log('✅ Canvas element found, initializing 3D interface...');
 
             // Initialize 3D interface immediately
             initInteractiveGLBModel();

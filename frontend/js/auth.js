@@ -41,6 +41,7 @@ function initializeFirebase() {
     console.error('❌ Firebase SDK not loaded');
   }
 }
+}
 
     auth = firebase.auth(app);
 
