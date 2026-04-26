@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { collection, COLLECTIONS } = require('../database');
 const { logger } = require('../utils/logger');
+const { predictHealthRisk } = require('../services/predictionService');
 
 // Helper to format alert data from Realtime Database
 const formatAlertData = (key, data) => {
@@ -19,6 +20,131 @@ const formatAlertData = (key, data) => {
     resolvedAt: data.resolvedAt || null,
     escalatedAt: data.escalation?.escalatedAt || null
   };
+};
+
+// Generate alerts based on ML predictions
+const generatePredictionAlerts = async () => {
+  try {
+    logger.info('Generating prediction-based alerts...');
+
+    // Get all patients
+    const patientsRef = collection(COLLECTIONS.PATIENTS);
+    if (!patientsRef) return;
+
+    const patientsSnapshot = await patientsRef.once('value');
+    const patientsData = patientsSnapshot.val() || {};
+
+    const alertsCreated = [];
+
+    for (const [patientId, patient] of Object.entries(patientsData)) {
+      try {
+        // Get recent health readings for this patient
+        // For now, we'll use mock historical data based on current patient data
+        const mockReadings = generateMockReadingsForPatient(patient);
+
+        // Get prediction
+        const prediction = await predictHealthRisk(patientId, mockReadings);
+
+        // Create alerts based on prediction results
+        if (prediction.riskLevel === 'critical' || prediction.riskLevel === 'high') {
+          const alertData = {
+            patientId,
+            patientName: `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || patientId,
+            type: 'prediction',
+            severity: prediction.riskLevel === 'critical' ? 'critical' : 'high',
+            title: `Health Risk Alert: ${prediction.riskLevel.toUpperCase()}`,
+            message: prediction.recommendation,
+            riskScore: prediction.riskScore,
+            factors: prediction.factors,
+            predictionId: prediction.predictionId,
+            status: 'active',
+            source: 'ml_prediction'
+          };
+
+          // Check if similar alert already exists (avoid duplicates)
+          const existingAlert = await checkExistingAlert(patientId, prediction.predictionId);
+          if (!existingAlert) {
+            await createAlert(alertData);
+            alertsCreated.push(alertData);
+            logger.info(`Prediction alert created for patient ${patientId}: ${prediction.riskLevel}`);
+          }
+        }
+
+      } catch (error) {
+        logger.error(`Error generating prediction alert for patient ${patientId}:`, error);
+      }
+    }
+
+    logger.info(`Prediction alerts generation completed. Created ${alertsCreated.length} alerts.`);
+    return alertsCreated;
+
+  } catch (error) {
+    logger.error('Error in generatePredictionAlerts:', error);
+    throw error;
+  }
+};
+
+// Generate mock historical readings for prediction (in production, get from actual history)
+const generateMockReadingsForPatient = (patient) => {
+  const readings = [];
+  const baseHR = patient.heartRate || 75;
+  const baseTemp = patient.temperature || 37.0;
+  const baseSpo2 = patient.spo2 || 98;
+
+  // Generate 20 readings over last few hours
+  for (let i = 0; i < 20; i++) {
+    readings.push({
+      heartRate: baseHR + (Math.random() - 0.5) * 10,
+      temperature: baseTemp + (Math.random() - 0.5) * 0.5,
+      spo2: baseSpo2 + (Math.random() - 0.5) * 2,
+      timestamp: Date.now() - (i * 15 * 60 * 1000) // Every 15 minutes
+    });
+  }
+
+  return readings;
+};
+
+// Check if similar alert already exists
+const checkExistingAlert = async (patientId, predictionId) => {
+  try {
+    const alertsRef = collection(COLLECTIONS.ALERTS);
+    if (!alertsRef) return false;
+
+    const snapshot = await alertsRef.once('value');
+    const alertsData = snapshot.val() || {};
+
+    // Check for existing active alerts for this patient with same prediction
+    for (const [alertId, alert] of Object.entries(alertsData)) {
+      if (alert.patientId === patientId &&
+          alert.predictionId === predictionId &&
+          alert.status === 'active') {
+        return true;
+      }
+    }
+
+    return false;
+  } catch (error) {
+    logger.error('Error checking existing alert:', error);
+    return false;
+  }
+};
+
+// Create alert helper function
+const createAlert = async (alertData) => {
+  const alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+
+  const formattedData = {
+    ...alertData,
+    alertId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  const alertRef = collection(`${COLLECTIONS.ALERTS}/${alertId}`);
+  if (alertRef) {
+    await alertRef.set(formattedData);
+    logger.info(`Alert created: ${alertId}`);
+  }
 };
 
 // GET /api/alerts - Get all alerts
@@ -104,6 +230,23 @@ router.get('/active', async (req, res) => {
   } catch (error) {
     logger.error('Error fetching active alerts:', error);
     res.status(500).json({ error: 'Failed to fetch active alerts' });
+  }
+});
+
+// POST /api/alerts/generate-predictions - Generate prediction-based alerts
+router.post('/generate-predictions', async (req, res) => {
+  try {
+    const alertsCreated = await generatePredictionAlerts();
+
+    res.json({
+      success: true,
+      message: `Generated ${alertsCreated.length} prediction-based alerts`,
+      alertsCreated: alertsCreated.length
+    });
+
+  } catch (error) {
+    logger.error('Error generating prediction alerts:', error);
+    res.status(500).json({ error: 'Failed to generate prediction alerts' });
   }
 });
 
