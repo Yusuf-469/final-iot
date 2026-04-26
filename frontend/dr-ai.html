@@ -12,6 +12,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
+    <!-- Three.js for 3D GLB Model -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
     <!-- Firebase SDK (Official Google CDN) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -106,15 +111,22 @@
         }
 
         .dr-ai-3d-model {
-            width: 300px;
-            height: 400px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 20px;
+            width: 100%;
+            height: 300px;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
+            background: linear-gradient(135deg, rgba(0, 20, 40, 0.8), rgba(0, 40, 80, 0.8));
+            border-radius: 15px;
             overflow: hidden;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+        }
+
+        #dr-ai-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
         }
 
         .dr-ai-3d-placeholder {
@@ -485,11 +497,9 @@
             <!-- 3D Model Section -->
             <div class="dr-ai-3d-container">
                 <div class="dr-ai-3d-model">
+                    <canvas id="dr-ai-canvas"></canvas>
                     <div class="dr-ai-thinking" id="dr-ai-thinking">
                         <i class="fas fa-brain"></i> Analyzing...
-                    </div>
-                    <div class="dr-ai-3d-placeholder">
-                        <i class="fas fa-user-md"></i>
                     </div>
                     <div class="dr-ai-health-indicator">
                         <div class="dr-ai-health-item">
@@ -556,9 +566,164 @@
         let currentHealthData = {};
         let isThinking = false;
 
+        // Initialize 3D Sci-Fi AI Model
+        let scene, camera, renderer, aiModel, controls;
+        let animationId;
+
+        function initSciFiAIModel() {
+            const canvas = document.getElementById('dr-ai-canvas');
+            if (!canvas) return;
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0x00ffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            const pointLight = new THREE.PointLight(0xff00ff, 0.5);
+            pointLight.position.set(-5, -5, 5);
+            scene.add(pointLight);
+
+            // Create sci-fi AI model
+            createSciFiAIModel();
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = false;
+            controls.enablePan = false;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+
+            // Animation loop
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createSciFiAIModel() {
+            aiModel = new THREE.Group();
+
+            // Core sphere (AI brain)
+            const coreGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const coreMaterial = new THREE.MeshPhongMaterial({
+                color: 0x00ffff,
+                emissive: 0x002222,
+                transparent: true,
+                opacity: 0.8
+            });
+            const core = new THREE.Mesh(coreGeometry, coreMaterial);
+            aiModel.add(core);
+
+            // Energy rings
+            for (let i = 0; i < 3; i++) {
+                const ringGeometry = new THREE.TorusGeometry(1.2 + i * 0.3, 0.05, 8, 64);
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: i === 0 ? 0xff00ff : i === 1 ? 0x00ffff : 0xffff00,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.rotation.x = Math.PI / 2;
+                aiModel.add(ring);
+            }
+
+            // Neural network nodes
+            for (let i = 0; i < 20; i++) {
+                const nodeGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+                const nodeMaterial = new THREE.MeshBasicMaterial({
+                    color: Math.random() > 0.5 ? 0xff00ff : 0x00ffff
+                });
+                const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
+
+                // Position randomly on sphere surface
+                const phi = Math.random() * Math.PI * 2;
+                const theta = Math.random() * Math.PI;
+                node.position.set(
+                    1.5 * Math.sin(theta) * Math.cos(phi),
+                    1.5 * Math.sin(theta) * Math.sin(phi),
+                    1.5 * Math.cos(theta)
+                );
+
+                aiModel.add(node);
+            }
+
+            // Holographic effect
+            const hologramGeometry = new THREE.CylinderGeometry(0.8, 1.2, 2, 32);
+            const hologramMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.1,
+                wireframe: true
+            });
+            const hologram = new THREE.Mesh(hologramGeometry, hologramMaterial);
+            hologram.position.y = -1;
+            aiModel.add(hologram);
+
+            scene.add(aiModel);
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+
+            if (aiModel) {
+                // Rotate the model
+                aiModel.rotation.y += 0.005;
+
+                // Pulse effect on core
+                const time = Date.now() * 0.001;
+                const core = aiModel.children[0];
+                if (core && core.material) {
+                    core.material.emissive.setHSL(0.5, 1, 0.3 + Math.sin(time * 2) * 0.1);
+                }
+
+                // Animate rings
+                aiModel.children.slice(1, 4).forEach((ring, index) => {
+                    ring.rotation.z += 0.01 * (index + 1);
+                });
+
+                // Animate nodes
+                aiModel.children.slice(4).forEach((node, index) => {
+                    node.position.y += Math.sin(time + index) * 0.001;
+                });
+            }
+
+            if (controls) controls.update();
+            if (renderer) renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const canvas = document.getElementById('dr-ai-canvas');
+            if (canvas && camera && renderer) {
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            }
+        }
+
         // Initialize Dr. AI
-        document.addEventListener('DOMContentLoaded', async () => {
+        function initDrAI() {
             console.log('Dr. AI Assistant loaded');
+
+            // Initialize 3D model
+            initSciFiAIModel();
 
             // Initialize Firebase real-time listeners
             await initFirebaseRealtime();
