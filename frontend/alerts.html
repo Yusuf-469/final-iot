@@ -182,6 +182,32 @@
     <script src="js/page-scripts.js"></script>
     <script>
         console.log('Alerts page script loaded');
+
+        // Test function availability
+        window.testFunction = function() {
+            alert('Test function works!');
+        };
+
+        // Define the main function immediately
+        window.generatePredictionAlerts = function() {
+            console.log('generatePredictionAlerts called');
+            alert('Starting AI alert generation...');
+
+            fetch('/api/alerts/generate-predictions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.text())
+            .then(text => {
+                console.log('Response:', text);
+                alert('Response received: ' + text.substring(0, 100));
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            });
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOMContentLoaded fired');
             loadAlertsPage();
@@ -377,7 +403,11 @@
         };
 
         function markAllRead() {
-            showToast('All alerts marked as read', 'success');
+            if (typeof showToast === 'function') {
+                showToast('All alerts marked as read', 'success');
+            } else {
+                alert('All alerts marked as read');
+            }
         }
     <div class="toast-container" id="toast-container"></div>
     </script>
