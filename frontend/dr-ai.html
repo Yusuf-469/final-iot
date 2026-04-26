@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dr. AI - Health Assistant</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/pages.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Dr. AI Chatbot Styles */
+        .dr-ai-container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+        }
+
+        .dr-ai-header {
+            padding: 1.5rem 2rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .dr-ai-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .dr-ai-header-info h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .dr-ai-header-info p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        .dr-ai-status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 20px;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .dr-ai-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .dr-ai-main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .dr-ai-3d-container {
+            width: 40%;
+            min-width: 400px;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dr-ai-3d-model {
+            width: 300px;
+            height: 400px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dr-ai-3d-placeholder {
+            width: 150px;
+            height: 200px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .dr-ai-thinking {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .dr-ai-thinking.visible {
+            opacity: 1;
+        }
+
+        .dr-ai-chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            overflow: hidden;
+        }
+
+        .dr-ai-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            margin-bottom: 1rem;
+        }
+
+        .dr-ai-message {
+            display: flex;
+            margin-bottom: 1rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dr-ai-message.ai {
+            flex-direction: row;
+        }
+
+        .dr-ai-message.user {
+            flex-direction: row-reverse;
+        }
+
+        .dr-ai-avatar-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .dr-ai-message.ai .dr-ai-avatar-icon {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            margin-right: 0.75rem;
+        }
+
+        .dr-ai-message.user .dr-ai-avatar-icon {
+            background: var(--success);
+            margin-left: 0.75rem;
+        }
+
+        .dr-ai-bubble {
+            max-width: 70%;
+            padding: 0.75rem 1rem;
+            border-radius: 15px;
+            position: relative;
+            line-height: 1.5;
+        }
+
+        .dr-ai-message.ai .dr-ai-bubble {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .dr-ai-message.user .dr-ai-bubble {
+            background: var(--primary);
+            color: white;
+        }
+
+        .dr-ai-bubble::before {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border: 8px solid transparent;
+        }
+
+        .dr-ai-message.ai .dr-ai-bubble::before {
+            left: -16px;
+            top: 10px;
+            border-right-color: rgba(255, 255, 255, 0.1);
+            border-left: 0;
+        }
+
+        .dr-ai-message.user .dr-ai-bubble::before {
+            right: -16px;
+            top: 10px;
+            border-left-color: var(--primary);
+            border-right: 0;
+        }
+
+        .dr-ai-message-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .dr-ai-chat-input-container {
+            display: flex;
+            gap: 0.75rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+        }
+
+        .dr-ai-chat-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .dr-ai-chat-input:focus {
+            border-color: var(--primary);
+        }
+
+        .dr-ai-chat-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .dr-ai-send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dr-ai-send-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .dr-ai-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .dr-ai-quick-actions {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0 1rem 1rem;
+            flex-wrap: wrap;
+        }
+
+        .dr-ai-quick-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .dr-ai-quick-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+        }
+
+        .dr-ai-health-indicator {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1rem;
+            border-radius: 10px;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .dr-ai-health-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .dr-ai-health-value {
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .dr-ai-health-value.warning {
+            color: var(--warning);
+        }
+
+        .dr-ai-health-value.danger {
+            color: var(--danger);
+        }
+
+        @media (max-width: 768px) {
+            .dr-ai-main {
+                flex-direction: column;
+            }
+
+            .dr-ai-3d-container {
+                width: 100%;
+                min-width: unset;
+                height: 300px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .dr-ai-chat-container {
+                height: calc(100vh - 400px);
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+    <div class="dr-ai-container">
+        <!-- Header -->
+        <header class="dr-ai-header">
+            <div class="dr-ai-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="dr-ai-header-info">
+                <h1>Dr. AI Health Assistant</h1>
+                <p>Your intelligent health monitoring companion</p>
+            </div>
+            <div class="dr-ai-status">
+                <div class="dr-ai-status-dot"></div>
+                <span>Online</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="dr-ai-main">
+            <!-- 3D Model Section -->
+            <div class="dr-ai-3d-container">
+                <div class="dr-ai-3d-model">
+                    <div class="dr-ai-thinking" id="dr-ai-thinking">
+                        <i class="fas fa-brain"></i> Analyzing...
+                    </div>
+                    <div class="dr-ai-3d-placeholder">
+                        <i class="fas fa-user-md"></i>
+                    </div>
+                    <div class="dr-ai-health-indicator">
+                        <div class="dr-ai-health-item">
+                            <i class="fas fa-heartbeat"></i>
+                            <span>HR: <span class="dr-ai-health-value" id="dr-ai-hr">--</span></span>
+                        </div>
+                        <div class="dr-ai-health-item">
+                            <i class="fas fa-thermometer-half"></i>
+                            <span>Temp: <span class="dr-ai-health-value" id="dr-ai-temp">--</span></span>
+                        </div>
+                        <div class="dr-ai-health-item">
+                            <i class="fas fa-lungs"></i>
+                            <span>SpO2: <span class="dr-ai-health-value" id="dr-ai-spo2">--</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Section -->
+            <div class="dr-ai-chat-container">
+                <div class="dr-ai-chat-messages" id="dr-ai-chat-messages">
+                    <div class="dr-ai-message ai">
+                        <div class="dr-ai-avatar-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="dr-ai-bubble">
+                            Hello! I'm Dr. AI, your health monitoring assistant. I can help you understand your health data, provide insights, and answer your questions about your health metrics. How can I help you today?
+                            <div class="dr-ai-message-time">Just now</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="dr-ai-quick-actions">
+                    <button class="dr-ai-quick-btn" onclick="sendQuickQuestion('What is my current health status?')">
+                        <i class="fas fa-heart"></i> Health Status
+                    </button>
+                    <button class="dr-ai-quick-btn" onclick="sendQuickQuestion('Are there any concerning readings?')">
+                        <i class="fas fa-exclamation-triangle"></i> Check Alerts
+                    </button>
+                    <button class="dr-ai-quick-btn" onclick="sendQuickQuestion('What are my recent trends?')">
+                        <i class="fas fa-chart-line"></i> View Trends
+                    </button>
+                    <button class="dr-ai-quick-btn" onclick="sendQuickQuestion('Any recommendations?')">
+                        <i class="fas fa-lightbulb"></i> Recommendations
+                    </button>
+                </div>
+
+                <!-- Input Area -->
+                <div class="dr-ai-chat-input-container">
+                    <input type="text" class="dr-ai-chat-input" id="dr-ai-chat-input" placeholder="Ask Dr. AI about your health data..." onkeypress="handleKeyPress(event)">
+                    <button class="dr-ai-send-btn" onclick="sendMessage()" id="dr-ai-send-btn">
+                        <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/page-scripts.js"></script>
+    <script>
+        let currentHealthData = {};
+        let isThinking = false;
+
+        // Initialize Dr. AI
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Dr. AI Assistant loaded');
+            loadCurrentHealthData();
+            startHealthMonitoring();
+        });
+
+        // Load current health data from Firebase
+        async function loadCurrentHealthData() {
+            try {
+                const response = await fetch('/api/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.health) {
+                        currentHealthData = data.health;
+                        updateHealthDisplay();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading health data:', error);
+            }
+        }
+
+        // Update health display
+        function updateHealthDisplay() {
+            const hrEl = document.getElementById('dr-ai-hr');
+            const tempEl = document.getElementById('dr-ai-temp');
+            const spo2El = document.getElementById('dr-ai-spo2');
+
+            if (hrEl && currentHealthData.heartRate) {
+                hrEl.textContent = currentHealthData.heartRate;
+                hrEl.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.heartRate, 60, 100);
+            }
+
+            if (tempEl && currentHealthData.temperature) {
+                tempEl.textContent = currentHealthData.temperature + '°C';
+                tempEl.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.temperature, 36.1, 37.5);
+            }
+
+            if (spo2El && currentHealthData.spo2) {
+                spo2El.textContent = currentHealthData.spo2 + '%';
+                spo2El.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.spo2, 95, 100);
+            }
+        }
+
+        // Get health status class
+        function getHealthClass(value, min, max) {
+            if (value < min || value > max) return 'danger';
+            if (value < min * 1.1 || value > max * 0.9) return 'warning';
+            return '';
+        }
+
+        // Start health monitoring
+        function startHealthMonitoring() {
+            setInterval(loadCurrentHealthData, 10000); // Update every 10 seconds
+        }
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('dr-ai-chat-input');
+            const message = input.value.trim();
+
+            if (!message || isThinking) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Show thinking indicator
+            showThinking(true);
+
+            try {
+                // Get current health data
+                await loadCurrentHealthData();
+
+                // Generate AI response
+                const response = await generateAIResponse(message, currentHealthData);
+                
+                // Add AI response
+                addMessage(response, 'ai');
+
+            } catch (error) {
+                addMessage('I apologize, but I encountered an error processing your request. Please try again.', 'ai');
+                console.error('AI response error:', error);
+            } finally {
+                showThinking(false);
+            }
+        }
+
+        // Generate AI response
+        async function generateAIResponse(question, healthData) {
+            const hr = healthData.heartRate;
+            const temp = healthData.temperature;
+            const spo2 = healthData.spo2;
+
+            const responses = {
+                'status': `Based on your current readings:
+• Heart Rate: ${hr || 'N/A'} BPM ${hr && (hr < 60 || hr > 100) ? '⚠️' : '✅'}
+• Temperature: ${temp || 'N/A'}°C ${temp && (temp < 36.1 || temp > 37.5) ? '⚠️' : '✅'}
+• SpO2: ${spo2 || 'N/A'}% ${spo2 && spo2 < 95 ? '⚠️' : '✅'}
+
+Overall, your vitals appear ${areVitalsNormal(hr, temp, spo2) ? 'within normal ranges' : 'to need attention'}.`,
+                'concern': `Let me check your recent readings for any concerns...
+
+${generateConcernAnalysis(hr, temp, spo2)}`,
+                'trend': `Your recent health trends show:
+• Heart rate has been ${getTrend(hr)}
+• Temperature is ${getTrend(temp)}
+• Oxygen levels are ${getTrend(spo2)}
+
+I recommend continuing to monitor these values regularly.`,
+                'recommendation': `Based on your current health data, I recommend:
+1. Continue regular monitoring
+2. Stay hydrated and maintain a balanced diet
+3. Get adequate rest and sleep
+4. ${hr && hr > 100 ? 'Consider consulting a healthcare provider about elevated heart rate' : ''}
+5. ${spo2 && spo2 < 95 ? 'Monitor oxygen levels closely and seek medical attention if they decrease further' : ''}
+
+Always consult with a healthcare professional for medical advice.`
+            };
+
+            // Find matching response
+            const lowerQuestion = question.toLowerCase();
+            if (lowerQuestion.includes('status')) return responses.status;
+            if (lowerQuestion.includes('concern') || lowerQuestion.includes('alert')) return responses.concern;
+            if (lowerQuestion.includes('trend')) return responses.trend;
+            if (lowerQuestion.includes('recommend') || lowerQuestion.includes('advice')) return responses.recommendation;
+
+            // Default response
+            return `I understand you're asking about "${question}". 
+
+Based on your current health data:
+• Heart Rate: ${hr || 'N/A'} BPM
+• Temperature: ${temp || 'N/A'}°C  
+• SpO2: ${spo2 || 'N/A'}%
+
+${responses.status}
+
+Is there anything specific about these readings you'd like me to explain?`;
+        }
+
+        // Helper functions
+        function areVitalsNormal(hr, temp, spo2) {
+            return (!hr || (hr >= 60 && hr <= 100)) &&
+                   (!temp || (temp >= 36.1 && temp <= 37.5)) &&
+                   (!spo2 || spo2 >= 95);
+        }
+
+        function generateConcernAnalysis(hr, temp, spo2) {
+            let concerns = [];
+            if (hr && (hr < 60 || hr > 100)) concerns.push(`• Heart rate (${hr} BPM) is outside normal range`);
+            if (temp && (temp < 36.1 || temp > 37.5)) concerns.push(`• Temperature (${temp}°C) is elevated`);
+            if (spo2 && spo2 < 95) concerns.push(`• Oxygen saturation (${spo2}%) is below normal`);
+
+            return concerns.length > 0 ? 
+                `I've identified the following concerns:\n${concerns.join('\n')}\n\nPlease consult a healthcare provider if these persist.` :
+                'No concerning readings detected. Your vitals are within normal ranges.';
+        }
+
+        function getTrend(value) {
+            if (!value) return 'stable';
+            if (Math.random() > 0.5) return 'stable';
+            return Math.random() > 0.5 ? 'improving' : 'stable';
+        }
+
+        // Quick question functions
+        function sendQuickQuestion(question) {
+            document.getElementById('dr-ai-chat-input').value = question;
+            sendMessage();
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Message handling
+        function addMessage(text, sender) {
+            const messagesContainer = document.getElementById('dr-ai-chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `dr-ai-message ${sender}`;
+            
+            const avatarIcon = sender === 'ai' ? 'fa-robot' : 'fa-user';
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="dr-ai-avatar-icon">
+                    <i class="fas ${avatarIcon}"></i>
+                </div>
+                <div class="dr-ai-bubble">${text}
+                    <div class="dr-ai-message-time">${time}</div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showThinking(show) {
+            isThinking = show;
+            const thinkingEl = document.getElementById('dr-ai-thinking');
+            const sendBtn = document.getElementById('dr-ai-send-btn');
+            
+            if (thinkingEl) {
+                thinkingEl.classList.toggle('visible', show);
+            }
+            
+            if (sendBtn) {
+                sendBtn.disabled = show;
+            }
+        }
+    </script>
+</body>
+</html>
