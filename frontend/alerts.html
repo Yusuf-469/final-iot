@@ -238,25 +238,7 @@
             alert('Test function works!');
         };
 
-        // Define the main function immediately
-        window.generatePredictionAlerts = function() {
-            console.log('generatePredictionAlerts called');
-            alert('Starting AI alert generation...');
 
-            fetch('/api/alerts/generate-predictions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(response => response.text())
-            .then(text => {
-                console.log('Response:', text);
-                alert('Response received: ' + text.substring(0, 100));
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error: ' + error.message);
-            });
-        };
 
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Alerts page loaded, initializing...');
@@ -411,14 +393,14 @@
             }
 
             // Update center text
-            const centerValue = document.getElementById('total-alerts-value');
-            if (centerValue) {
-                centerValue.textContent = totalAlerts;
+            const totalAlertsValue = document.getElementById('total-alerts-value');
+            if (totalAlertsValue) {
+                totalAlertsValue.textContent = totalAlerts;
             }
 
             // Update center text
-            const centerValue = document.querySelector('.chart-center-text .center-value');
-            if (centerValue) centerValue.textContent = alerts.length;
+            const chartCenterValue = document.querySelector('.chart-center-text .center-value');
+            if (chartCenterValue) chartCenterValue.textContent = alerts.length;
 
             // For the time chart, we could implement date grouping if needed
             // For now, keep it simple
