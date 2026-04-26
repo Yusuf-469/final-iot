@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alerts - HealthMonitor v2.3</title>
+    <title>Alerts - HealthMonitor</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/pages.css">
@@ -46,7 +46,7 @@
                     <a href="alerts.html" class="nav-item active">
                         <i class="fas fa-bell"></i>
                         <span>Alerts</span>
-                        <span class="badge alert-badge">3</span>
+                        <span class="badge alert-badge">0</span>
                     </a>
                     <a href="analytics.html" class="nav-item">
                         <i class="fas fa-chart-line"></i>
@@ -84,6 +84,9 @@
                 </div>
                 
                 <div class="header-right">
+                    <button class="btn btn-primary" onclick="generatePredictionAlerts()">
+                        <i class="fas fa-brain"></i> Generate AI Alerts
+                    </button>
                     <button class="btn btn-secondary" onclick="markAllRead()">
                         <i class="fas fa-check-double"></i> Mark All Read
                     </button>
@@ -93,42 +96,42 @@
             <div class="dashboard-content">
                 <!-- Alert Stats -->
                 <section class="stats-section reveal-scroll">
-                        <div class="stat-card">
-                            <div class="stat-icon">
-                                <i class="fas fa-bell"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-number" id="total-alerts">0</span>
-                                <span class="stat-label">Total Alerts</span>
-                            </div>
+                    <div class="stat-card">
+                        <div class="stat-icon alerts">
+                            <i class="fas fa-exclamation-circle"></i>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon critical">
-                                <i class="fas fa-exclamation-triangle"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-number" id="critical-alerts">0</span>
-                                <span class="stat-label">Critical</span>
-                            </div>
+                        <div class="stat-details">
+                            <span class="stat-number">0</span>
+                            <span class="stat-label">Total Alerts</span>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon warning">
-                                <i class="fas fa-exclamation-circle"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-number" id="warning-alerts">0</span>
-                                <span class="stat-label">Warnings</span>
-                            </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                            <i class="fas fa-exclamation-triangle"></i>
                         </div>
-<div class="stat-card">
-                            <div class="stat-icon info">
-                                <i class="fas fa-info-circle"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-number" id="info-alerts">0</span>
-                                <span class="stat-label">Info</span>
-                            </div>
+                        <div class="stat-details">
+                            <span class="stat-number">0</span>
+                            <span class="stat-label">Critical</span>
                         </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                            <i class="fas fa-exclamation"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-number">0</span>
+                            <span class="stat-label">Warnings</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                            <i class="fas fa-info-circle"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-number">0</span>
+                            <span class="stat-label">Info</span>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- Alerts List -->
@@ -157,7 +160,7 @@
                         <div class="chart-container doughnut-container">
                             <canvas id="alertChart"></canvas>
                             <div class="chart-center-text">
-                                <span class="center-value">5</span>
+                                <span class="center-value">0</span>
                                 <span class="center-label">Total</span>
                             </div>
                         </div>
@@ -301,11 +304,11 @@
             const warningAlerts = alerts.filter(a => (a.severity || a.type) === 'warning').length;
             const infoAlerts = alerts.filter(a => (a.severity || a.type) === 'info').length;
 
-            // Update stats cards using IDs
-            document.getElementById('total-alerts').textContent = totalAlerts;
-            document.getElementById('critical-alerts').textContent = criticalAlerts;
-            document.getElementById('warning-alerts').textContent = warningAlerts;
-            document.getElementById('info-alerts').textContent = infoAlerts;
+            // Update stats cards
+            document.querySelectorAll('.stat-card .stat-number')[0].textContent = totalAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[1].textContent = criticalAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[2].textContent = warningAlerts;
+            document.querySelectorAll('.stat-card .stat-number')[3].textContent = infoAlerts;
         }
 
         function updateAlertCharts(alerts) {
@@ -330,6 +333,32 @@
 
         function dismissAlert(id) {
             showToast('Alert dismissed', 'info');
+        }
+
+        function generatePredictionAlerts() {
+            showToast('Generating AI-powered health risk alerts...', 'info');
+
+            fetch('/api/alerts/generate-predictions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Generated ${data.alertsCreated} AI alerts!`, 'success');
+                    // Refresh alerts list
+                    loadAlerts();
+                    updateStats();
+                } else {
+                    throw new Error(data.error || 'Failed to generate alerts');
+                }
+            })
+            .catch(error => {
+                console.error('Error generating prediction alerts:', error);
+                showToast('Failed to generate AI alerts: ' + error.message, 'error');
+            });
         }
 
         function markAllRead() {
