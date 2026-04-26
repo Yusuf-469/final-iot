@@ -57,57 +57,70 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    // For now, always return sample devices since health data extraction is complex
-    // TODO: Extract devices from actual health data submissions
-    console.log('Returning sample devices for demo');
+    const devices = [];
 
-    const sampleDevices = [
-      {
-        id: 'esp32-001',
-        deviceId: 'esp32-001',
-        name: 'ESP32 Health Monitor #1',
-        type: 'ESP32',
-        status: 'online',
-        lastReading: {
-          heartRate: 72,
-          temperature: 36.8,
-          spo2: 98,
-          timestamp: new Date().toISOString()
-        },
-        updatedAt: new Date().toISOString(),
-        firmware: '2.1.0',
-        battery: 85
-      },
-      {
-        id: 'esp32-002',
-        deviceId: 'esp32-002',
-        name: 'ESP32 Health Monitor #2',
-        type: 'ESP32',
-        status: 'online',
-        lastReading: {
-          heartRate: 68,
-          temperature: 37.1,
-          spo2: 96,
-          timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString() // 30 min ago
-        },
-        updatedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        firmware: '2.1.0',
-        battery: 92
-      },
-      {
-        id: 'esp32-003',
-        deviceId: 'esp32-003',
-        name: 'ESP32 Health Monitor #3',
-        type: 'ESP32',
-        status: 'offline',
-        lastReading: null,
-        updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        firmware: '2.1.0',
-        battery: 15
+    // Read devices from RTDB /devices/ path
+    const devicesRef = db.ref('devices');
+    const devicesSnapshot = await devicesRef.once('value');
+    const devicesData = devicesSnapshot.val() || {};
+
+    console.log('Devices data from RTDB:', Object.keys(devicesData));
+
+    // Process each device from RTDB
+    for (const [deviceId, deviceData] of Object.entries(devicesData)) {
+      const deviceStatus = resolveDeviceStatus(deviceData);
+
+      devices.push({
+        id: deviceId,
+        deviceId: deviceId,
+        name: deviceData.name || `${deviceId} Device`,
+        type: deviceData.type || 'ESP32',
+        status: deviceStatus,
+        heartRate: deviceData.heartRate || null,
+        temperature: deviceData.temperature || null,
+        spo2: deviceData.spo2 || null,
+        updatedAt: deviceData.updatedAt || deviceData.timestamp || null,
+        firmware: deviceData.firmware || '1.0.0',
+        battery: deviceData.battery || deviceData.power?.batteryLevel || 100
+      });
+    }
+
+    // If no devices in RTDB, try to extract from health data in RTDB
+    if (devices.length === 0) {
+      console.log('No devices in /devices/, checking /health/ for device data');
+
+      for (const nodeId of ['health']) {
+        try {
+          const snap = await db.ref(nodeId).once('value');
+          const data = snap.val();
+
+          if (data) {
+            const deviceStatus = resolveDeviceStatus(data);
+
+            devices.push({
+              id: nodeId,
+              deviceId: nodeId,
+              name: `${nodeId.charAt(0).toUpperCase() + nodeId.slice(1)} Device`,
+              type: 'ESP32',
+              status: deviceStatus,
+              heartRate: data.heartRate || null,
+              temperature: data.temperature || null,
+              spo2: data.spo2 || null,
+              updatedAt: data.updatedAt || data.timestamp || null,
+              firmware: data.firmware || '1.0.0',
+              battery: data.battery || data.power?.batteryLevel || 100
+            });
+
+            console.log(`Found device ${nodeId} in /${nodeId}/`);
+          }
+        } catch (nodeError) {
+          console.warn(`Could not read device node /${nodeId}:`, nodeError.message);
+        }
       }
-    ];
+    }
 
-    res.status(200).json({ success: true, data: sampleDevices });
+    console.log(`Returning ${devices.length} devices`);
+    res.status(200).json({ success: true, data: devices });
 
   } catch (error) {
     console.error('Error fetching devices:', error);
