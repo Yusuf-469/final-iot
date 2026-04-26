@@ -120,6 +120,8 @@
             position: absolute;
             top: 0;
             left: 0;
+            background: #1a1a2e; /* Ensure visibility */
+            z-index: 1;
         }
 
         .dr-ai-fallback-content {
@@ -1001,7 +1003,7 @@
 
             // Scene setup
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0a0a0a);
+            scene.background = new THREE.Color(0x1a1a2e); // More visible background
 
             // Camera
             camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
@@ -1031,7 +1033,16 @@
             pointLight2.position.set(3, -3, 3);
             scene.add(pointLight2);
 
-            // Load GLB model
+            // Load GLB model or fallback immediately for testing
+            console.log('Starting 3D model loading...');
+
+            // For immediate testing, show fallback model right away
+            setTimeout(() => {
+                console.log('Showing fallback model for immediate testing');
+                createFallbackModel();
+            }, 500);
+
+            // Try to load GLB in background (will replace fallback if successful)
             loadGLBModel();
 
             // Controls
@@ -1049,6 +1060,13 @@
             canvas.addEventListener('click', onModelClick);
             canvas.addEventListener('mousemove', onMouseMove);
 
+            // Test rendering with a simple cube first
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+            console.log('Added test cube to scene');
+
             // Animation loop
             animate();
 
@@ -1056,7 +1074,7 @@
             window.addEventListener('resize', onWindowResize);
         }
 
-            // Scene setup
+        function loadGLBModel() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a0a0a);
 
