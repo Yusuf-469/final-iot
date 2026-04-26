@@ -4,6 +4,11 @@
  */
 
 // Firebase configuration (will be loaded from API)
+let firebaseConfig = {
+  apiKey: "demo", // Not needed for RTDB read-only
+  databaseURL: "",
+  projectId: ""
+};
 
 // Global Firebase app instance
 let firebaseApp = null;
