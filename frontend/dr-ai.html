@@ -1140,10 +1140,10 @@
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x1a1a3a); // Dark background
 
-            // Camera positioned for optimal model viewing
+            // Camera positioned for optimal model viewing (will be adjusted when model loads)
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 3);
-            camera.lookAt(0, 0, 0); // Look at origin where model is placed
+            camera.position.set(0, 0, 5);
+            camera.lookAt(0, 0, 0); // Initial look at origin
 
             // Renderer
             renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -1266,8 +1266,8 @@
                     testObjects.forEach(obj => scene.remove(obj));
 
                     scene.add(model);
-                    console.log('GLB Model added to scene at position:', model.position);
-                    console.log('Model scale:', model.scale);
+                    console.log('GLB Model added to scene at position:', model.position.x, model.position.y, model.position.z);
+                    console.log('Model scale:', model.scale.x, model.scale.y, model.scale.z);
                     console.log('Scene children count after adding model:', scene.children.length);
 
                     // Add a visible bounding box for debugging (remove in production)
@@ -1277,7 +1277,19 @@
 
                     // Compute bounding box to check size
                     const bbox = new THREE.Box3().setFromObject(model);
-                    console.log('Model bounding box:', bbox.min, bbox.max);
+                    console.log('Model bounding box min:', bbox.min.x, bbox.min.y, bbox.min.z);
+                    console.log('Model bounding box max:', bbox.max.x, bbox.max.y, bbox.max.z);
+
+                    // Adjust camera to fit the model
+                    const size = bbox.getSize(new THREE.Vector3());
+                    const center = bbox.getCenter(new THREE.Vector3());
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const distance = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360));
+                    camera.position.set(center.x, center.y, center.z + distance * 1.5);
+                    camera.lookAt(center);
+                    controls.target.copy(center);
+                    controls.update();
+                    console.log('Adjusted camera to fit model, distance:', distance);
 
                     // Add a test cube to ensure rendering works
                     const testGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
