@@ -159,6 +159,50 @@
     gap: 0.5rem;
 }
 
+/* AI Insights Styling */
+.ai-insight {
+    border-left: 4px solid var(--primary);
+}
+
+.ai-insight .insight-icon.primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+}
+
+.ai-insights-content {
+    width: 100%;
+}
+
+.ai-insights-content details {
+    margin-top: 0.5rem;
+}
+
+.ai-insights-content summary {
+    cursor: pointer;
+    color: var(--primary);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.ai-insights-content summary:hover {
+    color: var(--primary-dark);
+}
+
+.ai-full-analysis {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.ai-confidence {
+    display: block;
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
 .battery-indicator i {
     font-size: 1rem;
 }

@@ -571,73 +571,115 @@
         }
 
         // Load health insights
-        function loadHealthInsights(readings) {
+        async function loadHealthInsights(readings) {
             const insightsGrid = document.getElementById('insights-grid');
             if (!insightsGrid) return;
 
-            if (!readings || readings.length === 0) {
-                insightsGrid.innerHTML = `
-                    <div class="insight-card">
-                        <div class="insight-icon info">
-                            <i class="fas fa-info-circle"></i>
-                        </div>
-                        <div class="insight-content">
-                            <h4>No Data Available</h4>
-                            <p>Add patients and connect devices to see health analytics.</p>
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-
-            // Calculate insights
-            const insights = calculateHealthInsights(readings);
-
+            // Show loading state
             insightsGrid.innerHTML = `
                 <div class="insight-card">
-                    <div class="insight-icon success">
-                        <i class="fas fa-heartbeat"></i>
-                    </div>
-                    <div class="insight-content">
-                        <h4>Average Heart Rate</h4>
-                        <p>${insights.avgHeartRate} BPM</p>
-                        <small>Range: ${insights.minHeartRate} - ${insights.maxHeartRate} BPM</small>
-                    </div>
-                </div>
-
-                <div class="insight-card">
-                    <div class="insight-icon warning">
-                        <i class="fas fa-thermometer-half"></i>
-                    </div>
-                    <div class="insight-content">
-                        <h4>Average Temperature</h4>
-                        <p>${insights.avgTemperature}°C</p>
-                        <small>Range: ${insights.minTemperature} - ${insights.maxTemperature}°C</small>
-                    </div>
-                </div>
-
-                <div class="insight-card">
                     <div class="insight-icon info">
-                        <i class="fas fa-lungs"></i>
+                        <i class="fas fa-spinner fa-spin"></i>
                     </div>
                     <div class="insight-content">
-                        <h4>Average SpO2</h4>
-                        <p>${insights.avgSpo2}%</p>
-                        <small>Range: ${insights.minSpo2} - ${insights.maxSpo2}%</small>
-                    </div>
-                </div>
-
-                <div class="insight-card">
-                    <div class="insight-icon ${insights.warnings.length > 0 ? 'danger' : 'success'}">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="insight-content">
-                        <h4>Health Status</h4>
-                        <p>${insights.warnings.length > 0 ? 'Attention Required' : 'Within Normal Range'}</p>
-                        ${insights.warnings.length > 0 ? '<small>' + insights.warnings.join('<br>') + '</small>' : '<small>All readings within safe ranges</small>'}
+                        <h4>Loading AI Insights...</h4>
+                        <p>Analyzing your health data with AI</p>
                     </div>
                 </div>
             `;
+
+            try {
+                // Get current time range
+                const range = document.getElementById('analytics-range').value || '7d';
+
+                // Fetch AI insights
+                const response = await fetch(`/api/analytics/insights?range=${range}`);
+                let aiInsights = null;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.data) {
+                        aiInsights = data.data;
+                    }
+                }
+
+                // Calculate basic stats
+                const basicInsights = calculateHealthInsights(readings);
+
+                // Combine AI insights with basic stats
+                insightsGrid.innerHTML = `
+                    <div class="insight-card">
+                        <div class="insight-icon success">
+                            <i class="fas fa-heartbeat"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average Heart Rate</h4>
+                            <p>${basicInsights.avgHeartRate} BPM</p>
+                            <small>Range: ${basicInsights.minHeartRate} - ${basicInsights.maxHeartRate} BPM</small>
+                        </div>
+                    </div>
+
+                    <div class="insight-card">
+                        <div class="insight-icon warning">
+                            <i class="fas fa-thermometer-half"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average Temperature</h4>
+                            <p>${basicInsights.avgTemperature}°C</p>
+                            <small>Range: ${basicInsights.minTemperature} - ${basicInsights.maxTemperature}°C</small>
+                        </div>
+                    </div>
+
+                    <div class="insight-card">
+                        <div class="insight-icon info">
+                            <i class="fas fa-lungs"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Average SpO2</h4>
+                            <p>${basicInsights.avgSpo2}%</p>
+                            <small>Range: ${basicInsights.minSpo2} - ${basicInsights.maxSpo2}%</small>
+                        </div>
+                    </div>
+
+                    <div class="insight-card ${aiInsights ? 'ai-insight' : ''}">
+                        <div class="insight-icon ${aiInsights ? 'primary' : (basicInsights.warnings.length > 0 ? 'danger' : 'success')}">
+                            <i class="fas ${aiInsights ? 'fa-robot' : 'fa-exclamation-triangle'}"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>${aiInsights ? 'AI Health Analysis' : 'Health Status'}</h4>
+                            ${aiInsights ? `
+                                <div class="ai-insights-content">
+                                    <p>${aiInsights.insights.split('\n')[0]}</p>
+                                    <details>
+                                        <summary>View full AI analysis</summary>
+                                        <div class="ai-full-analysis">
+                                            ${aiInsights.insights.split('\n').slice(1).join('<br>')}
+                                        </div>
+                                    </details>
+                                    <small class="ai-confidence">Confidence: ${(aiInsights.confidence * 100).toFixed(0)}% | Source: ${aiInsights.source}</small>
+                                </div>
+                            ` : `
+                                <p>${basicInsights.warnings.length > 0 ? 'Attention Required' : 'Within Normal Range'}</p>
+                                ${basicInsights.warnings.length > 0 ? '<small>' + basicInsights.warnings.join('<br>') + '</small>' : '<small>All readings within safe ranges</small>'}
+                            `}
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error loading health insights:', error);
+                insightsGrid.innerHTML = `
+                    <div class="insight-card">
+                        <div class="insight-icon warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="insight-content">
+                            <h4>Insights Unavailable</h4>
+                            <p>Unable to load health insights. Basic analytics still available.</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
         // Calculate health insights from readings

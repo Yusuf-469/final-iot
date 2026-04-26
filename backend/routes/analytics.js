@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDb, getDbConnected } = require('../database');
+const aiInsightsService = require('../services/aiInsightsService');
 
 // GET /api/analytics/readings - Get historical health readings for analytics
 router.get('/readings', async (req, res) => {
@@ -68,59 +69,69 @@ router.get('/readings', async (req, res) => {
           spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 5), // +/- 5% variation
           timestamp: timestamp
         });
+  }
+};
+
+// GET /api/analytics/insights - Generate AI-powered insights
+router.get('/insights', async (req, res) => {
+  try {
+    const { range = '7d' } = req.query;
+
+    console.log('Generating AI insights for range:', range);
+
+    // First get the analytics data
+    const patientsSnap = await db.ref('patients').once('value');
+    const patientsData = patientsSnap.val() || {};
+
+    const readings = [];
+
+    // Generate mock historical readings for AI analysis
+    Object.entries(patientsData).forEach(([pid, patient]) => {
+      const baseHeartRate = 35 + Math.random() * 10;
+      const baseTemp = 25 + Math.random() * 20;
+      const baseSpo2 = 95 + Math.random() * 5;
+
+      for (let i = 25; i <= 45; i++) {
+        readings.push({
+          id: `${pid}_${i}`,
+          patientId: pid,
+          heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 5),
+          temperature: Math.round((baseTemp + (Math.random() - 0.5) * 5) * 10) / 10,
+          spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 5),
+          timestamp: Date.now() - ((45 - i) * 60 * 60 * 1000) // Spread over time
+        });
       }
     });
 
     // Group readings by time period
-    const groupedData = groupReadingsByTime(readings, groupByHours);
+    const groupedData = groupReadingsByTime(readings, range === '7d' ? 24 : range === '30d' ? 24 * 7 : 24 * 7);
+
+    // Generate AI insights
+    const insights = await aiInsightsService.generateInsights({
+      readings: groupedData,
+      range,
+      totalReadings: readings.length
+    }, range);
 
     res.json({
       success: true,
       data: {
-        readings: groupedData,
-        range,
-        totalReadings: readings.length
+        insights: insights.insights,
+        source: insights.source,
+        confidence: insights.confidence,
+        timestamp: insights.timestamp,
+        range
       }
     });
 
   } catch (error) {
-    console.error('Analytics readings error:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch analytics data' });
+    console.error('AI insights error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate AI insights',
+      fallback: 'AI insights service temporarily unavailable. Basic analytics still functional.'
+    });
   }
 });
-
-// Helper function to group readings by time periods
-function groupReadingsByTime(readings, hoursInterval) {
-  const groups = {};
-  const intervalMs = hoursInterval * 60 * 60 * 1000;
-
-  readings.forEach(reading => {
-    const groupKey = Math.floor(reading.timestamp / intervalMs) * intervalMs;
-    if (!groups[groupKey]) {
-      groups[groupKey] = {
-        timestamp: groupKey,
-        heartRate: [],
-        temperature: [],
-        spo2: [],
-        count: 0
-      };
-    }
-
-    if (reading.heartRate !== undefined) groups[groupKey].heartRate.push(reading.heartRate);
-    if (reading.temperature !== undefined) groups[groupKey].temperature.push(reading.temperature);
-    if (reading.spo2 !== undefined) groups[groupKey].spo2.push(reading.spo2);
-    groups[groupKey].count++;
-  });
-
-  // Calculate averages for each group
-  return Object.values(groups).map(group => ({
-    timestamp: group.timestamp,
-    date: new Date(group.timestamp).toISOString().split('T')[0],
-    heartRate: group.heartRate.length > 0 ? Math.round(group.heartRate.reduce((a, b) => a + b, 0) / group.heartRate.length) : null,
-    temperature: group.temperature.length > 0 ? Math.round((group.temperature.reduce((a, b) => a + b, 0) / group.temperature.length) * 10) / 10 : null,
-    spo2: group.spo2.length > 0 ? Math.round(group.spo2.reduce((a, b) => a + b, 0) / group.spo2.length) : null,
-    count: group.count
-  })).sort((a, b) => a.timestamp - b.timestamp);
-}
 
 module.exports = router;
