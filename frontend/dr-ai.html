@@ -1157,12 +1157,52 @@
         }
 
         function loadGLBModelFirst() {
-            console.log('🎯 Loading GLB Chatbot Model...');
+            console.log('🎯 Loading GLB Chatbot Model from: models/medical-doctor-3d-model.glb');
 
-            const loader = new THREE.GLTFLoader();
+            // Check if the file exists by trying to fetch it first
+            const glbPaths = [
+                'models/medical-doctor-3d-model.glb',
+                './models/medical-doctor-3d-model.glb',
+                '/models/medical-doctor-3d-model.glb'
+            ];
+
+            let pathIndex = 0;
+            const tryNextPath = () => {
+                if (pathIndex >= glbPaths.length) {
+                    console.error('❌ All GLB file paths failed');
+                    createFallbackChatbot();
+                    return;
+                }
+
+                const currentPath = glbPaths[pathIndex];
+                console.log(`🔍 Checking GLB accessibility at: ${currentPath}`);
+
+                fetch(currentPath, { method: 'HEAD' })
+                    .then(response => {
+                        if (response.ok) {
+                            console.log(`✅ GLB file accessible at: ${currentPath}`);
+                            loadGLBWithThreeJS(currentPath);
+                        } else {
+                            console.log(`❌ Path ${currentPath} not accessible (${response.status}), trying next path`);
+                            pathIndex++;
+                            tryNextPath();
+                        }
+                    })
+                    .catch(error => {
+                        console.log(`❌ Error accessing ${currentPath}:`, error.message);
+                        pathIndex++;
+                        tryNextPath();
+                    });
+            };
+
+            tryNextPath();
+        }
+
+        function loadGLBWithThreeJS(glbPath) {
+            console.log(`🎨 Loading GLB with Three.js from: ${glbPath}`);
 
             loader.load(
-                'models/medical-doctor-3d-model.glb',
+                glbPath,
                 function (gltf) {
                     console.log('✅ GLB Chatbot model loaded successfully!', gltf);
 
@@ -1594,16 +1634,28 @@
                 // Smooth chatbot animation - breathing effect
                 const time = Date.now() * 0.001;
                 const breath = Math.sin(time * 2) * 0.05;
-                aiModel.position.y = -1.5 + breath;
-
-                // Gentle rotation for life-like movement
+                aiModel.position.y = -1.2 + breath;
                 aiModel.rotation.y += 0.002;
             } else if (!aiModel && !chatInterfaceVisible) {
-                // If no chatbot model loaded, create emergency visible object
+                // If no chatbot model loaded, show visible placeholder
                 if (scene.children.length <= 3) { // Only lighting objects
-                    console.log('🚨 No chatbot model loaded, creating emergency interface');
-                    createFallbackChatbot();
+                    console.log('🔵 Adding visible placeholder while waiting for GLB');
+                    const placeholderGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+                    const placeholderMaterial = new THREE.MeshPhongMaterial({
+                        color: 0x00ffff,
+                        emissive: 0x002244,
+                        transparent: true,
+                        opacity: 0.8
+                    });
+                    const placeholder = new THREE.Mesh(placeholderGeometry, placeholderMaterial);
+                    placeholder.position.set(0, 0, 0);
+                    scene.add(placeholder);
+
+                    // Add subtle animation to show it's working
+                    placeholder.rotation.y += 0.01;
+                    placeholder.position.y = Math.sin(Date.now() * 0.001) * 0.1;
                 }
+            }
             }
 
             if (controls) controls.update();
@@ -1654,9 +1706,14 @@
 
             // Hide initial loading text and show 3D interface
             const initialLoading = document.getElementById('dr-ai-initial-loading');
+            const fallbackContent = document.getElementById('dr-ai-fallback');
             if (initialLoading) {
                 initialLoading.style.display = 'none';
                 console.log('📱 Initial loading hidden, showing 3D interface');
+            }
+            // Ensure fallback is hidden when starting 3D
+            if (fallbackContent) {
+                fallbackContent.style.display = 'none';
             }
 
             // Initialize 3D chatbot interface
