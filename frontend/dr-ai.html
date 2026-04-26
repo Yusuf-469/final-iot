@@ -3,24 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dr. AI - Health Assistant</title>
+    <title>Dr. AI - 3D Medical Assistant</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/pages.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Three.js for 3D GLB Model -->
+    <!-- Three.js for 3D Model -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
-    <!-- Firebase SDK (Official Google CDN) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a0a0a;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #dr-ai-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #dr-ai-canvas {
+            display: block;
+            background: linear-gradient(45deg, #0f0f23, #1a1a3a);
+        }
+
+        #dr-ai-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #dr-ai-title {
+            color: #ffffff;
+            font-size: 1.5rem;
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        #dr-ai-status {
+            color: #00ffff;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #dr-ai-status-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #dr-ai-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ffffff;
+            text-align: center;
+            z-index: 200;
+        }
+
+        #dr-ai-loading i {
+            font-size: 3rem;
+            color: #00ffff;
+            margin-bottom: 1rem;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 
     <style>
         /* Full-Screen Dr. AI Interface */
@@ -838,15 +913,28 @@
         }
     </style>
 </head>
-<body class="dr-ai-fullscreen">
-    <!-- Minimal Navigation Header -->
-    <header class="dr-ai-minimal-header">
-        <div class="dr-ai-nav">
-            <a href="dashboard.html" class="dr-ai-nav-link">
-                <i class="fas fa-arrow-left"></i>
-                <span>Back to Dashboard</span>
-            </a>
+<body>
+    <div id="dr-ai-container">
+        <!-- Simple UI Overlay -->
+        <div id="dr-ai-ui">
+            <div id="dr-ai-title">
+                <i class="fas fa-robot"></i> Dr. AI - 3D Medical Assistant
+            </div>
+            <div id="dr-ai-status">
+                <span id="dr-ai-status-dot"></span>
+                <span>AI Active</span>
+            </div>
         </div>
+
+        <!-- Loading Indicator -->
+        <div id="dr-ai-loading">
+            <i class="fas fa-cog"></i>
+            <div>Loading 3D Model...</div>
+        </div>
+
+        <!-- 3D Canvas -->
+        <canvas id="dr-ai-canvas"></canvas>
+    </div>
         <div class="dr-ai-title">
             <h1>Dr. AI Medical Assistant</h1>
             <p>Interactive 3D Health AI Interface</p>
@@ -1049,18 +1137,175 @@
 
     <script src="js/page-scripts.js"></script>
     <script>
-        let currentHealthData = {};
-        let isThinking = false;
+        // Simple 3D model viewer for Dr. AI
+        let scene, camera, renderer, model, controls;
 
-        // Initialize Interactive 3D GLB Model (Chatbot Interface)
-        let scene, camera, renderer, aiModel, controls, raycaster, mouse;
-        let animationId;
-        let chatInterfaceVisible = false;
-        let modelLoaded = false;
-        let chatbotActive = false;
+        function initDrAIModel() {
+            console.log('🤖 Initializing Dr. AI 3D Model...');
 
-        function initInteractiveGLBModel() {
-            console.log('🚀 Initializing Dr. AI 3D Interface...');
+            const canvas = document.getElementById('dr-ai-canvas');
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
+
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f0f23);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = true;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+
+            // Load GLB model
+            loadGLBModel();
+
+            // Animation loop
+            animate();
+
+            // Handle resize
+            window.addEventListener('resize', onWindowResize);
+
+            console.log('✅ Dr. AI 3D Model initialized');
+        }
+
+        function loadGLBModel() {
+            console.log('Loading GLB model...');
+
+            const loader = new THREE.GLTFLoader();
+
+            // Try different paths for the GLB file
+            const glbPaths = [
+                'models/medical-doctor-3d-model.glb',
+                './models/medical-doctor-3d-model.glb',
+                '/models/medical-doctor-3d-model.glb'
+            ];
+
+            let pathIndex = 0;
+
+            function tryLoadPath() {
+                if (pathIndex >= glbPaths.length) {
+                    console.log('GLB loading failed, using fallback model');
+                    createFallbackModel();
+                    return;
+                }
+
+                const currentPath = glbPaths[pathIndex];
+                console.log(`Trying to load GLB from: ${currentPath}`);
+
+                loader.load(
+                    currentPath,
+                    function (gltf) {
+                        console.log('GLB model loaded successfully!');
+                        model = gltf.scene;
+
+                        // Scale and position
+                        model.scale.setScalar(1.5);
+                        model.position.set(0, -1, 0);
+
+                        // Enable shadows
+                        model.traverse(function (child) {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+
+                        scene.add(model);
+
+                        // Hide loading
+                        const loading = document.getElementById('dr-ai-loading');
+                        if (loading) loading.style.display = 'none';
+
+                        console.log('3D model ready for interaction');
+                    },
+                    function (progress) {
+                        console.log('Loading progress:', Math.round((progress.loaded / progress.total * 100)) + '%');
+                    },
+                    function (error) {
+                        console.log(`Failed to load from ${currentPath}, trying next path`);
+                        pathIndex++;
+                        tryLoadPath();
+                    }
+                );
+            }
+
+            tryLoadPath();
+        }
+
+        function createFallbackModel() {
+            console.log('Creating fallback 3D model');
+
+            // Create a simple floating medical AI model
+            const group = new THREE.Group();
+
+            // Main body
+            const bodyGeometry = new THREE.CylinderGeometry(0.8, 1, 2, 16);
+            const bodyMaterial = new THREE.MeshPhongMaterial({
+                color: 0x0066cc,
+                emissive: 0x001122
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            group.add(body);
+
+            // Head
+            const headGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+            const headMaterial = new THREE.MeshPhongMaterial({
+                color: 0x00ffff,
+                emissive: 0x002244
+            });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 1.2;
+            group.add(head);
+
+            // Medical cross
+            const crossGeometry = new THREE.BoxGeometry(0.05, 0.8, 0.05);
+            const crossMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const vertical = new THREE.Mesh(crossGeometry, crossMaterial);
+            const horizontal = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.05), crossMaterial);
+            horizontal.position.y = 0.2;
+            group.add(vertical);
+            group.add(horizontal);
+
+            model = group;
+            scene.add(model);
+
+            // Hide loading
+            const loading = document.getElementById('dr-ai-loading');
+            if (loading) loading.style.display = 'none';
+
+            console.log('Fallback 3D model created');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Dr. AI 3D Model page loaded');
+            initDrAIModel();
+        });
+    </script>            console.log('🚀 Initializing Dr. AI 3D Interface...');
 
             const canvas = document.getElementById('dr-ai-canvas');
             if (!canvas) {
@@ -1082,47 +1327,7 @@
                 renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 renderer.setClearColor(0x0f0f23);
-                renderer.shadowMap.enabled = true;
-                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-                // Lighting
-                setupLighting();
-
-            // Controls optimized for screen-fitting model
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.enableZoom = true;
-            controls.enablePan = false;
-            controls.autoRotate = true;
-            controls.autoRotateSpeed = 0.3;
-            controls.minDistance = 2;
-            controls.maxDistance = 5;
-
-                // Mouse interaction
-                raycaster = new THREE.Raycaster();
-                mouse = new THREE.Vector2();
-                canvas.addEventListener('click', onModelClick);
-                canvas.addEventListener('mousemove', onMouseMove);
-
-                // Start with loading indicator
-                showLoadingIndicator();
-
-                // Load GLB model FIRST (blocking operation)
-                loadGLBModelFirst();
-
-                // Animation loop
-                animate();
-
-                // Handle resize
-                window.addEventListener('resize', onWindowResize);
-
-                console.log('✅ 3D Interface initialized successfully');
-
-            } catch (error) {
-                console.error('❌ Failed to initialize 3D interface:', error);
-                showFallbackInterface();
-            }
         }
 
         function setupLighting() {
@@ -1674,88 +1879,6 @@
                 renderer.setSize(canvas.clientWidth, canvas.clientHeight);
             }
         }
-
-        // Initialize Dr. AI 3D Chatbot
-        function initDrAI() {
-            console.log('🤖 Dr. AI 3D Chatbot initializing...');
-
-            // Check if Three.js is available
-            if (typeof THREE === 'undefined') {
-                console.error('❌ Three.js not loaded - cannot display 3D chatbot');
-                showFallbackInterface();
-                return;
-            }
-
-            if (typeof THREE.GLTFLoader === 'undefined') {
-                console.error('❌ GLTFLoader not available - cannot load 3D chatbot model');
-                showFallbackInterface();
-                return;
-            }
-
-            console.log('✅ Three.js ready for 3D chatbot interface');
-
-            // Check if canvas exists
-            const canvas = document.getElementById('dr-ai-canvas');
-            if (!canvas) {
-                console.error('❌ Canvas element not found for 3D chatbot!');
-                showFallbackInterface();
-                return;
-            }
-
-            console.log('✅ 3D Canvas ready, loading chatbot model...');
-
-            // Hide initial loading text and show 3D interface
-            const initialLoading = document.getElementById('dr-ai-initial-loading');
-            const fallbackContent = document.getElementById('dr-ai-fallback');
-            if (initialLoading) {
-                initialLoading.style.display = 'none';
-                console.log('📱 Initial loading hidden, showing 3D interface');
-            }
-            // Ensure fallback is hidden when starting 3D
-            if (fallbackContent) {
-                fallbackContent.style.display = 'none';
-            }
-
-            // Initialize 3D chatbot interface
-            initInteractiveGLBModel();
-        }
-
-        // Show fallback interface if 3D fails
-        function showFallbackInterface() {
-            console.log('🔄 Showing fallback Dr. AI interface');
-
-            const fallbackEl = document.getElementById('dr-ai-fallback');
-            const canvasEl = document.getElementById('dr-ai-canvas');
-            const loadingEl = document.getElementById('dr-ai-loading');
-
-            if (fallbackEl) {
-                fallbackEl.style.display = 'block';
-            }
-
-            if (canvasEl) {
-                canvasEl.style.display = 'none';
-            }
-
-            if (loadingEl) {
-                loadingEl.style.display = 'none';
-            }
-        }
-
-        function hideLoadingIndicator() {
-            const loadingEl = document.getElementById('dr-ai-loading');
-            if (loadingEl) {
-                loadingEl.style.display = 'none';
-                console.log('📊 Loading indicator hidden');
-            }
-        }
-
-        // Manual chat trigger for fallback
-        function showChatInterface() {
-            const chatOverlay = document.getElementById('dr-ai-chat-overlay');
-            if (chatOverlay) {
-                chatOverlay.style.display = 'flex';
-            }
-        }
                 }
             } catch (error) {
                 console.error('Error loading health data:', error);
@@ -1952,47 +2075,6 @@ Is there anything specific about these readings you'd like me to explain?`;
             }
         }
     </script>
-
-    <!-- Include required scripts -->
-    <script src="js/firebase-realtime.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/auth.js"></script>
-
-    <script>
-        // Initialize the page
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Dr. AI page DOM loaded - initializing 3D chatbot interface');
-
-            // Show immediate visual confirmation
-            const initialLoading = document.getElementById('dr-ai-initial-loading');
-            if (initialLoading) {
-                initialLoading.innerHTML = `
-                    <div class="dr-ai-loading-text">
-                        <i class="fas fa-check-circle" style="color: #00ff00;"></i>
-                        <h2>Dr. AI Interface Ready</h2>
-                        <p>Loading 3D medical chatbot...</p>
-                    </div>
-                `;
-            }
-
-            // Initialize Firebase real-time listeners
-            if (typeof initFirebaseRealtime === 'function') {
-                initFirebaseRealtime();
-            }
-
-            // Initialize Dr. AI with slight delay to show loading state
-            setTimeout(() => {
-                if (typeof initDrAI === 'function') {
-                    initDrAI();
-                } else {
-                    console.error('❌ initDrAI function not found');
-                    // Show fallback
-                    const fallback = document.getElementById('dr-ai-fallback');
-                    if (fallback) fallback.style.display = 'block';
-                }
-            }, 1000);
-        });
-    </script>
 </body>
+</html></body>
 </html>
