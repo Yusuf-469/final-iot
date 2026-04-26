@@ -152,18 +152,12 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Analytics page loaded, initializing...');
 
+            // Initialize Firebase real-time listeners
+            await initFirebaseRealtime();
+
+            // Initialize analytics
             await initFirebase();
             initAnalyticsCharts();
-
-            // Test API connectivity
-            try {
-                console.log('Testing API connectivity...');
-                const testResponse = await fetch('/api/config/firebase');
-                console.log('API test response:', testResponse.status);
-            } catch (e) {
-                console.error('API connectivity test failed:', e);
-            }
-
             loadAnalyticsData();
 
             // Update charts when range changes

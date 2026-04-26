@@ -229,6 +229,7 @@
     </div>
 
     <script src="js/page-scripts.js"></script>
+    <script src="js/firebase-realtime.js"></script>
     <script>
         console.log('Alerts page script loaded');
 
@@ -257,10 +258,13 @@
             });
         };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOMContentLoaded fired');
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Alerts page loaded, initializing...');
+
+            // Initialize Firebase real-time listeners
+            await initFirebaseRealtime();
+
             loadAlertsPage();
-            loadPredictionStatus();
         });
 
         async function loadAlertsPage() {
