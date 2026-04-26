@@ -1,8 +1,12 @@
 const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
-  // Convert escaped newlines to actual newlines in private key
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  // Handle private key: if it contains escaped newlines (\n), convert to actual newlines
+  // If already formatted with newlines, use as-is
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (privateKey && privateKey.includes('\\n')) {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
 
   admin.initializeApp({
     credential: admin.credential.cert({

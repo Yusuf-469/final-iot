@@ -15,15 +15,18 @@ const dashboardApp = {
     },
 
     // Initialize the dashboard
-    init() {
+    async init() {
         this.checkAuth();
         this.setupEventListeners();
         this.initScrollReveal();
         this.initCharts();
         this.loadDashboardData();
-        this.connectWebSocket();
+
+        // Initialize Firebase real-time listeners
+        await initFirebaseRealtime();
+
+        // Keep polling as backup for non-realtime features
         this.startRealTimeUpdates();
-        this.initFirebaseHealth();
     },
 
     // Initialize real-time data updates via API polling
@@ -967,35 +970,30 @@ const dashboardApp = {
     
     // Start real-time updates simulation
     startRealTimeUpdates() {
-        // Poll API for real-time updates every 10 seconds
+        // Reduced polling frequency since we have real-time Firebase listeners
+        // Poll every 5 minutes as backup for any missed updates
         setInterval(() => {
-            this.pollRealtimeData();
-        }, 10000);
+            this.pollBackupData();
+        }, 300000); // 5 minutes
     },
 
-    // Poll API for real-time data updates
-    async pollRealtimeData() {
+    // Backup polling for any data not covered by real-time listeners
+    async pollBackupData() {
         try {
-            // Update health data
-            const healthResponse = await fetch('/api/health');
-            if (healthResponse.ok) {
-                const healthData = await healthResponse.json();
-                if (healthData.health) {
-                    this.updateLiveHealthDisplay(healthData.health);
-                }
-            }
+            console.log('🔄 Backup data poll...');
 
-            // Update patients data (includes live health readings)
+            // Update patients and devices (real-time listeners handle health data)
             await this.loadPatients();
-
-            // Update devices data
             await this.loadDevices();
+            await this.loadAlerts();
 
-            // Re-render stats and components
+            // Re-render stats
             this.renderStats();
 
+            console.log('✅ Backup data poll completed');
+
         } catch (error) {
-            console.warn('Real-time data poll failed:', error.message);
+            console.warn('Backup data poll failed:', error.message);
         }
     },
     
