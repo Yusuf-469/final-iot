@@ -1235,26 +1235,26 @@
                     }
 
                     // Scale and position - adjust for better visibility
-                    model.scale.setScalar(1.0); // Normal scale
-                    model.position.set(0, -0.5, 0); // Slightly below center
+                    model.scale.setScalar(2.0); // Larger scale for visibility
+                    model.position.set(0, 0, 0); // Center position
 
                     // Enable shadows and ensure materials are visible
                     model.traverse(function (child) {
                         if (child.isMesh) {
                             child.castShadow = true;
                             child.receiveShadow = true;
-                            // Ensure material is visible
+                            // Ensure material is visible - force bright colors
                             if (child.material) {
                                 child.material.transparent = false;
                                 child.material.opacity = 1.0;
-                                // Force visible color if too dark
-                                if (child.material.color) {
-                                    const hex = child.material.color.getHex();
-                                    if (hex === 0x000000 || hex < 0x333333) {
-                                        child.material.color.setHex(0xcccccc);
-                                        console.log('Lightened dark material color');
-                                    }
-                                }
+                                // Force bright color regardless
+                                child.material.color.setHex(0xffffff);
+                                console.log('Forced material to white for visibility');
+                                // Also set emissive for glow
+                                child.material.emissive.setHex(0x222222);
+                            } else {
+                                console.warn('Mesh has no material, creating one');
+                                child.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
                             }
                         }
                     });
@@ -1279,6 +1279,14 @@
                     const bbox = new THREE.Box3().setFromObject(model);
                     console.log('Model bounding box:', bbox.min, bbox.max);
 
+                    // Add a test cube to ensure rendering works
+                    const testGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                    const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                    const testCube = new THREE.Mesh(testGeometry, testMaterial);
+                    testCube.position.set(2, 0, 0); // To the right
+                    scene.add(testCube);
+                    console.log('Added green test cube at position (2,0,0)');
+
                     // Hide loading indicator
                     const loading = document.getElementById('dr-ai-loading');
                     if (loading) loading.style.display = 'none';
@@ -1292,12 +1300,6 @@
                     showError('Failed to load 3D model.');
                 }
             );
-        }
-                    }
-                );
-            }
-
-            tryLoadPath();
         }
 
 
