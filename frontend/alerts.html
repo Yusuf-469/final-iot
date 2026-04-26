@@ -181,7 +181,9 @@
 
     <script src="js/page-scripts.js"></script>
     <script>
+        console.log('Alerts page script loaded');
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
             loadAlertsPage();
         });
 
@@ -335,8 +337,11 @@
             showToast('Alert dismissed', 'info');
         }
 
-        function generatePredictionAlerts() {
-            showToast('Generating AI-powered health risk alerts...', 'info');
+        // Make function globally available
+        window.generatePredictionAlerts = function() {
+            console.log('generatePredictionAlerts function called');
+
+            alert('Generating AI-powered health risk alerts...');
 
             fetch('/api/alerts/generate-predictions', {
                 method: 'POST',
@@ -344,22 +349,32 @@
                     'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`Generated ${data.alertsCreated} AI alerts!`, 'success');
-                    // Refresh alerts list
-                    loadAlerts();
-                    updateStats();
-                } else {
-                    throw new Error(data.error || 'Failed to generate alerts');
+            .then(response => {
+                console.log('API response status:', response.status);
+                return response.text();
+            })
+            .then(text => {
+                console.log('API response text:', text.substring(0, 200));
+                try {
+                    const data = JSON.parse(text);
+                    if (data.success) {
+                        alert(`Generated ${data.alertsCreated} AI alerts!`);
+                        // Refresh alerts list
+                        if (typeof loadAlerts === 'function') loadAlerts();
+                        if (typeof updateStats === 'function') updateStats();
+                    } else {
+                        throw new Error(data.error || 'Failed to generate alerts');
+                    }
+                } catch (parseError) {
+                    console.error('JSON parse error:', parseError);
+                    alert('Error: Invalid response from server');
                 }
             })
             .catch(error => {
                 console.error('Error generating prediction alerts:', error);
-                showToast('Failed to generate AI alerts: ' + error.message, 'error');
+                alert('Failed to generate AI alerts: ' + error.message);
             });
-        }
+        };
 
         function markAllRead() {
             showToast('All alerts marked as read', 'success');
