@@ -40,31 +40,62 @@ router.get('/readings', async (req, res) => {
         groupByHours = 24;
     }
 
-    // Get patients data
-    const patientsSnap = await db.ref('patients').once('value');
-    const patientsData = patientsSnap.val() || {};
+    // Get actual health data from Firestore
+    let query = db.collection('healthData')
+      .where('createdAt', '>=', new Date(startTime))
+      .orderBy('createdAt', 'desc');
+
+    if (patientId) {
+      query = query.where('patientId', '==', patientId);
+    }
+
+    const snapshot = await query.limit(5000).get();
 
     const readings = [];
-
-    // Generate mock historical readings for analysis
-    Object.entries(patientsData).forEach(([pid, patient]) => {
-      if (patientId && pid !== patientId) return;
-
-      const baseHeartRate = 35 + Math.random() * 10;
-      const baseTemp = 25 + Math.random() * 20;
-      const baseSpo2 = 95 + Math.random() * 5;
-
-      for (let i = 25; i <= 45; i++) {
-        readings.push({
-          id: `${pid}_${i}`,
-          patientId: pid,
-          heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 5),
-          temperature: Math.round((baseTemp + (Math.random() - 0.5) * 5) * 10) / 10,
-          spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 5),
-          timestamp: Date.now() - ((45 - i) * 60 * 60 * 1000)
-        });
-      }
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      readings.push({
+        id: doc.id,
+        patientId: data.patientId,
+        deviceId: data.deviceId,
+        heartRate: data.heartRate?.value || data.heartRate || null,
+        temperature: data.temperature?.value || data.temperature || null,
+        spo2: data.spo2?.value || data.spo2 || null,
+        bloodPressure: data.bloodPressure,
+        status: data.status,
+        timestamp: data.createdAt?.toDate?.()?.getTime() || data.timestamp,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt
+      });
     });
+
+    // If no real data, generate some sample readings for demo
+    if (readings.length === 0) {
+      console.log('No health data found, generating sample analytics data');
+
+      // Get patients data for sample generation
+      const patientsSnap = await db.ref('patients').once('value');
+      const patientsData = patientsSnap.val() || {};
+
+      Object.entries(patientsData).forEach(([pid, patient]) => {
+        if (patientId && pid !== patientId) return;
+
+        const baseHeartRate = 70 + Math.random() * 20;
+        const baseTemp = 36.5 + Math.random() * 1;
+        const baseSpo2 = 95 + Math.random() * 4;
+
+        for (let i = 0; i < 50; i++) {
+          const timestamp = startTime + (i * (now - startTime) / 50);
+          readings.push({
+            id: `${pid}_sample_${i}`,
+            patientId: pid,
+            heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 10),
+            temperature: Math.round((baseTemp + (Math.random() - 0.5) * 0.5) * 10) / 10,
+            spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 2),
+            timestamp: timestamp
+          });
+        }
+      });
+    }
 
     // Group readings by time period
     const groupedData = groupReadingsByTime(readings, groupByHours);
