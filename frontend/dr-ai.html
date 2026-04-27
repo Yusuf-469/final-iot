@@ -36,12 +36,12 @@
     </style>
     <script>
         // Dr. AI 3D Model Viewer with Chat Interface
-        let scene, camera, renderer, model, raycaster, mouse, isHovered = false, chatOpen = false;
+        let scene, camera, renderer, model, raycaster, mouse, canvas, isHovered = false, chatOpen = false;
 
         function initDrAIModel() {
             console.log('🤖 Initializing Dr. AI 3D Model...');
 
-            const canvas = document.getElementById('dr-ai-canvas');
+            canvas = document.getElementById('dr-ai-canvas');
             if (!canvas) {
                 console.error('Canvas not found');
                 return;
