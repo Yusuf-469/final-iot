@@ -11,682 +11,350 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/three@0.157.0/build/three.min.js"></script>
     <script src="https://unpkg.com/@react-three/fiber@8.15.11/dist/react-three-fiber.js"></script>
     <script src="https://unpkg.com/@react-three/drei@9.88.13/dist/index.js"></script>
 
-    <!-- Three.js for 3D Model -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #0a0a0a;
-            font-family: 'Inter', sans-serif;
-            overflow: hidden;
-        }
-
-        #dr-ai-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #dr-ai-canvas {
-            display: block;
-            background: linear-gradient(45deg, #0f0f23, #1a1a3a);
-        }
-
-        #dr-ai-ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 100;
-        }
-
-        #dr-ai-title {
-            color: #ffffff;
-            font-size: 1.5rem;
-            font-weight: 600;
-            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-        }
-
-        #dr-ai-status {
-            color: #00ffff;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        #dr-ai-status-dot {
-            width: 8px;
-            height: 8px;
-            background: #00ff00;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        #dr-ai-loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #ffffff;
-            text-align: center;
-            z-index: 200;
-        }
-
-        #dr-ai-loading i {
-            font-size: 3rem;
-            color: #00ffff;
-            margin-bottom: 1rem;
-            animation: spin 2s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
-
     <script src="js/api.js"></script>
-</head>
-<body>
-    <div id="dr-ai-root"></div>
-    <script type="text/babel" src="DrAI.jsx"></script>
     <script>
-        // Simple 3D model viewer for Dr. AI
-        let scene, camera, renderer, model, controls, loader;
+        // Dr. AI React Component - Inline Implementation
+        const { useState, useRef, useEffect } = React;
+        const { Canvas, useFrame, useThree } = ReactThreeFiber;
+        const { useGLTF, Html } = ReactThreeDrei;
 
-        function initDrAIModel() {
-            console.log('🤖 Initializing Dr. AI 3D Model...');
+        // Preload the GLB model
+        useGLTF.preload('/models/medical-doctor-3d-model.glb');
 
-            const canvas = document.getElementById('dr-ai-canvas');
-            if (!canvas) {
-                console.error('Canvas not found');
-                return;
-            }
+        // 3D Model Component
+        function DrAIModel({ onClick }) {
+            const { scene } = useGLTF('/models/medical-doctor-3d-model.glb');
+            const modelRef = React.useRef();
+            const [hovered, setHovered] = React.useState(false);
 
-            // Scene setup
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a3a); // Dark background
-
-            // Camera positioned for optimal model viewing (will be adjusted when model loads)
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 5);
-            camera.lookAt(0, 0, 0); // Initial look at origin
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
-
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(5, 5, 5);
-            directionalLight.castShadow = true;
-            scene.add(directionalLight);
-
-            // Controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.enableZoom = true;
-            controls.enablePan = true;
-            controls.autoRotate = true;
-            controls.autoRotateSpeed = 0.5;
-
-            // Handle resize
-            window.addEventListener('resize', onWindowResize);
-
-            // Start animation loop
-            animate();
-
-            console.log('✅ Dr. AI 3D Model initialized');
-
-            // Load GLB model after setup
-            loadGLBModel();
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-            // Debug: log once per second
-            if (Math.floor(Date.now() / 1000) % 5 === 0 && !window.logged) {
-                console.log('Animation loop running, scene children:', scene.children.length);
-                window.logged = true;
-                setTimeout(() => window.logged = false, 1000);
-            }
-        }
-
-        function loadGLBModel() {
-            console.log('Loading GLB model...');
-
-            loader = new THREE.GLTFLoader();
-
-            const glbPath = 'models/medical-doctor-3d-model.glb';
-            console.log(`Loading GLB from: ${glbPath}`);
-
-            loader.load(
-                glbPath,
-                function (gltf) {
-                    console.log('GLB model loaded successfully!');
-                    console.log('GLTF scene:', gltf.scene);
-                    console.log('Scene children:', gltf.scene.children.length);
-
-                    model = gltf.scene;
-
-                    // Deep inspection of the loaded model
-                    let meshCount = 0;
-                    model.traverse(function (child) {
-                        console.log('Child:', child.type, child.name || 'unnamed');
-                        if (child.isMesh) {
-                            meshCount++;
-                            console.log('  Mesh geometry:', child.geometry.type);
-                            console.log('  Mesh material:', child.material ? child.material.type : 'none');
-                            if (child.material) {
-                                console.log('  Material color:', child.material.color ? child.material.color.getHexString() : 'none');
-                                console.log('  Material transparent:', child.material.transparent);
-                                console.log('  Material opacity:', child.material.opacity);
-                            }
-                            console.log('  Mesh position:', child.position);
-                            console.log('  Mesh scale:', child.scale);
-                        }
-                    });
-                    console.log('Total meshes found:', meshCount);
-
-                    if (meshCount === 0) {
-                        console.error('No meshes found in GLB!');
-                        showError('No 3D model found in the file.');
-                        return;
+            // Hover animation
+            useFrame((state, delta) => {
+                if (modelRef.current) {
+                    // Gentle floating animation
+                    modelRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.05;
+                    // Subtle hover effect
+                    if (hovered) {
+                        modelRef.current.scale.setScalar(1.05);
+                    } else {
+                        modelRef.current.scale.setScalar(1.0);
                     }
+                }
+            });
 
-                    // Scale and position - adjust for better visibility
-                    model.scale.setScalar(2.0); // Larger scale for visibility
-                    model.position.set(0, 0, 0); // Center position
-
-                    // Enable shadows and ensure materials are visible
-                    model.traverse(function (child) {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            // Ensure material is visible - force bright colors
-                            if (child.material) {
-                                child.material.transparent = false;
-                                child.material.opacity = 1.0;
-                                // Force bright color regardless
-                                child.material.color.setHex(0xffffff);
-                                console.log('Forced material to white for visibility');
-                                // Also set emissive for glow
-                                child.material.emissive.setHex(0x222222);
-                            } else {
-                                console.warn('Mesh has no material, creating one');
-                                child.material = new THREE.MeshPhongMaterial({ color: 0xffffff });
-                            }
-                        }
-                    });
-
-                    // Remove any existing test objects
-                    const testObjects = scene.children.filter(child =>
-                        child.geometry && (child.geometry.type === 'BoxGeometry' || child.geometry.type === 'CylinderGeometry')
-                    );
-                    testObjects.forEach(obj => scene.remove(obj));
-
-                    scene.add(model);
-                    console.log('GLB Model added to scene at position:', model.position.x, model.position.y, model.position.z);
-                    console.log('Model scale:', model.scale.x, model.scale.y, model.scale.z);
-                    console.log('Scene children count after adding model:', scene.children.length);
-
-                    // Add a visible bounding box for debugging (remove in production)
-                    const box = new THREE.BoxHelper(model, 0xff0000);
-                    scene.add(box);
-                    console.log('Added red bounding box for debugging');
-
-                    // Compute bounding box to check size
-                    const bbox = new THREE.Box3().setFromObject(model);
-                    console.log('Model bounding box min:', bbox.min.x, bbox.min.y, bbox.min.z);
-                    console.log('Model bounding box max:', bbox.max.x, bbox.max.y, bbox.max.z);
-
-                    // Adjust camera to fit the model
-                    const size = bbox.getSize(new THREE.Vector3());
-                    const center = bbox.getCenter(new THREE.Vector3());
+            // Fit camera to model
+            const { camera } = useThree();
+            React.useEffect(() => {
+                if (scene) {
+                    const box = new THREE.Box3().setFromObject(scene);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
                     const maxDim = Math.max(size.x, size.y, size.z);
                     const distance = maxDim / (2 * Math.tan(Math.PI * camera.fov / 360));
                     camera.position.set(center.x, center.y, center.z + distance * 1.5);
                     camera.lookAt(center);
-                    controls.target.copy(center);
-                    controls.update();
-                    console.log('Adjusted camera to fit model, distance:', distance);
-
-                    // Add a test cube to ensure rendering works
-                    const testGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-                    const testMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-                    const testCube = new THREE.Mesh(testGeometry, testMaterial);
-                    testCube.position.set(2, 0, 0); // To the right
-                    scene.add(testCube);
-                    console.log('Added green test cube at position (2,0,0)');
-
-                    // Hide loading indicator
-                    const loading = document.getElementById('dr-ai-loading');
-                    if (loading) loading.style.display = 'none';
-                },
-                function (progress) {
-                    const percent = progress.total > 0 ? Math.round((progress.loaded / progress.total * 100)) : 0;
-                    console.log('Loading progress:', percent + '%');
-                },
-                function (error) {
-                    console.error('GLB loading failed:', error);
-                    showError('Failed to load 3D model.');
                 }
+            }, [scene, camera]);
+
+            return React.createElement('group', {
+                ref: modelRef,
+                onClick: onClick,
+                onPointerOver: () => setHovered(true),
+                onPointerOut: () => setHovered(false),
+                style: { cursor: hovered ? 'pointer' : 'default' }
+            }, [
+                React.createElement('primitive', { object: scene }),
+                hovered && React.createElement(Html, { position: [0, 2, 0] }, 
+                    React.createElement('div', {
+                        style: {
+                            background: 'rgba(0,0,0,0.8)',
+                            color: 'white',
+                            padding: '8px 12px',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            pointerEvents: 'none',
+                            border: '1px solid #00ffff',
+                            boxShadow: '0 0 10px rgba(0,255,255,0.5)'
+                        }
+                    }, 'Click to talk to Dr AI')
+                )
+            ]);
+        }
+
+        // Loading Fallback
+        function LoadingFallback() {
+            return React.createElement(Html, { center: true }, 
+                React.createElement('div', { 
+                    style: { color: 'white', fontSize: '18px' } 
+                }, [
+                    React.createElement('i', { 
+                        className: 'fas fa-spinner fa-spin', 
+                        style: { marginRight: '8px' } 
+                    }),
+                    'Loading 3D Model...'
+                ])
             );
         }
 
+        // Chat Panel Component
+        function ChatPanel({ isOpen, onClose, messages, onSendMessage, isTyping }) {
+            const [input, setInput] = React.useState('');
+            const messagesEndRef = React.useRef();
 
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        function showError(message) {
-            const loading = document.getElementById('dr-ai-loading');
-            if (loading) {
-                loading.innerHTML = `<i class="fas fa-exclamation-triangle"></i><div>Error: ${message}</div>`;
-            }
-            console.error(message);
-        }
-
-        // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Dr. AI 3D Model page loaded');
-            initDrAIModel();
-        });
-    </script>
-            <i class="fas fa-cog"></i>
-            <div>Loading 3D Model...</div>
-        </div>
-
-        <!-- 3D Canvas -->
-        <canvas id="dr-ai-canvas"></canvas>
-    </div>
-</body>
-</html>
-                line.position.z = Math.sin(i * Math.PI / 4) * 1.2;
-                aiModel.add(line);
-            }
-
-            // Holographic interface panels
-            const panelGeometry = new THREE.PlaneGeometry(0.3, 0.2);
-            const panelMaterial = new THREE.MeshBasicMaterial({
-                color: 0x004466,
-                transparent: true,
-                opacity: 0.8,
-                side: THREE.DoubleSide
-            });
-
-            for (let i = 0; i < 4; i++) {
-                const panel = new THREE.Mesh(panelGeometry, panelMaterial);
-                const angle = (i / 4) * Math.PI * 2;
-                panel.position.set(
-                    Math.cos(angle) * 1.1,
-                    0.2,
-                    Math.sin(angle) * 1.1
-                );
-                panel.lookAt(0, 0.2, 0);
-                aiModel.add(panel);
-            }
-
-            scene.add(aiModel);
-            console.log('🤖 Interactive chatbot AI model created');
-            modelLoaded = true;
-            chatbotActive = true;
-
-            // Hide loading indicator
-            hideLoadingIndicator();
-
-            // Show chatbot interface immediately
-            showChatbotInterface();
-
-            console.log('🎉 Chatbot model ready for interaction');
-        }
-
-        function showChatbotInterface() {
-            const clickPrompt = document.getElementById('dr-ai-click-prompt');
-            if (clickPrompt) {
-                // Update the prompt for chatbot interaction
-                clickPrompt.innerHTML = `
-                    <div class="dr-ai-click-animation">
-                        <i class="fas fa-comments"></i>
-                        <span>Click the 3D AI to start conversation</span>
-                    </div>
-                `;
-                clickPrompt.style.display = 'block';
-
-                // Keep it visible longer for chatbot interaction
-                setTimeout(() => {
-                    clickPrompt.style.display = 'none';
-                }, 10000);
-            }
-
-            console.log('💬 Chatbot interface activated - click 3D model to chat');
-        }
-
-        function onMouseMove(event) {
-            const canvas = document.getElementById('dr-ai-canvas');
-            const rect = canvas.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-        }
-
-        function onModelClick(event) {
-            if (!aiModel || !chatbotActive) return;
-
-            // Update raycaster
-            raycaster.setFromCamera(mouse, camera);
-
-            // Check for intersections with the chatbot model
-            const intersects = raycaster.intersectObject(aiModel, true);
-
-            if (intersects.length > 0) {
-                console.log('🤖 Chatbot AI clicked! Opening conversation interface');
-                toggleChatInterface();
-
-                // Provide haptic feedback (visual)
-                if (aiModel) {
-                    // Quick scale animation for click feedback
-                    const originalScale = aiModel.scale.x;
-                    aiModel.scale.setScalar(originalScale * 1.1);
-                    setTimeout(() => {
-                        aiModel.scale.setScalar(originalScale);
-                    }, 150);
-                }
-            }
-        }
-
-        function toggleChatInterface() {
-            const chatOverlay = document.getElementById('dr-ai-chat-overlay');
-            const clickPrompt = document.getElementById('dr-ai-click-prompt');
-
-            if (!chatInterfaceVisible) {
-                // Show chat overlay
-                chatOverlay.style.display = 'flex';
-                if (clickPrompt) clickPrompt.style.display = 'none';
-                chatInterfaceVisible = true;
-
-                // Stop auto-rotation when chatting
-                if (controls) controls.autoRotate = false;
-
-                // Focus on input
-                setTimeout(() => {
-                    const input = document.getElementById('dr-ai-chat-input');
-                    if (input) input.focus();
-                }, 100);
-            } else {
-                // Hide chat overlay
-                chatOverlay.style.display = 'none';
-                if (clickPrompt) clickPrompt.style.display = 'block';
-                chatInterfaceVisible = false;
-
-                // Resume auto-rotation
-                if (controls) controls.autoRotate = true;
-            }
-        }
-
-        function closeChatInterface() {
-            toggleChatInterface();
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (model) {
-                // Gentle floating animation for the 3D model
-                const time = Date.now() * 0.001;
-                model.position.y = -1 + Math.sin(time * 0.5) * 0.1;
-                model.rotation.y += 0.005;
-            }
-
-            if (controls) controls.update();
-            if (renderer && scene && camera) {
-                renderer.render(scene, camera);
-            } else {
-                console.error('❌ Missing renderer, scene, or camera');
-            }
-        }
-            }
-            }
-
-            if (controls) controls.update();
-            if (renderer && scene && camera) {
-                renderer.render(scene, camera);
-            } else {
-                console.error('❌ Missing renderer, scene, or camera for chatbot rendering');
-            }
-        }
-
-        function onWindowResize() {
-            const canvas = document.getElementById('dr-ai-canvas');
-            if (canvas && camera && renderer) {
-                camera.aspect = canvas.clientWidth / canvas.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-            }
-        }
-                }
-            } catch (error) {
-                console.error('Error loading health data:', error);
-            }
-        }
-
-        // Update health display
-        function updateHealthDisplay() {
-            const hrEl = document.getElementById('dr-ai-hr');
-            const tempEl = document.getElementById('dr-ai-temp');
-            const spo2El = document.getElementById('dr-ai-spo2');
-
-            if (hrEl && currentHealthData.heartRate) {
-                hrEl.textContent = currentHealthData.heartRate;
-                hrEl.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.heartRate, 60, 100);
-            }
-
-            if (tempEl && currentHealthData.temperature) {
-                tempEl.textContent = currentHealthData.temperature + '°C';
-                tempEl.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.temperature, 36.1, 37.5);
-            }
-
-            if (spo2El && currentHealthData.spo2) {
-                spo2El.textContent = currentHealthData.spo2 + '%';
-                spo2El.className = 'dr-ai-health-value ' + getHealthClass(currentHealthData.spo2, 95, 100);
-            }
-        }
-
-        // Get health status class
-        function getHealthClass(value, min, max) {
-            if (value < min || value > max) return 'danger';
-            if (value < min * 1.1 || value > max * 0.9) return 'warning';
-            return '';
-        }
-
-        // Start health monitoring
-        function startHealthMonitoring() {
-            setInterval(loadCurrentHealthData, 10000); // Update every 10 seconds
-        }
-
-        // Send message
-        async function sendMessage() {
-            const input = document.getElementById('dr-ai-chat-input');
-            const message = input.value.trim();
-
-            if (!message || isThinking) return;
-
-            // Add user message
-            addMessage(message, 'user');
-            input.value = '';
-
-            // Show thinking indicator
-            showThinking(true);
-
-            try {
-                // Get current health data
-                await loadCurrentHealthData();
-
-                // Generate AI response
-                const response = await generateAIResponse(message, currentHealthData);
-                
-                // Add AI response
-                addMessage(response, 'ai');
-
-            } catch (error) {
-                addMessage('I apologize, but I encountered an error processing your request. Please try again.', 'ai');
-                console.error('AI response error:', error);
-            } finally {
-                showThinking(false);
-            }
-        }
-
-        // Generate AI response
-        async function generateAIResponse(question, healthData) {
-            const hr = healthData.heartRate;
-            const temp = healthData.temperature;
-            const spo2 = healthData.spo2;
-
-            const responses = {
-                'status': `Based on your current readings:
-• Heart Rate: ${hr || 'N/A'} BPM ${hr && (hr < 60 || hr > 100) ? '⚠️' : '✅'}
-• Temperature: ${temp || 'N/A'}°C ${temp && (temp < 36.1 || temp > 37.5) ? '⚠️' : '✅'}
-• SpO2: ${spo2 || 'N/A'}% ${spo2 && spo2 < 95 ? '⚠️' : '✅'}
-
-Overall, your vitals appear ${areVitalsNormal(hr, temp, spo2) ? 'within normal ranges' : 'to need attention'}.`,
-                'concern': `Let me check your recent readings for any concerns...
-
-${generateConcernAnalysis(hr, temp, spo2)}`,
-                'trend': `Your recent health trends show:
-• Heart rate has been ${getTrend(hr)}
-• Temperature is ${getTrend(temp)}
-• Oxygen levels are ${getTrend(spo2)}
-
-I recommend continuing to monitor these values regularly.`,
-                'recommendation': `Based on your current health data, I recommend:
-1. Continue regular monitoring
-2. Stay hydrated and maintain a balanced diet
-3. Get adequate rest and sleep
-4. ${hr && hr > 100 ? 'Consider consulting a healthcare provider about elevated heart rate' : ''}
-5. ${spo2 && spo2 < 95 ? 'Monitor oxygen levels closely and seek medical attention if they decrease further' : ''}
-
-Always consult with a healthcare professional for medical advice.`
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             };
 
-            // Find matching response
-            const lowerQuestion = question.toLowerCase();
-            if (lowerQuestion.includes('status')) return responses.status;
-            if (lowerQuestion.includes('concern') || lowerQuestion.includes('alert')) return responses.concern;
-            if (lowerQuestion.includes('trend')) return responses.trend;
-            if (lowerQuestion.includes('recommend') || lowerQuestion.includes('advice')) return responses.recommendation;
+            React.useEffect(scrollToBottom, [messages]);
 
-            // Default response
-            return `I understand you're asking about "${question}". 
+            const handleSend = () => {
+                if (input.trim()) {
+                    onSendMessage(input.trim());
+                    setInput('');
+                }
+            };
 
-Based on your current health data:
-• Heart Rate: ${hr || 'N/A'} BPM
-• Temperature: ${temp || 'N/A'}°C  
-• SpO2: ${spo2 || 'N/A'}%
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    handleSend();
+                }
+            };
 
-${responses.status}
+            if (!isOpen) return null;
 
-Is there anything specific about these readings you'd like me to explain?`;
+            return React.createElement('div', {
+                style: {
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '45%',
+                    background: 'rgba(0,0,0,0.95)',
+                    borderTop: '1px solid rgba(255,255,255,0.2)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    zIndex: 1000
+                }
+            }, [
+                React.createElement('div', {
+                    style: {
+                        padding: '16px',
+                        borderBottom: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }
+                }, [
+                    React.createElement('h3', { style: { margin: 0, color: 'white' } }, 'Dr AI'),
+                    React.createElement('button', {
+                        onClick: onClose,
+                        style: {
+                            background: 'none',
+                            border: 'none',
+                            color: 'white',
+                            fontSize: '20px',
+                            cursor: 'pointer'
+                        }
+                    }, '×')
+                ]),
+
+                React.createElement('div', {
+                    style: {
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '16px'
+                    }
+                }, [
+                    ...messages.map((msg, index) => 
+                        React.createElement('div', {
+                            key: index,
+                            style: {
+                                display: 'flex',
+                                marginBottom: '12px',
+                                justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start'
+                            }
+                        }, [
+                            msg.sender === 'ai' && React.createElement('div', {
+                                style: {
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: '#007bff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginRight: '8px',
+                                    flexShrink: 0
+                                }
+                            }, React.createElement('i', { className: 'fas fa-robot', style: { color: 'white', fontSize: '14px' } })),
+                            React.createElement('div', {
+                                style: {
+                                    maxWidth: '70%',
+                                    padding: '8px 12px',
+                                    borderRadius: '12px',
+                                    background: msg.sender === 'user' ? '#007bff' : 'rgba(255,255,255,0.1)',
+                                    color: 'white'
+                                }
+                            }, msg.text)
+                        ])
+                    ),
+                    isTyping && React.createElement('div', { style: { display: 'flex', marginBottom: '12px' } }, [
+                        React.createElement('div', {
+                            style: {
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                background: '#007bff',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginRight: '8px',
+                                flexShrink: 0
+                            }
+                        }, React.createElement('i', { className: 'fas fa-robot', style: { color: 'white', fontSize: '14px' } })),
+                        React.createElement('div', {
+                            style: {
+                                padding: '8px 12px',
+                                borderRadius: '12px',
+                                background: 'rgba(255,255,255,0.1)',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center'
+                            }
+                        }, React.createElement('div', { className: 'typing-indicator' }, [
+                            React.createElement('span', null),
+                            React.createElement('span', null),
+                            React.createElement('span', null)
+                        ]))
+                    ]),
+                    React.createElement('div', { ref: messagesEndRef })
+                ]),
+
+                React.createElement('div', {
+                    style: {
+                        padding: '16px',
+                        borderTop: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex',
+                        gap: '8px'
+                    }
+                }, [
+                    React.createElement('input', {
+                        type: 'text',
+                        value: input,
+                        onChange: (e) => setInput(e.target.value),
+                        onKeyPress: handleKeyPress,
+                        placeholder: 'Ask Dr. AI about your health...',
+                        style: {
+                            flex: 1,
+                            padding: '8px 12px',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            borderRadius: '20px',
+                            background: 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            outline: 'none'
+                        }
+                    }),
+                    React.createElement('button', {
+                        onClick: handleSend,
+                        disabled: !input.trim(),
+                        style: {
+                            padding: '8px 16px',
+                            border: 'none',
+                            borderRadius: '20px',
+                            background: input.trim() ? '#007bff' : 'rgba(255,255,255,0.2)',
+                            color: 'white',
+                            cursor: input.trim() ? 'pointer' : 'not-allowed'
+                        }
+                    }, 'Send')
+                ])
+            ]);
         }
 
-        // Helper functions
-        function areVitalsNormal(hr, temp, spo2) {
-            return (!hr || (hr >= 60 && hr <= 100)) &&
-                   (!temp || (temp >= 36.1 && temp <= 37.5)) &&
-                   (!spo2 || spo2 >= 95);
+        // Main DrAI Component
+        function DrAI() {
+            const [chatOpen, setChatOpen] = React.useState(false);
+            const [messages, setMessages] = React.useState([
+                { sender: 'ai', text: 'Hello! I\'m Dr. AI, your health monitoring assistant. How can I help you today?' }
+            ]);
+            const [isTyping, setIsTyping] = React.useState(false);
+
+            const handleModelClick = () => {
+                setChatOpen(true);
+            };
+
+            const handleSendMessage = async (message) => {
+                setMessages(prev => [...prev, { sender: 'user', text: message }]);
+                setIsTyping(true);
+
+                try {
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message })
+                    });
+                    const data = await response.json();
+                    setMessages(prev => [...prev, { sender: 'ai', text: data.response || 'I\'m sorry, I couldn\'t process your message.' }]);
+                } catch (error) {
+                    console.error('Chat error:', error);
+                    setMessages(prev => [...prev, { sender: 'ai', text: 'Sorry, I\'m having trouble connecting. Please try again.' }]);
+                } finally {
+                    setIsTyping(false);
+                }
+            };
+
+            return React.createElement('div', { style: { width: '100vw', height: '100vh', background: '#0a0a0a' } }, [
+                React.createElement('div', { style: { width: '100%', height: chatOpen ? '55%' : '100%' } }, 
+                    React.createElement(Canvas, { camera: { position: [0, 0, 5], fov: 75 } }, [
+                        React.createElement(React.Suspense, { fallback: React.createElement(LoadingFallback) }, [
+                            React.createElement(DrAIModel, { onClick: handleModelClick }),
+                            React.createElement('ambientLight', { intensity: 0.5 }),
+                            React.createElement('directionalLight', { position: [10, 10, 5], intensity: 1 })
+                        ])
+                    ])
+                ),
+
+                React.createElement(ChatPanel, {
+                    isOpen: chatOpen,
+                    onClose: () => setChatOpen(false),
+                    messages: messages,
+                    onSendMessage: handleSendMessage,
+                    isTyping: isTyping
+                }),
+
+                React.createElement('style', null, `
+                    .typing-indicator {
+                        display: flex;
+                        gap: 4px;
+                    }
+                    .typing-indicator span {
+                        width: 6px;
+                        height: 6px;
+                        border-radius: 50%;
+                        background: white;
+                        animation: typing 1.4s infinite ease-in-out;
+                    }
+                    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+                    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+                    @keyframes typing {
+                        0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+                        40% { transform: scale(1); opacity: 1; }
+                    }
+                `)
+            ]);
         }
 
-        function generateConcernAnalysis(hr, temp, spo2) {
-            let concerns = [];
-            if (hr && (hr < 60 || hr > 100)) concerns.push(`• Heart rate (${hr} BPM) is outside normal range`);
-            if (temp && (temp < 36.1 || temp > 37.5)) concerns.push(`• Temperature (${temp}°C) is elevated`);
-            if (spo2 && spo2 < 95) concerns.push(`• Oxygen saturation (${spo2}%) is below normal`);
-
-            return concerns.length > 0 ? 
-                `I've identified the following concerns:\n${concerns.join('\n')}\n\nPlease consult a healthcare provider if these persist.` :
-                'No concerning readings detected. Your vitals are within normal ranges.';
-        }
-
-        function getTrend(value) {
-            if (!value) return 'stable';
-            if (Math.random() > 0.5) return 'stable';
-            return Math.random() > 0.5 ? 'improving' : 'stable';
-        }
-
-        // Quick question functions
-        function sendQuickQuestion(question) {
-            document.getElementById('dr-ai-chat-input').value = question;
-            sendMessage();
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
-        }
-
-        // Message handling
-        function addMessage(text, sender) {
-            const messagesContainer = document.getElementById('dr-ai-chat-messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `dr-ai-message ${sender}`;
-            
-            const avatarIcon = sender === 'ai' ? 'fa-robot' : 'fa-user';
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
-            messageDiv.innerHTML = `
-                <div class="dr-ai-avatar-icon">
-                    <i class="fas ${avatarIcon}"></i>
-                </div>
-                <div class="dr-ai-bubble">${text}
-                    <div class="dr-ai-message-time">${time}</div>
-                </div>
-            `;
-            
-            messagesContainer.appendChild(messageDiv);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function showThinking(show) {
-            isThinking = show;
-            const thinkingOverlay = document.getElementById('dr-ai-thinking');
-            const sendBtn = document.getElementById('dr-ai-send-btn');
-
-            if (thinkingOverlay) {
-                thinkingOverlay.style.display = show ? 'block' : 'none';
-            }
-
-            if (sendBtn) {
-                sendBtn.disabled = show;
-            }
+        // Render the app
+        const container = document.getElementById('dr-ai-root');
+        if (container) {
+            const root = ReactDOM.createRoot(container);
+            root.render(React.createElement(DrAI));
         }
     </script>
+</head>
+<body>
+    <div id="dr-ai-root"></div>
 </body>
-</html></body>
 </html>
