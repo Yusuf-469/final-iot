@@ -126,6 +126,7 @@
                     // Scale and position
                     model.scale.setScalar(2.0);
                     model.position.set(0, 0, 0);
+                    model.rotation.y = Math.PI / 2; // Rotate to face forward
 
                     // Enable shadows and materials
                     model.traverse(function (child) {
@@ -227,6 +228,8 @@
             if (intersects.length > 0) {
                 console.log('🤖 Model clicked! Opening chat');
                 openChat();
+            } else {
+                console.log('Click missed model');
             }
         }
 
