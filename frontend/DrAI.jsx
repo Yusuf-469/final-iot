@@ -12,10 +12,17 @@ function DrAIModel({ onClick }) {
   const modelRef = useRef();
   const [hovered, setHovered] = useState(false);
 
-  // Auto-rotate
+  // Hover animation
   useFrame((state, delta) => {
     if (modelRef.current) {
-      modelRef.current.rotation.y += delta * 0.2;
+      // Gentle floating animation
+      modelRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.05;
+      // Subtle hover effect
+      if (hovered) {
+        modelRef.current.scale.setScalar(1.05);
+      } else {
+        modelRef.current.scale.setScalar(1.0);
+      }
     }
   });
 
@@ -39,6 +46,7 @@ function DrAIModel({ onClick }) {
       onClick={onClick}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
+      style={{ cursor: hovered ? 'pointer' : 'default' }}
     >
       <primitive object={scene} />
       {hovered && (
@@ -49,7 +57,9 @@ function DrAIModel({ onClick }) {
             padding: '8px 12px',
             borderRadius: '4px',
             fontSize: '14px',
-            pointerEvents: 'none'
+            pointerEvents: 'none',
+            border: '1px solid #00ffff',
+            boxShadow: '0 0 10px rgba(0,255,255,0.5)'
           }}>
             Click to talk to Dr AI
           </div>
@@ -295,7 +305,6 @@ function DrAI() {
         <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
           <Suspense fallback={<LoadingFallback />}>
             <DrAIModel onClick={handleModelClick} />
-            <OrbitControls enablePan={false} enableZoom={true} enableRotate={true} />
             <ambientLight intensity={0.5} />
             <directionalLight position={[10, 10, 5]} intensity={1} />
           </Suspense>
