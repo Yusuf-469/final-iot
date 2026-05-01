@@ -569,6 +569,12 @@
 </head>
 <body>
     <div id="dr-ai-container">
+        <!-- Back Button -->
+        <button id="dr-ai-back-btn" onclick="window.location.href='dashboard.html'">
+            <i class="fas fa-arrow-left"></i>
+            Back to Dashboard
+        </button>
+
         <!-- Loading Indicator -->
         <div id="dr-ai-loading">
             <i class="fas fa-cog"></i>
@@ -578,5 +584,31 @@
         <!-- 3D Canvas -->
         <canvas id="dr-ai-canvas"></canvas>
     </div>
+
+    <style>
+        #dr-ai-back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        #dr-ai-back-btn:hover {
+            background: rgba(0,0,0,0.9);
+            border-color: rgba(255,255,255,0.4);
+            transform: translateX(-2px);
+        }
+    </style>
 </body>
 </html>
