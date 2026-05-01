@@ -12,140 +12,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/three@0.157.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/@react-three/fiber@8.15.11/dist/react-three-fiber.js"></script>
-    <script src="https://unpkg.com/@react-three/drei@9.88.13/dist/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script src="js/api.js"></script>
     <script type="text/babel">
-        // Dr. AI React Component
+        // Dr. AI React Component - Simplified Version
         const { useState, useRef, useEffect } = React;
-        const { Canvas, useFrame } = ReactThreeFiber;
-        const { useGLTF, Html } = ReactThreeDrei;
 
-        // Preload the GLB model
-        useGLTF.preload('/models/medical-doctor-3d-model.glb');
-
-        // 3D Model Component
-        function DrAIModel({ onClick, onHover }) {
-            const { scene } = useGLTF('/models/medical-doctor-3d-model.glb');
-            const modelRef = React.useRef();
-            const [hovered, setHovered] = React.useState(false);
-
-            // Auto-rotate and floating animation
-            useFrame((state, delta) => {
-                if (modelRef.current) {
-                    modelRef.current.rotation.y += delta * 0.3; // Slower rotation
-                    modelRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.8) * 0.08; // Gentle floating
-                }
-            });
-
-            // Fit camera to model
-            React.useEffect(() => {
-                if (scene) {
-                    const box = new THREE.Box3().setFromObject(scene);
-                    const size = box.getSize(new THREE.Vector3());
-                    const center = box.getCenter(new THREE.Vector3());
-                    // Camera will be positioned by Canvas component
-                }
-            }, [scene]);
-
-            const handleClick = () => {
-                if (scene) onClick();
-            };
-
-            const handleHover = (hovering) => {
-                setHovered(hovering);
-                onHover(hovering);
-            };
-
-            return React.createElement('group', {
-                ref: modelRef,
-                onClick: handleClick,
-                onPointerOver: () => handleHover(true),
-                onPointerOut: () => handleHover(false),
-                style: { cursor: hovered ? 'pointer' : 'default' }
-            }, [
-                React.createElement('primitive', { object: scene }),
-                hovered && React.createElement(Html, { position: [0, 1.8, 0] },
-                    React.createElement('div', {
-                        style: {
-                            background: 'rgba(0,0,0,0.9)',
-                            color: 'white',
-                            padding: '6px 10px',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            pointerEvents: 'none',
-                            border: '1px solid #00ffff',
-                            boxShadow: '0 0 12px rgba(0,255,255,0.6)',
-                            whiteSpace: 'nowrap'
-                        }
-                    }, 'Click to chat with Dr. AI')
-                )
-            ]);
-        }
-
-        // Loading Component
-        function LoadingFallback() {
-            return React.createElement(Html, { center: true },
-                React.createElement('div', {
-                    style: {
-                        color: 'white',
-                        fontSize: '16px',
-                        textAlign: 'center',
-                        background: 'rgba(0,0,0,0.8)',
-                        padding: '20px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255,255,255,0.2)'
-                    }
-                }, [
-                    React.createElement('i', {
-                        className: 'fas fa-spinner fa-spin',
-                        style: { fontSize: '24px', marginBottom: '10px', color: '#00ffff' }
-                    }),
-                    React.createElement('div', null, 'Loading 3D Model...')
-                ])
-            );
-        }
-
-        // Error Component
-        function ErrorFallback({ onRetry }) {
-            return React.createElement(Html, { center: true },
-                React.createElement('div', {
-                    style: {
-                        color: 'white',
-                        textAlign: 'center',
-                        background: 'rgba(0,0,0,0.8)',
-                        padding: '20px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                        maxWidth: '300px'
-                    }
-                }, [
-                    React.createElement('i', {
-                        className: 'fas fa-exclamation-triangle',
-                        style: { fontSize: '32px', marginBottom: '10px', color: '#ff6b6b' }
-                    }),
-                    React.createElement('div', { style: { fontSize: '16px', marginBottom: '10px' } }, '3D Model Failed to Load'),
-                    React.createElement('div', { style: { fontSize: '14px', opacity: 0.8, marginBottom: '15px' } }, 'Please check your connection and try again.'),
-                    React.createElement('button', {
-                        onClick: onRetry,
-                        style: {
-                            background: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            padding: '8px 16px',
-                            borderRadius: '5px',
-                            cursor: 'pointer'
-                        }
-                    }, 'Retry')
-                ])
-            );
-        }
-
-        // Chat Component
+        // Chat Panel Component
         function ChatPanel({ isOpen, onClose, messages, onSendMessage, isTyping }) {
             const [input, setInput] = React.useState('');
             const messagesEndRef = React.useRef();
@@ -365,6 +239,69 @@
             ]);
         }
 
+        // 3D Model Placeholder Component
+        function ModelPlaceholder({ onClick }) {
+            const [hovered, setHovered] = React.useState(false);
+
+            return React.createElement('div', {
+                onClick: onClick,
+                onMouseOver: () => setHovered(true),
+                onMouseOut: () => setHovered(false),
+                style: {
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    cursor: hovered ? 'pointer' : 'default',
+                    transition: 'all 0.3s ease'
+                }
+            }, [
+                React.createElement('div', {
+                    style: {
+                        fontSize: '72px',
+                        marginBottom: '20px',
+                        color: '#00ffff',
+                        animation: hovered ? 'pulse 2s infinite' : 'float 3s ease-in-out infinite',
+                        transition: 'all 0.3s ease'
+                    }
+                }, React.createElement('i', { className: 'fas fa-user-md' })),
+                React.createElement('h2', {
+                    style: {
+                        margin: '0 0 10px 0',
+                        fontSize: '2rem',
+                        textAlign: 'center',
+                        textShadow: '0 0 20px rgba(0,255,255,0.5)'
+                    }
+                }, 'Dr. AI Medical Assistant'),
+                React.createElement('p', {
+                    style: {
+                        margin: '0 0 20px 0',
+                        fontSize: '1.1rem',
+                        textAlign: 'center',
+                        opacity: 0.8
+                    }
+                }, 'Interactive 3D Health AI'),
+                hovered && React.createElement('div', {
+                    style: {
+                        background: 'rgba(0,0,0,0.9)',
+                        color: 'white',
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        border: '1px solid #00ffff',
+                        boxShadow: '0 0 15px rgba(0,255,255,0.6)',
+                        animation: 'fadeIn 0.3s ease',
+                        marginTop: '10px'
+                    }
+                }, 'Click to start conversation')
+            ]);
+        }
+
         // Main Dr. AI Component
         function DrAI() {
             const [chatOpen, setChatOpen] = React.useState(false);
@@ -372,14 +309,9 @@
                 { sender: 'ai', text: 'Hello! I\'m Dr. AI, your health monitoring assistant. How can I help you today?' }
             ]);
             const [isTyping, setIsTyping] = React.useState(false);
-            const [modelError, setModelError] = React.useState(false);
 
             const handleModelClick = () => {
                 setChatOpen(true);
-            };
-
-            const handleHover = (hovering) => {
-                // Handle hover state if needed
             };
 
             const handleSendMessage = async (message) => {
@@ -400,11 +332,6 @@
                 } finally {
                     setIsTyping(false);
                 }
-            };
-
-            const handleRetry = () => {
-                setModelError(false);
-                window.location.reload();
             };
 
             return React.createElement('div', { style: { width: '100vw', height: '100vh', background: '#0a0a0a' } }, [
@@ -428,75 +355,28 @@
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        transition: 'all 0.3s ease'
+                    },
+                    onMouseOver: (e) => {
+                        e.target.style.background = 'rgba(0,0,0,0.9)';
+                        e.target.style.borderColor = 'rgba(255,255,255,0.4)';
+                        e.target.style.transform = 'translateX(-2px)';
+                    },
+                    onMouseOut: (e) => {
+                        e.target.style.background = 'rgba(0,0,0,0.8)';
+                        e.target.style.borderColor = 'rgba(255,255,255,0.2)';
+                        e.target.style.transform = 'translateX(0)';
                     }
                 }, [
                     React.createElement('i', { className: 'fas fa-arrow-left' }),
                     'Back to Dashboard'
                 ])),
 
-                // Title
+                // 3D Canvas Container
                 React.createElement('div', {
-                    style: {
-                        position: 'absolute',
-                        top: '20px',
-                        left: '50%',
-                        transform: 'translateX(-50%)',
-                        zIndex: 100,
-                        textAlign: 'center',
-                        color: 'white'
-                    }
-                }, [
-                    React.createElement('h1', {
-                        style: {
-                            margin: '0 0 5px 0',
-                            fontSize: '1.8rem',
-                            fontWeight: '600',
-                            textShadow: '0 0 20px rgba(0,255,255,0.5)'
-                        }
-                    }, 'Dr. AI Medical Assistant'),
-                    React.createElement('p', {
-                        style: {
-                            margin: 0,
-                            opacity: 0.8,
-                            fontSize: '0.9rem'
-                        }
-                    }, 'Interactive 3D Health AI')
-                ]),
-
-                // 3D Canvas
-                React.createElement('div', {
-                    style: {
-                        width: '100%',
-                        height: chatOpen ? '50%' : '100%',
-                        transition: 'height 0.3s ease'
-                    }
-                },
-                    React.createElement('div', { style: { width: '100%', height: '100%' } },
-                        React.createElement(React.Suspense, {
-                            fallback: React.createElement(LoadingFallback)
-                        },
-                            modelError ?
-                                React.createElement(ErrorFallback, { onRetry: handleRetry }) :
-                                React.createElement(Canvas, {
-                                    camera: { position: [0, 0, 4], fov: 75 },
-                                    style: { background: 'linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%)' }
-                                }, [
-                                    React.createElement(DrAIModel, {
-                                        onClick: handleModelClick,
-                                        onHover: handleHover,
-                                        onError: () => setModelError(true)
-                                    }),
-                                    React.createElement('ambientLight', { intensity: 0.6 }),
-                                    React.createElement('directionalLight', {
-                                        position: [5, 5, 5],
-                                        intensity: 1,
-                                        castShadow: true
-                                    })
-                                ])
-                        )
-                    )
-                ),
+                    className: chatOpen ? 'dr-ai-canvas-container chat-open' : 'dr-ai-canvas-container'
+                }, React.createElement(ModelPlaceholder, { onClick: handleModelClick })),
 
                 React.createElement(ChatPanel, {
                     isOpen: chatOpen,
@@ -506,8 +386,20 @@
                     isTyping: isTyping
                 }),
 
-                // CSS for typing dots
+                // CSS for animations
                 React.createElement('style', null, `
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                    }
+                    @keyframes float {
+                        0%, 100% { transform: translateY(0px); }
+                        50% { transform: translateY(-10px); }
+                    }
+                    @keyframes fadeIn {
+                        0% { opacity: 0; transform: translateY(10px); }
+                        100% { opacity: 1; transform: translateY(0); }
+                    }
                     .typing-dot {
                         width: 6px;
                         height: 6px;
