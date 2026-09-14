@@ -1,5 +1,5 @@
 /**
- * Authentication Routes - Firestore Version
+ * Authentication Routes - Realtime Database Version
  * Medical IoT Backend - Login, signup, and token management
  */
 
@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { db, COLLECTIONS } = require('../database');
+const { db, COLLECTIONS, getDb } = require('../database');
 const { logger } = require('../utils/logger');
 
 // JWT secret
@@ -27,26 +27,38 @@ const generateToken = (user) => {
   );
 };
 
-// Helper to get user by email
+// Helper to get user by email (Realtime Database)
 const getUserByEmail = async (email) => {
-  const usersRef = db.collection(COLLECTIONS.USERS);
-  const snapshot = await usersRef.where('email', '==', email.toLowerCase()).limit(1).get();
+  const dbInstance = getDb();
+  if (!dbInstance) {
+    throw new Error('Database not connected');
+  }
+
+  const usersRef = dbInstance.ref(COLLECTIONS.USERS);
+  const snapshot = await usersRef.orderByChild('email').equalTo(email.toLowerCase()).limitToFirst(1).once('value');
   
-  if (snapshot.empty) {
+  if (!snapshot.exists()) {
     return null;
   }
-  
-  const doc = snapshot.docs[0];
-  const userData = doc.data();
+
+  const userData = snapshot.val();
+  const userId = Object.keys(userData)[0];
+  const user = userData[userId];
+
   return {
-    id: doc.id,
-    ...userData,
-    createdAt: userData.createdAt ? userData.createdAt.toDate().toISOString() : null
+    id: userId,
+    ...user,
+    createdAt: user.createdAt || null
   };
 };
 
-// Helper to create user
+// Helper to create user (Realtime Database)
 const createUser = async (userData) => {
+  const dbInstance = getDb();
+  if (!dbInstance) {
+    throw new Error('Database not connected');
+  }
+
   const { email, password, firstName, lastName, role, status, isDemo } = userData;
   
   // Hash password
@@ -61,22 +73,24 @@ const createUser = async (userData) => {
     role: role || 'viewer',
     status: status || 'active',
     isDemo: isDemo || false,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
   
-  // Add to Firestore
-  const docRef = await db.collection(COLLECTIONS.USERS).add(userDoc);
+  // Add to Realtime Database
+  const usersRef = dbInstance.ref(COLLECTIONS.USERS);
+  const newUserRef = usersRef.push();
+  await newUserRef.set(userDoc);
   
   return {
-    id: docRef.id,
+    id: newUserRef.key,
     email: userDoc.email,
     firstName: userDoc.firstName,
     lastName: userDoc.lastName,
     role: userDoc.role,
     status: userDoc.status,
     isDemo: userDoc.isDemo,
-    createdAt: userDoc.createdAt.toISOString()
+    createdAt: userDoc.createdAt
   };
 };
 
@@ -90,7 +104,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Regular user login
     // Find user in database
     const user = await getUserByEmail(email);
 
@@ -156,14 +169,10 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     // Create new user
     const user = await createUser({
       email,
-      password: hashedPassword,
+      password,
       firstName,
       lastName,
       role: 'viewer',
@@ -204,7 +213,7 @@ router.get('/me', async (req, res) => {
     }
     
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await getUserByEmail(decoded.email); // We'll get by email since we don't store id in token payload the same way
+    const user = await getUserByEmail(decoded.email);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

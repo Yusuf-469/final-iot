@@ -217,32 +217,32 @@ async function handleSignup(event) {
     submitBtn.disabled = true;
     
     try {
-        // Debug: Check if window.auth is available
-        console.log('🔍 Checking window.auth at signup:', window.auth);
-        if (!window.auth) {
-            throw new Error('window.auth is not available. Firebase auth not initialized.');
-        }
-        if (!window.auth.registerWithEmail) {
-            throw new Error('window.auth.registerWithEmail is not available');
-        }
-
-        // Register with email and password using auth module
-        const user = await window.auth.registerWithEmail(email, password);
-        
-        // Update profile with name
-        await user.updateProfile({
-            displayName: name
+        // Register with backend API
+        const response = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                email, 
+                password,
+                firstName: name.split(' ')[0],
+                lastName: name.split(' ').slice(1).join(' ') || 'User'
+            })
         });
         
-        // Get ID token for API calls
-        const idToken = await user.getIdToken();
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Registration failed');
+        }
         
         // Store auth state
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('authToken', idToken);
-        localStorage.setItem('userEmail', user.email);
-        localStorage.setItem('userName', user.displayName || name);
-        localStorage.setItem('userRole', 'viewer'); // Default role
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userEmail', data.user.email);
+        localStorage.setItem('userName', `${data.user.firstName} ${data.user.lastName}`);
+        localStorage.setItem('userRole', data.user.role);
         
         showToast('Account created successfully!', 'success');
         
@@ -253,11 +253,11 @@ async function handleSignup(event) {
     } catch (error) {
         console.error('Signup error:', error);
         let errorMessage = 'Registration failed';
-        if (error.code === 'auth/email-already-in-use') {
+        if (error.message.includes('Email already registered') || error.message.includes('already registered')) {
             errorMessage = 'Email already registered';
-        } else if (error.code === 'auth/weak-password') {
-            errorMessage = 'Password should be at least 6 characters';
-        } else if (error.code === 'auth/invalid-email') {
+        } else if (error.message.includes('Password must be at least 8 characters')) {
+            errorMessage = 'Password must be at least 8 characters';
+        } else if (error.message.includes('Invalid email')) {
             errorMessage = 'Invalid email address';
         }
         showToast(errorMessage, 'error');

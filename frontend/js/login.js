@@ -132,18 +132,27 @@ async function handleLogin(event) {
     loginBtn.disabled = true;
     
     try {
-        // Sign in with email and password using auth module
-        const user = await window.auth.loginWithEmail(email, password);
+        // Sign in with email and password using backend API
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+        });
         
-        // Get ID token for API calls
-        const idToken = await user.getIdToken();
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Login failed');
+        }
         
         // Store auth state
-        localStorage.setItem('authToken', idToken);
-        localStorage.setItem('userEmail', user.email);
-        localStorage.setItem('userName', `${user.displayName || user.email.split('@')[0]} ${''}`); // Firebase doesn't store first/last name by default
-        localStorage.setItem('userRole', 'viewer'); // Default role, can be customized via custom claims
-        localStorage.setItem('isDemo', false);
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userEmail', data.user.email);
+        localStorage.setItem('userName', `${data.user.firstName} ${data.user.lastName}`);
+        localStorage.setItem('userRole', data.user.role);
+        localStorage.setItem('isDemo', data.user.isDemo || false);
         localStorage.setItem('isLoggedIn', 'true');
         
         showToast('Login successful! Redirecting...', 'success');
@@ -155,12 +164,10 @@ async function handleLogin(event) {
     } catch (error) {
         console.error('Login error:', error);
         let errorMessage = 'Login failed';
-        if (error.code === 'auth/user-not-found') {
-            errorMessage = 'No user found with this email';
-        } else if (error.code === 'auth/wrong-password') {
-            errorMessage = 'Invalid password';
-        } else if (error.code === 'auth/invalid-email') {
-            errorMessage = 'Invalid email address';
+        if (error.message.includes('Invalid email or password') || error.message.includes('Invalid email')) {
+            errorMessage = 'Invalid email or password';
+        } else if (error.message.includes('Account is not active')) {
+            errorMessage = 'Account is not active. Please contact support.';
         }
         showToast(errorMessage, 'error');
         loginBtn.classList.remove('loading');
