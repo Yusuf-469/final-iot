@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="js/session.js"></script>
     <title>Analytics - HealthMonitor</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/dashboard.css">
@@ -152,8 +153,8 @@
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Analytics page loaded, initializing...');
 
-            // Initialize Firebase real-time listeners
-            await initFirebaseRealtime();
+            // Live listeners are optional here; charts come from the analytics API
+            if (typeof initFirebaseRealtime === 'function') await initFirebaseRealtime();
 
             // Initialize analytics
             await initFirebase();
@@ -489,7 +490,7 @@
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                         scales: {
-                            y: { beginAtZero: true, min: 0, max: 70, title: { display: true, text: 'BPM' } },
+                            y: { beginAtZero: false, suggestedMin: 50, suggestedMax: 120, title: { display: true, text: 'BPM' } },
                             x: { title: { display: true, text: 'Time' } }
                         }
                         }
@@ -518,7 +519,7 @@
                             maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                         scales: {
-                            y: { beginAtZero: false, min: 15, max: 55, title: { display: true, text: '°C' } }
+                            y: { beginAtZero: false, suggestedMin: 34, suggestedMax: 39, title: { display: true, text: '°C' } }
                         }
                         }
                     };

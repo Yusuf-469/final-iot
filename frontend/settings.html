@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="js/session.js"></script>
     <title>Settings - HealthMonitor v2.1</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/dashboard.css">
@@ -229,12 +230,7 @@
     <script>
         // Check authentication first
         function checkAuth() {
-            const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-            if (!isLoggedIn) {
-                window.location.href = 'login.html';
-                return false;
-            }
-            return true;
+            return !!(window.session && window.session.currentUser());
         }
 
         // Initialize Firebase and load user data on page load

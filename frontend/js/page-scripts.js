@@ -4,11 +4,8 @@
 
 // Global functions used across pages
 function logout() {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('isDemo');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('userName');
-    localStorage.removeItem('userRole');
+    if (window.session) return window.session.logout();
+    localStorage.clear();
     window.location.href = 'login.html';
 }
 

@@ -3,23 +3,8 @@
  * Handles all API communications - Railway Optimized
  */
 
-// Detect environment and set API URL accordingly
-const getApiBaseUrl = () => {
-  // Check for Vercel environment (client-side detection)
-  if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('now.sh')) {
-    return '/api';
-  }
-
-  // Check for local development
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:3000/api';
-  }
-
-  // Default to relative API path for production
-  return '/api';
-};
-
-const API_BASE_URL = getApiBaseUrl();
+// The backend serves the frontend, so the API is always same-origin
+const API_BASE_URL = '/api';
 
 class ApiService {
   constructor() {
@@ -36,8 +21,9 @@ class ApiService {
       ...options.headers
     };
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     try {

@@ -212,86 +212,77 @@ const createAlert = async (alertData) => {
   }
 };
 
-// GET /api/alerts - Get all alerts
+// Read every alert as an array (Realtime Database has no compound queries, so filter in memory)
+const getAllAlerts = async () => {
+  const alertsRef = collection(COLLECTIONS.ALERTS);
+  if (!alertsRef) return null;
+  const snapshot = await alertsRef.once('value');
+  return Object.entries(snapshot.val() || {}).map(([key, data]) => formatAlertData(key, data));
+};
+
+const byNewest = (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+
+// Load one alert, apply changes, persist, and return the merged result
+const updateAlert = async (alertId, buildChanges) => {
+  const ref = collection(`${COLLECTIONS.ALERTS}/${alertId}`);
+  if (!ref) return { status: 503, error: 'Database unavailable' };
+
+  const snapshot = await ref.once('value');
+  if (!snapshot.exists()) return { status: 404, error: 'Alert not found' };
+
+  const current = snapshot.val();
+  const changes = buildChanges(current);
+  if (changes.error) return changes;
+
+  changes.updatedAt = new Date().toISOString();
+  await ref.update(changes);
+  return { alert: formatAlertData(alertId, { ...current, ...changes }) };
+};
+
+const sendUpdate = (res, result) => {
+  if (result.error) return res.status(result.status || 400).json({ success: false, error: result.error });
+  res.json({ success: true, alert: result.alert });
+};
+
+// GET /api/alerts - Get all alerts (filters: status, severity, patientId; paging: limit, skip)
 router.get('/', async (req, res) => {
   try {
-    const alertsRef = collection(COLLECTIONS.ALERTS);
+    const { status, severity, patientId, limit, skip } = req.query;
+    const alerts = await getAllAlerts();
 
-    if (!alertsRef) {
-      return res.status(200).json({ alerts: [], activeCount: 0, pagination: { total: 0 } });
+    if (!alerts) {
+      return res.status(200).json({ alerts: [], count: { total: 0, active: 0 }, pagination: { limit: 0, skip: 0 } });
     }
 
-    const snapshot = await alertsRef.once('value');
-    const alertsData = snapshot.val() || {};
+    let filtered = alerts;
+    if (status) filtered = filtered.filter(a => a.status === status);
+    if (severity) filtered = filtered.filter(a => a.severity === severity);
+    if (patientId) filtered = filtered.filter(a => a.patientId === patientId);
+    filtered.sort(byNewest);
 
-    const alerts = Object.keys(alertsData).map(key => {
-      return formatAlertData(key, alertsData[key]);
-    });
-    
-    // Apply basic filtering (Realtime DB doesn't support complex queries)
-    let filteredAlerts = alerts;
-    if (status) {
-      filteredAlerts = filteredAlerts.filter(a => a.status === status);
-    }
-    if (severity) {
-      filteredAlerts = filteredAlerts.filter(a => a.severity === severity);
-    }
-    if (patientId) {
-      filteredAlerts = filteredAlerts.filter(a => a.patientId === patientId);
-    }
-
-    // Sort by creation date (newest first)
-    filteredAlerts.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
-    // Calculate active count
-    const activeCount = filteredAlerts.filter(a => a.status === 'active').length;
-
-    // Apply pagination
-    const limitNum = parseInt(limit) || 100;
+    const limitNum = Math.min(parseInt(limit) || 100, 500);
     const skipNum = parseInt(skip) || 0;
-    const paginatedAlerts = filteredAlerts.slice(skipNum, skipNum + limitNum);
 
     res.json({
-      alerts: paginatedAlerts,
+      alerts: filtered.slice(skipNum, skipNum + limitNum),
       count: {
-        total: filteredAlerts.length,
-        active: activeCount
+        total: filtered.length,
+        active: filtered.filter(a => a.status === 'active').length
       },
-      pagination: {
-        limit: limitNum,
-        skip: skipNum
-      }
+      pagination: { limit: limitNum, skip: skipNum }
     });
   } catch (error) {
     logger.error('Error fetching alerts:', error);
-    res.status(200).json({ alerts: [], activeCount: 0, pagination: { total: 0 } });
+    res.status(500).json({ error: 'Failed to fetch alerts' });
   }
 });
 
 // GET /api/alerts/active - Get active alerts
 router.get('/active', async (req, res) => {
   try {
-    const snapshot = await db.collection(COLLECTIONS.ALERTS)
-      .where('status', '==', 'active')
-      .orderBy('createdAt', 'desc')
-      .get();
-    
-    if (snapshot.empty) {
-      return res.json({
-        alerts: [],
-        count: 0
-      });
-    }
-    
-    const alerts = [];
-    snapshot.forEach(doc => {
-      alerts.push(formatAlertDoc(doc));
-    });
-    
-    res.json({
-      alerts,
-      count: alerts.length
-    });
+    const alerts = (await getAllAlerts()) || [];
+    const active = alerts.filter(a => a.status === 'active').sort(byNewest);
+    res.json({ alerts: active, count: active.length });
   } catch (error) {
     logger.error('Error fetching active alerts:', error);
     res.status(500).json({ error: 'Failed to fetch active alerts' });
@@ -303,72 +294,46 @@ router.post('/generate-predictions', async (req, res) => {
   try {
     logger.info('🧠 Starting AI-powered prediction-based alert generation...');
     const alertsCreated = await generatePredictionAlerts();
+    const patientsData = await getPatientsData();
 
-    const response = {
+    res.json({
       success: true,
       message: `🤖 AI Analysis Complete: Generated ${alertsCreated.length} prediction-based alerts`,
       alertsCreated: alertsCreated.length,
       alerts: alertsCreated,
       timestamp: new Date().toISOString(),
       analysis: {
-        patientsAnalyzed: Object.keys(await getPatientsData()).length,
+        patientsAnalyzed: Object.keys(patientsData).length,
         alertsGenerated: alertsCreated.length,
         riskLevels: alertsCreated.reduce((acc, alert) => {
           acc[alert.severity] = (acc[alert.severity] || 0) + 1;
           return acc;
         }, {})
       }
-    };
-
-    res.json(response);
-    logger.info(`✅ AI prediction alerts generated: ${alertsCreated.length} alerts created`);
-
+    });
   } catch (error) {
     logger.error('❌ Error generating prediction alerts:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to generate AI prediction alerts',
-      details: error.message
-    });
+    res.status(500).json({ success: false, error: 'Failed to generate AI prediction alerts' });
   }
 });
 
 // GET /api/alerts/predictions/status - Get prediction system status
 router.get('/predictions/status', async (req, res) => {
   try {
-    // Get basic system status
-    const patientsRef = collection(COLLECTIONS.PATIENTS);
-    const alertsRef = collection(COLLECTIONS.ALERTS);
-
-    let patientCount = 0;
-    let alertCount = 0;
-    let predictionAlerts = 0;
-
-    if (patientsRef) {
-      const patientsSnapshot = await patientsRef.once('value');
-      const patientsData = patientsSnapshot.val() || {};
-      patientCount = Object.keys(patientsData).length;
-    }
-
-    if (alertsRef) {
-      const alertsSnapshot = await alertsRef.once('value');
-      const alertsData = alertsSnapshot.val() || {};
-      alertCount = Object.keys(alertsData).length;
-      predictionAlerts = Object.values(alertsData).filter(alert => alert.source === 'ml_prediction').length;
-    }
+    const patientsData = await getPatientsData();
+    const alerts = (await getAllAlerts()) || [];
 
     res.json({
       success: true,
       status: {
-        patients: patientCount,
-        totalAlerts: alertCount,
-        predictionAlerts: predictionAlerts,
+        patients: Object.keys(patientsData).length,
+        totalAlerts: alerts.length,
+        predictionAlerts: alerts.filter(a => a.source === 'ml_prediction').length,
         systemActive: true,
         lastCheck: new Date().toISOString(),
         aiModel: 'v2.0-ml-enhanced'
       }
     });
-
   } catch (error) {
     logger.error('Error getting prediction status:', error);
     res.status(500).json({ success: false, error: 'Failed to get prediction status' });
@@ -379,63 +344,27 @@ router.get('/predictions/status', async (req, res) => {
 router.get('/statistics', async (req, res) => {
   try {
     const { period = '7d' } = req.query;
-    
-    const now = new Date();
-    let startTime;
-    
-    switch (period) {
-      case '24h':
-        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
-        break;
-      case '7d':
-        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
-        break;
-      case '30d':
-        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
-        break;
-      default:
-        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Default to 7d
-    }
-    
-    const query = db.collection(COLLECTIONS.ALERTS)
-      .where('createdAt', '>=', startTime);
-    
-    const snapshot = await query.get();
-    
-    if (snapshot.empty) {
-      return res.json({
-        period,
-        bySeverity: [],
-        byStatus: [],
-        byType: []
+    const days = { '24h': 1, '7d': 7, '30d': 30 }[period] || 7;
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const alerts = ((await getAllAlerts()) || [])
+      .filter(a => new Date(a.createdAt).getTime() >= startTime);
+
+    const countBy = (field, fallback) => {
+      const counts = {};
+      alerts.forEach(a => {
+        const key = a[field] || fallback;
+        counts[key] = (counts[key] || 0) + 1;
       });
-    }
-    
-    const severityCounts = {};
-    const statusCounts = {};
-    const typeCounts = {};
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      
-      // Count by severity
-      const severity = data.severity || 'info';
-      severityCounts[severity] = (severityCounts[severity] || 0) + 1;
-      
-      // Count by status
-      const status = data.status || 'active';
-      statusCounts[status] = (statusCounts[status] || 0) + 1;
-      
-      // Count by type
-      const type = data.type || 'deviceError';
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-    });
-    
+      return Object.entries(counts).map(([_id, count]) => ({ _id, count }));
+    };
+
     res.json({
       period,
-      bySeverity: Object.entries(severityCounts).map(([_id, count]) => ({ _id, count })),
-      byStatus: Object.entries(statusCounts).map(([_id, count]) => ({ _id, count })),
-      byType: Object.entries(typeCounts).map(([_id, count]) => ({ _id, count }))
+      total: alerts.length,
+      bySeverity: countBy('severity', 'info'),
+      byStatus: countBy('status', 'active'),
+      byType: countBy('type', 'deviceError')
     });
   } catch (error) {
     logger.error('Error fetching alert statistics:', error);
@@ -446,42 +375,36 @@ router.get('/statistics', async (req, res) => {
 // POST /api/alerts - Create new alert
 router.post('/', async (req, res) => {
   try {
-    const alertData = req.body;
-
-    // Generate alert ID
-    const alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-    // Format data for Realtime Database
-    const formattedData = {
-      ...alertData,
-      alertId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: alertData.status || 'active',
-      severity: alertData.severity || 'info'
-    };
-
-    // Save to Realtime Database
-    const alertRef = collection(`${COLLECTIONS.ALERTS}/${alertId}`);
-    if (!alertRef) {
-      return res.status(500).json({ error: 'Database not connected' });
+    if (!collection(COLLECTIONS.ALERTS)) {
+      return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    await alertRef.set(formattedData);
+    const { title, message, severity, type, patientId, patientName } = req.body;
+    if (!title && !message) {
+      return res.status(400).json({ error: 'title or message is required' });
+    }
 
+    const alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    const now = new Date().toISOString();
+    const alertData = {
+      alertId,
+      title: title || message,
+      message: message || title,
+      severity: ['critical', 'high', 'medium', 'low', 'info'].includes(severity) ? severity : 'info',
+      type: type || 'manual',
+      patientId: patientId || null,
+      patientName: patientName || null,
+      status: 'active',
+      source: req.device ? 'device' : 'manual',
+      createdBy: req.user?.email || null,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await collection(`${COLLECTIONS.ALERTS}/${alertId}`).set(alertData);
     logger.info(`New alert created: ${alertId}`);
 
-    res.status(201).json({
-      id: alertId,
-      ...formattedData
-    });
-    
-    res.status(201).json({
-      id: docRef.id,
-      ...formattedData,
-      createdAt: formattedData.createdAt ? formattedData.createdAt.toDate().toISOString() : null,
-      updatedAt: formattedData.updatedAt ? formattedData.updatedAt.toDate().toISOString() : null
-    });
+    res.status(201).json({ id: alertId, ...alertData });
   } catch (error) {
     logger.error('Error creating alert:', error);
     res.status(500).json({ error: 'Failed to create alert' });
@@ -491,53 +414,15 @@ router.post('/', async (req, res) => {
 // PUT /api/alerts/:alertId/acknowledge - Acknowledge alert
 router.put('/:alertId/acknowledge', async (req, res) => {
   try {
-    const { alertId } = req.params;
-    const { userId } = req.body;
-    
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-    
-    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Alert not found' });
-    }
-    
-    const alertData = doc.data();
-    
-    // Check if alert is already processed
-    if (alertData.status !== 'active') {
-      return res.status(400).json({ error: 'Alert is not active' });
-    }
-    
-    // Acknowledge alert
-    const updatedData = acknowledgeAlert(alertData, userId);
-    
-    // Save to Firestore
-    await docRef.update(updatedData);
-    
-    // Emit real-time update
-    const io = req.app.get('io');
-    io.emit('alertAcknowledged', {
-      id: alertId,
-      ...updatedData,
-      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-      acknowledgedAt: updatedData.acknowledgedAt ? updatedData.acknowledgedAt.toDate().toISOString() : null
+    const result = await updateAlert(req.params.alertId, (alert) => {
+      if (alert.status !== 'active') return { status: 400, error: 'Alert is not active' };
+      return {
+        status: 'acknowledged',
+        acknowledgedBy: req.user?.email || req.body.userId || 'unknown',
+        acknowledgedAt: new Date().toISOString()
+      };
     });
-    
-    res.json({
-      success: true,
-      alert: {
-        id: alertId,
-        ...updatedData,
-        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-        acknowledgedAt: updatedData.acknowledgedAt ? updatedData.acknowledgedAt.toDate().toISOString() : null
-      }
-    });
+    sendUpdate(res, result);
   } catch (error) {
     logger.error('Error acknowledging alert:', error);
     res.status(500).json({ error: 'Failed to acknowledge alert' });
@@ -547,48 +432,17 @@ router.put('/:alertId/acknowledge', async (req, res) => {
 // PUT /api/alerts/:alertId/resolve - Resolve alert
 router.put('/:alertId/resolve', async (req, res) => {
   try {
-    const { alertId } = req.params;
-    const { userId, method, notes } = req.body;
-    
-    if (!userId || !method) {
-      return res.status(400).json({ error: 'User ID and method are required' });
-    }
-    
-    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Alert not found' });
-    }
-    
-    const alertData = doc.data();
-    
-    // Resolve alert
-    const updatedData = resolveAlert(alertData, userId, method, notes);
-    
-    // Save to Firestore
-    await docRef.update(updatedData);
-    
-    // Emit real-time update
-    const io = req.app.get('io');
-    io.emit('alertResolved', {
-      id: alertId,
-      ...updatedData,
-      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-      resolvedAt: updatedData.resolvedAt ? updatedData.resolvedAt.toDate().toISOString() : null
+    const { method, notes } = req.body;
+    const result = await updateAlert(req.params.alertId, (alert) => {
+      if (alert.status === 'resolved') return { status: 400, error: 'Alert is already resolved' };
+      return {
+        status: 'resolved',
+        resolvedBy: req.user?.email || req.body.userId || 'unknown',
+        resolvedAt: new Date().toISOString(),
+        resolution: { method: method || 'manual', notes: notes || '' }
+      };
     });
-    
-    res.json({
-      success: true,
-      alert: {
-        id: alertId,
-        ...updatedData,
-        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-        resolvedAt: updatedData.resolvedAt ? updatedData.resolvedAt.toDate().toISOString() : null
-      }
-    });
+    sendUpdate(res, result);
   } catch (error) {
     logger.error('Error resolving alert:', error);
     res.status(500).json({ error: 'Failed to resolve alert' });
@@ -598,48 +452,19 @@ router.put('/:alertId/resolve', async (req, res) => {
 // PUT /api/alerts/:alertId/escalate - Escalate alert
 router.put('/:alertId/escalate', async (req, res) => {
   try {
-    const { alertId } = req.params;
     const { level, escalatedTo, reason } = req.body;
-    
     if (!level || !escalatedTo || !reason) {
       return res.status(400).json({ error: 'Level, escalatedTo, and reason are required' });
     }
-    
-    const docRef = db.collection(COLLECTIONS.ALERTS).doc(alertId);
-    const doc = await docRef.get();
-    
-    if (!doc.exists) {
-      return res.status(404).json({ error: 'Alert not found' });
-    }
-    
-    const alertData = doc.data();
-    
-    // Escalate alert
-    const updatedData = escalateAlert(alertData, level, escalatedTo, reason);
-    
-    // Save to Firestore
-    await docRef.update(updatedData);
-    
-    // Emit real-time update
-    const io = req.app.get('io');
-    io.emit('alertEscalated', {
-      id: alertId,
-      ...updatedData,
-      createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-      updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-      escalatedAt: updatedData.escalation?.escalatedAt ? updatedData.escalation.escalatedAt.toDate().toISOString() : null
+
+    const result = await updateAlert(req.params.alertId, (alert) => {
+      if (alert.status === 'resolved') return { status: 400, error: 'Resolved alerts cannot be escalated' };
+      return {
+        status: 'escalated',
+        escalation: { level, escalatedTo, reason, escalatedAt: new Date().toISOString(), escalatedBy: req.user?.email || null }
+      };
     });
-    
-    res.json({
-      success: true,
-      alert: {
-        id: alertId,
-        ...updatedData,
-        createdAt: updatedData.createdAt ? updatedData.createdAt.toDate().toISOString() : null,
-        updatedAt: updatedData.updatedAt ? updatedData.updatedAt.toDate().toISOString() : null,
-        escalatedAt: updatedData.escalation?.escalatedAt ? updatedData.escalation.escalatedAt.toDate().toISOString() : null
-      }
-    });
+    sendUpdate(res, result);
   } catch (error) {
     logger.error('Error escalating alert:', error);
     res.status(500).json({ error: 'Failed to escalate alert' });

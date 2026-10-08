@@ -51,9 +51,10 @@ const dashboardApp = {
 
     // Update live health display
     updateLiveHealthDisplay(data) {
-        const heartRate = data.heartRate !== undefined ? data.heartRate : '--';
-        const spo2 = data.spo2 !== undefined ? data.spo2 : '--';
-        const temperature = data.temperature !== undefined ? data.temperature : '--';
+        const fmt = (v, digits) => (v === undefined || v === null || isNaN(Number(v)) ? '--' : Number(v).toFixed(digits));
+        const heartRate = fmt(data.heartRate, 0);
+        const spo2 = fmt(data.spo2, 0);
+        const temperature = fmt(data.temperature, 1);
 
         // Update health chart with real-time data
         this.updateHealthChart(data);
@@ -63,7 +64,7 @@ const dashboardApp = {
         if (hrEl) {
             hrEl.textContent = heartRate + ' bpm';
         }
-        document.querySelectorAll('.health-heartRate').forEach(el => {
+        document.querySelectorAll('.health-heartRate:not(#live-heartRate)').forEach(el => {
             el.textContent = heartRate;
         });
 
@@ -72,7 +73,7 @@ const dashboardApp = {
         if (spo2El) {
             spo2El.textContent = spo2 + ' %';
         }
-        document.querySelectorAll('.health-spo2').forEach(el => {
+        document.querySelectorAll('.health-spo2:not(#live-spo2)').forEach(el => {
             el.textContent = spo2;
         });
 
@@ -81,7 +82,7 @@ const dashboardApp = {
         if (tempEl) {
             tempEl.textContent = temperature + ' °C';
         }
-        document.querySelectorAll('.health-temperature').forEach(el => {
+        document.querySelectorAll('.health-temperature:not(#live-temperature)').forEach(el => {
             el.textContent = temperature;
         });
 
@@ -139,42 +140,20 @@ const dashboardApp = {
         }
     },
     
-    // Check authentication - Redirect to login if not authenticated
+    // Check authentication - session.js has already redirected if the token is missing or expired
     async checkAuth() {
-        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-        if (!isLoggedIn) {
-            window.location.href = 'login.html';
+        const user = window.session && window.session.currentUser();
+        if (!user) {
+            window.session ? window.session.goToLogin() : (window.location.href = 'login.html');
             return false;
-        }
-
-        // Get user name from localStorage first
-        let userName = localStorage.getItem('userName') || 'User';
-
-        // Try to get fresh data from Firebase if available
-        try {
-            if (window.auth && typeof window.auth.getCurrentUser === 'function') {
-                const user = await window.auth.getCurrentUser();
-                if (user) {
-                    // Update with fresh Firebase data
-                    userName = user.displayName || user.email.split('@')[0] || userName;
-                    // Update localStorage with fresh data
-                    localStorage.setItem('userName', userName);
-                    localStorage.setItem('userEmail', user.email || localStorage.getItem('userEmail'));
-                }
-            }
-        } catch (error) {
-            console.warn('Could not get fresh user data from Firebase:', error);
         }
 
         const userNameEl = document.getElementById('user-name');
         const welcomeNameEl = document.getElementById('welcome-name');
+        if (userNameEl) userNameEl.textContent = user.name;
+        if (welcomeNameEl) welcomeNameEl.textContent = user.name.split(' ')[0];
 
-        if (userNameEl) userNameEl.textContent = userName;
-        if (welcomeNameEl) welcomeNameEl.textContent = userName;
-
-        // Demo mode removed - always use real data
-        this.isDemo = false;
-
+        this.isDemo = user.isDemo;
         return true;
     },
     
@@ -332,7 +311,7 @@ const dashboardApp = {
             if (response.ok) {
                 const data = await response.json();
                 if (data.health) {
-                    this.updateHealthChart(data.health);
+                    this.updateLiveHealthDisplay(data.health);
                 }
             }
         } catch (error) {
@@ -1105,13 +1084,14 @@ const dashboardApp = {
     
     // Logout
     logout() {
-        localStorage.removeItem('isLoggedIn');
-        localStorage.removeItem('isDemo');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userName');
+        if (window.session) return window.session.logout();
+        localStorage.clear();
         window.location.href = 'login.html';
     }
 };
+
+// firebase-realtime.js pushes live updates through window.dashboardApp
+window.dashboardApp = dashboardApp;
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {

@@ -128,29 +128,59 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ─── POST /api/devices/heartbeat ─────────────────────────────────────────────
+// Called by the ESP32 firmware to report it is alive.
+router.post('/heartbeat', async (req, res) => {
+  const db = getDb();
+  if (!db || !getDbConnected()) {
+    return res.status(503).json({ success: false, error: 'Database unavailable' });
+  }
+
+  const deviceId = String(req.body.deviceId || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(deviceId)) {
+    return res.status(400).json({ success: false, error: 'Valid deviceId is required' });
+  }
+
+  try {
+    const now = new Date().toISOString();
+    await db.ref(`devices/${deviceId}`).update({ lastHeartbeat: now, updatedAt: now, online: true });
+    res.status(200).json({ success: true, timestamp: now });
+  } catch (error) {
+    console.error('Heartbeat error:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to record heartbeat' });
+  }
+});
+
 // ─── GET /api/devices/:id ────────────────────────────────────────────────────
+// Only device nodes are readable here: /devices/{id} or a known top-level node like /health.
+// (Never pass the raw id to db.ref() — that would expose /users and other private data.)
 router.get('/:id', async (req, res) => {
   const db = getDb();
   if (!db || !getDbConnected()) {
     return res.status(503).json({ success: false, error: 'Database unavailable' });
   }
 
+  const id = req.params.id;
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid device id' });
+  }
+
   try {
-    const snap = await db.ref(req.params.id).once('value');
+    const path = KNOWN_DEVICE_NODES.includes(id) ? id : `devices/${id}`;
+    const snap = await db.ref(path).once('value');
     const data = snap.val();
 
     if (!data) {
       return res.status(404).json({ success: false, error: 'Device not found' });
     }
 
-    const deviceStatus = resolveDeviceStatus(data);
-
     res.status(200).json({
       success: true,
       data: {
-        id:          req.params.id,
-        deviceId:    req.params.id,
-        status:      deviceStatus,
+        id,
+        deviceId:    id,
+        name:        data.name || `${id} Device`,
+        status:      resolveDeviceStatus(data),
         heartRate:   data.heartRate   ?? null,
         temperature: data.temperature ?? null,
         spo2:        data.spo2        ?? null,
@@ -158,7 +188,7 @@ router.get('/:id', async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: 'Failed to fetch device' });
   }
 });
 

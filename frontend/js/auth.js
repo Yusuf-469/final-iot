@@ -1,263 +1,100 @@
-// Firebase configuration for authentication
-// Scoped to avoid conflicts with firebase-realtime.js
-const authFirebaseConfig = {
-  apiKey: "AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o",
-  authDomain: "final-iot-delta.vercel.app",
-  databaseURL: "https://iothealth-2335a-default-rtdb.firebaseio.com",
-  projectId: "iothealth-2335a",
-  storageBucket: "iothealth-2335a.firebasestorage.app",
-  messagingSenderId: "346846344297",
-  appId: "1:346846344297:web:870d295b32646e58b25ef8",
-  measurementId: "G-ZSL6D941JK"
-};
-
-// Initialize Firebase (assuming Firebase scripts are loaded globally)
-let app, auth, googleProvider, githubProvider, microsoftProvider;
-
-// Firebase v8 compatibility
-function initializeFirebase() {
-  if (typeof firebase !== 'undefined') {
-    // Check if Firebase app already exists to prevent duplicate app error
-    try {
-      app = firebase.app(); // Try to get existing app
-      console.log('Using existing Firebase app for auth');
-    } catch (error) {
-      // App doesn't exist, initialize new one
-      app = firebase.initializeApp(authFirebaseConfig);
-      console.log('Initialized new Firebase app for auth');
-    }
-
-    auth = firebase.auth(app);
-    googleProvider = new firebase.auth.GoogleAuthProvider();
-    githubProvider = new firebase.auth.GithubAuthProvider();
-    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
-
-    googleProvider.setCustomParameters({ prompt: 'select_account' });
-    githubProvider.setCustomParameters({ prompt: 'select_account' });
-    microsoftProvider.setCustomParameters({ prompt: 'select_account' });
-
-    console.log('✅ Firebase auth initialized');
-  } else {
-    console.error('❌ Firebase SDK not loaded');
-  }
-}
-}
-
-    auth = firebase.auth(app);
-
-    googleProvider = new firebase.auth.GoogleAuthProvider();
-    githubProvider = new firebase.auth.GithubAuthProvider();
-    microsoftProvider = new firebase.auth.OAuthProvider('microsoft.com');
-  } else {
-    console.error('Firebase SDK not loaded');
-  }
-}
-
-// Auth functions with fallback handling
-async function signInWithGoogle() {
-  if (!firebaseInitialized || !auth) {
-    console.warn('Firebase not available, using demo login');
-    // Fallback: simulate successful login for demo purposes
-    const demoUser = { displayName: 'Demo User', email: 'demo@healthmonitor.io', uid: 'demo123' };
-    handleSuccessfulLogin(demoUser);
-    return demoUser;
-  }
-
-  try {
-    const result = await auth.signInWithPopup(googleProvider);
-    handleSuccessfulLogin(result.user);
-    return result.user;
-  } catch (error) {
-    console.error('Google sign-in error:', error);
-    // If popup fails, try redirect method
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
-      try {
-        console.log('Retrying with redirect method...');
-        await auth.signInWithRedirect(googleProvider);
-        return null; // Redirect will reload page
-      } catch (redirectError) {
-        console.error('Redirect method also failed:', redirectError);
-        throw redirectError;
-      }
-    }
-    throw error;
-  }
-}
-
-async function signInWithGitHub() {
-  if (!firebaseInitialized || !auth) {
-    console.warn('Firebase not available, using demo login');
-    const demoUser = { displayName: 'Demo User', email: 'demo@github.com', uid: 'demo-github' };
-    handleSuccessfulLogin(demoUser);
-    return demoUser;
-  }
-
-  try {
-    const result = await auth.signInWithPopup(githubProvider);
-    handleSuccessfulLogin(result.user);
-    return result.user;
-  } catch (error) {
-    console.error('GitHub sign-in error:', error);
-    if (error.code === 'auth/popup-blocked') {
-      try {
-        await auth.signInWithRedirect(githubProvider);
-        return null;
-      } catch (redirectError) {
-        throw redirectError;
-      }
-    }
-    throw error;
-  }
-}
-
-async function signInWithMicrosoft() {
-  if (!firebaseInitialized || !auth) {
-    console.warn('Firebase not available, using demo login');
-    const demoUser = { displayName: 'Demo User', email: 'demo@microsoft.com', uid: 'demo-microsoft' };
-    handleSuccessfulLogin(demoUser);
-    return demoUser;
-  }
-
-  try {
-    const result = await auth.signInWithPopup(microsoftProvider);
-    handleSuccessfulLogin(result.user);
-    return result.user;
-  } catch (error) {
-    console.error('Microsoft sign-in error:', error);
-    if (error.code === 'auth/popup-blocked') {
-      try {
-        await auth.signInWithRedirect(microsoftProvider);
-        return null;
-      } catch (redirectError) {
-        throw redirectError;
-      }
-    }
-    throw error;
-  }
-}
-
-async function registerWithEmail(email, password) {
-  console.log('📧 Attempting Firebase email registration for:', email);
-
-  if (!firebaseInitialized || !auth) {
-    console.warn('Firebase not available, using demo registration');
-    // Fallback: simulate successful registration for demo purposes
-    const demoUser = { displayName: email.split('@')[0], email: email, uid: 'demo-' + Date.now() };
-    handleSuccessfulLogin(demoUser);
-    return demoUser;
-  }
-
-  try {
-    console.log('🔐 Calling Firebase createUserWithEmailAndPassword...');
-    const result = await auth.createUserWithEmailAndPassword(email, password);
-    console.log('✅ Firebase registration successful:', result.user.email);
-    handleSuccessfulLogin(result.user);
-    return result.user;
-  } catch (error) {
-    console.error('❌ Firebase email registration error:', error.code, error.message);
-    throw error;
-  }
-}
-
-async function loginWithEmail(email, password) {
-  if (!firebaseInitialized || !auth) {
-    console.warn('Firebase not available, using demo login');
-    // Fallback: simulate successful login for demo purposes
-    const demoUser = { displayName: email.split('@')[0], email: email, uid: 'demo-' + Date.now() };
-    handleSuccessfulLogin(demoUser);
-    return demoUser;
-  }
-
-  try {
-    const result = await auth.signInWithEmailAndPassword(email, password);
-    handleSuccessfulLogin(result.user);
-    return result.user;
-  } catch (error) {
-    console.error('Email login error:', error);
-    throw error;
-  }
-}
-
-async function logoutUser() {
-  if (!auth) throw new Error('Firebase not initialized');
-  try {
-    await firebase.auth().signOut();
-  } catch (error) {
-    console.error('Logout error:', error);
-    throw error;
-  }
-}
-
-// Auth state
-let subscribers = [];
-let unsubscribeFunction = null;
-
-function subscribeToAuthState(callback) {
-  if (!unsubscribeFunction) {
-    unsubscribeFunction = auth.onAuthStateChanged((user) => {
-      subscribers.forEach(cb => cb(user));
-    });
-  }
-
-  subscribers.push(callback);
-  // Call immediately with current user
-  auth.onAuthStateChanged(callback);
-
-  return () => {
-    subscribers = subscribers.filter(cb => cb !== callback);
-    if (subscribers.length === 0 && unsubscribeFunction) {
-      unsubscribeFunction();
-      unsubscribeFunction = null;
-    }
+/**
+ * Social sign-in (Google / GitHub / Microsoft) via Firebase Auth.
+ *
+ * Firebase only proves who the user is. The resulting ID token is exchanged at
+ * POST /api/auth/firebase for the app's own session token, so every sign-in
+ * method ends up with the same kind of session (see js/session.js).
+ *
+ * Requires the Firebase v8 SDK (firebase-app.js + firebase-auth.js) to be loaded first.
+ */
+(function () {
+  const firebaseConfig = {
+    apiKey: 'AIzaSyCz59P_aeCNbqnBmQYMpQDNOQh70JBr35o',
+    authDomain: 'iothealth-2335a.firebaseapp.com',
+    databaseURL: 'https://iothealth-2335a-default-rtdb.firebaseio.com',
+    projectId: 'iothealth-2335a',
+    storageBucket: 'iothealth-2335a.firebasestorage.app',
+    messagingSenderId: '346846344297',
+    appId: '1:346846344297:web:870d295b32646e58b25ef8',
+    measurementId: 'G-ZSL6D941JK'
   };
-}
 
-function getCurrentUser() {
-  if (!firebaseInitialized || !auth) return null;
-  return auth.currentUser;
-}
+  let auth = null;
 
-// Helper function to handle successful login
-function handleSuccessfulLogin(user) {
-  console.log('✅ Auth successful:', user.displayName || user.email);
+  function init() {
+    if (typeof firebase === 'undefined' || !firebase.auth) return null;
+    if (auth) return auth;
+    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth(app);
+    return auth;
+  }
 
-  // Store user data in localStorage
-  localStorage.setItem('isLoggedIn', 'true');
-  localStorage.setItem('userName', user.displayName || user.email.split('@')[0] || 'User');
-  localStorage.setItem('userEmail', user.email || '');
-  localStorage.setItem('userId', user.uid || 'demo');
+  function provider(name) {
+    let p;
+    if (name === 'google') p = new firebase.auth.GoogleAuthProvider();
+    else if (name === 'github') p = new firebase.auth.GithubAuthProvider();
+    else if (name === 'microsoft') p = new firebase.auth.OAuthProvider('microsoft.com');
+    else throw new Error('Unsupported provider');
+    if (name !== 'github') p.setCustomParameters({ prompt: 'select_account' });
+    return p;
+  }
 
-  // Redirect to dashboard
-  window.location.href = 'dashboard.html';
-}
+  const FRIENDLY_ERRORS = {
+    'auth/popup-closed-by-user': 'Sign-in window was closed before finishing.',
+    'auth/cancelled-popup-request': 'Sign-in was cancelled.',
+    'auth/popup-blocked': 'Your browser blocked the sign-in popup. Allow popups for this site and try again.',
+    'auth/account-exists-with-different-credential': 'This email is already linked to a different sign-in method.',
+    'auth/operation-not-allowed': 'This sign-in method is not enabled yet. Please use email and password.',
+    'auth/unauthorized-domain': 'Social sign-in is not enabled for this domain yet. Please use email and password.',
+    'auth/network-request-failed': 'Network error. Check your connection and try again.'
+  };
 
-// Initialize Firebase immediately when script loads
-console.log('🔥 Initializing Firebase auth...');
-let firebaseInitialized = false;
+  function friendly(error) {
+    return FRIENDLY_ERRORS[error && error.code] || (error && error.message) || 'Sign-in failed. Please try again.';
+  }
 
-try {
-  initializeFirebase();
-  firebaseInitialized = true;
-  console.log('🔍 Firebase config used:', {
-    apiKey: authFirebaseConfig.apiKey ? '***' + authFirebaseConfig.apiKey.slice(-10) : 'missing',
-    authDomain: authFirebaseConfig.authDomain,
-    projectId: authFirebaseConfig.projectId
-  });
-} catch (error) {
-  console.error('❌ Firebase initialization failed:', error);
-  firebaseInitialized = false;
-}
+  /**
+   * Opens the provider popup and returns { token, user } from our backend.
+   * Throws an Error with a user-friendly message on failure.
+   */
+  async function signInWith(name) {
+    const a = init();
+    if (!a) throw new Error('Social sign-in is unavailable right now. Please use email and password.');
 
-// Attach to window for use in other files
-window.auth = {
-  signInWithGoogle,
-  signInWithGitHub,
-  signInWithMicrosoft,
-  registerWithEmail,
-  loginWithEmail,
-  logoutUser,
-  subscribeToAuthState,
-  getCurrentUser
-};
-console.log('✅ Firebase auth initialized, window.auth available:', !!window.auth);
-console.log('🚀 window.auth object created with methods:', Object.keys(window.auth));
+    let result;
+    try {
+      result = await a.signInWithPopup(provider(name));
+    } catch (error) {
+      throw new Error(friendly(error));
+    }
+
+    const idToken = await result.user.getIdToken();
+    const res = await fetch('/api/auth/firebase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      a.signOut().catch(() => {});
+      throw new Error(data.error || 'Sign-in failed. Please try again.');
+    }
+
+    if (window.session) window.session.save(data.token, data.user);
+    return data;
+  }
+
+  window.auth = {
+    signIn: signInWith,
+    signInWithGoogle: () => signInWith('google'),
+    signInWithGitHub: () => signInWith('github'),
+    signInWithMicrosoft: () => signInWith('microsoft'),
+    // Kept for pages that read the Firebase profile (e.g. settings)
+    getCurrentUser: () => (init() ? auth.currentUser : null),
+    logoutUser: () => (init() ? auth.signOut() : Promise.resolve())
+  };
+  // Older page scripts call initializeFirebase() directly
+  window.initializeFirebase = init;
+
+  init();
+})();
