@@ -73,6 +73,7 @@ function setupRealtimeListeners() {
   realtimeListeners.health = database.ref('health').on('value', (snapshot) => {
     const data = snapshot && snapshot.val();
     if (data) {
+      requestAlertEvaluation();
       console.log('💓 Health data updated:', data);
       updateHealthDisplays(data);
       updateDashboardHealth(data);
@@ -108,6 +109,22 @@ function setupRealtimeListeners() {
       updateDevicesList(data);
     }
   });
+}
+
+// Fallback alert trigger: the ESP32 writes straight to Firebase, so ask the API to run the
+// alert engine when new readings arrive. The always-on worker (npm run worker) is the primary
+// trigger; this keeps alerts flowing while any dashboard is open. Throttled per tab.
+let lastAlertEvaluation = 0;
+function requestAlertEvaluation() {
+  const now = Date.now();
+  if (now - lastAlertEvaluation < 20000) return;
+  if (!window.session || !window.session.isValid() || window.session.currentUser().isDemo) return;
+  lastAlertEvaluation = now;
+  fetch('/api/alerts/evaluate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: 'health' })
+  }).catch(() => { /* best effort */ });
 }
 
 // Update health displays across all pages

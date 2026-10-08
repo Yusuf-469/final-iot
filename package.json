@@ -6,10 +6,11 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
-    "test": "jest --testTimeout=10000",
+    "test": "jest --testTimeout=10000 backend",
     "build": "echo 'No build step required for Node.js backend'",
     "postinstall": "echo 'Dependencies installed successfully'",
-    "lint": "eslint . --ext .js"
+    "lint": "eslint . --ext .js",
+    "worker": "node backend/worker.js"
   },
   "dependencies": {
     "@react-three/drei": "^9.88.13",
