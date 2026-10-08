@@ -1227,3 +1227,44 @@
 /* Responsive */
 @media (max-width: 768px) {
 }
+
+/* Alert engine: source / state tags and resolved items */
+.alert-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.alert-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(148, 163, 184, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.alert-tag.ack { color: #93c5fd; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.25); }
+.alert-tag.esc { color: #fca5a5; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.25); }
+
+.alert-full-item.is-resolved { opacity: 0.55; }
+.alert-full-item.is-resolved:hover { opacity: 0.8; }
+
+.alert-status.resolved {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--success);
+    white-space: nowrap;
+}
+
+.alert-actions .action-btn:focus-visible {
+    outline: 2px solid var(--primary-light);
+    outline-offset: 2px;
+}

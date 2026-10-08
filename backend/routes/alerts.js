@@ -1,13 +1,19 @@
 /**
  * Alerts Routes - Realtime Database Version
  * Medical IoT Backend - Alerts management endpoints
+ *
+ * Alerts are raised automatically by services/alertEngine.js from live device readings.
+ * The engine runs from backend/worker.js (real time), POST /api/alerts/evaluate, or the dashboard.
  */
 
 const express = require('express');
 const router = express.Router();
-const { collection, COLLECTIONS } = require('../database');
+const { collection, COLLECTIONS, getDb } = require('../database');
 const { logger } = require('../utils/logger');
-const { predictHealthRisk } = require('../services/predictionService');
+const alertEngine = require('../services/alertEngine');
+
+// Device nodes the engine evaluates (top-level RTDB nodes written by ESP32s)
+const DEVICE_NODES = (process.env.ALERT_DEVICE_NODES || 'health').split(',').map(s => s.trim()).filter(Boolean);
 
 // Helper to format alert data from Realtime Database
 const formatAlertData = (key, data) => {
@@ -22,194 +28,19 @@ const formatAlertData = (key, data) => {
   };
 };
 
-// Generate alerts based on ML predictions using real-time data
-const generatePredictionAlerts = async () => {
-  try {
-    logger.info('Generating prediction-based alerts using real-time data...');
-
-    // Get all patients
-    const patientsRef = collection(COLLECTIONS.PATIENTS);
-    if (!patientsRef) return [];
-
-    const patientsSnapshot = await patientsRef.once('value');
-    const patientsData = patientsSnapshot.val() || {};
-
-    // Get current health readings from the 'health' node
-    const healthRef = collection('health');
-    let currentHealthData = {};
-    if (healthRef) {
-      try {
-        const healthSnapshot = await healthRef.once('value');
-        currentHealthData = healthSnapshot.val() || {};
-      } catch (error) {
-        logger.warn('Could not fetch current health data:', error.message);
-      }
-    }
-
-    const alertsCreated = [];
-    const now = Date.now();
-
-    for (const [patientId, patient] of Object.entries(patientsData)) {
-      try {
-        // Create historical readings from current patient data + current health data
-        const historicalReadings = generateHistoricalReadingsForPatient(patient, currentHealthData, patientId);
-
-        // Skip if no readings available
-        if (historicalReadings.length === 0) {
-          logger.debug(`No readings available for patient ${patientId}, skipping prediction`);
-          continue;
-        }
-
-        // Get prediction using the ML service
-        const prediction = await predictHealthRisk(patientId, historicalReadings);
-
-        logger.debug(`Prediction for patient ${patientId}: ${prediction.riskLevel} (score: ${prediction.riskScore})`);
-
-        // Create alerts based on prediction results
-        if (prediction.riskLevel === 'critical' || prediction.riskLevel === 'high') {
-          const alertData = {
-            patientId,
-            patientName: `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || `Patient ${patientId}`,
-            type: 'prediction',
-            severity: prediction.riskLevel === 'critical' ? 'critical' : 'high',
-            title: `${prediction.riskLevel === 'critical' ? '🚨 CRITICAL' : '⚠️ HIGH'} Health Risk Alert`,
-            message: prediction.recommendation,
-            riskScore: prediction.riskScore,
-            factors: prediction.factors,
-            predictionId: prediction.predictionId,
-            status: 'active',
-            source: 'ml_prediction',
-            modelVersion: prediction.model,
-            confidence: prediction.confidence,
-            timestamp: now
-          };
-
-          // Check if similar alert already exists (avoid duplicates)
-          const existingAlert = await checkExistingAlert(patientId, prediction.predictionId);
-          if (!existingAlert) {
-            await createAlert(alertData);
-            alertsCreated.push(alertData);
-            logger.info(`🚨 Prediction alert created for patient ${patientId}: ${prediction.riskLevel} (score: ${prediction.riskScore})`);
-          } else {
-            logger.debug(`Alert already exists for patient ${patientId}, skipping`);
-          }
-        }
-
-      } catch (error) {
-        logger.error(`Error generating prediction alert for patient ${patientId}:`, error.message);
-      }
-    }
-
-    logger.info(`✅ Prediction alerts generation completed. Created ${alertsCreated.length} alerts from ${Object.keys(patientsData).length} patients.`);
-    return alertsCreated;
-
-  } catch (error) {
-    logger.error('❌ Error in generatePredictionAlerts:', error);
+const evaluateAll = async ({ dryRun = false, deviceId } = {}) => {
+  const db = getDb();
+  if (!db) {
+    const error = new Error('Database unavailable');
+    error.status = 503;
     throw error;
   }
-};
-
-// Generate historical readings for prediction using real patient data + current health data
-const generateHistoricalReadingsForPatient = (patient, currentHealthData, patientId) => {
-  const readings = [];
-  const now = Date.now();
-
-  // Use current health data if available and patient is linked to 'health' device
-  if (patient.deviceId === 'health' && currentHealthData) {
-    // Create recent readings based on current health data
-    const currentReading = {
-      heartRate: currentHealthData.heartRate || patient.heartRate,
-      temperature: currentHealthData.temperature || patient.temperature,
-      spo2: currentHealthData.spo2 || patient.spo2,
-      respiratoryRate: currentHealthData.respiratoryRate,
-      bloodPressure: currentHealthData.bloodPressure,
-      consciousness: currentHealthData.consciousness,
-      onOxygen: currentHealthData.onOxygen,
-      timestamp: currentHealthData.updatedAt ? new Date(currentHealthData.updatedAt).getTime() : now
-    };
-
-    // Only add if we have at least heart rate data
-    if (currentReading.heartRate) {
-      readings.push(currentReading);
-
-      // Generate some historical readings based on the current data (simulate trend)
-      for (let i = 1; i <= 10; i++) {
-        const historicalReading = {
-          heartRate: currentReading.heartRate + (Math.random() - 0.5) * 8, // +/- 4 BPM variation
-          temperature: currentReading.temperature ? currentReading.temperature + (Math.random() - 0.5) * 0.6 : undefined, // +/- 0.3°C
-          spo2: currentReading.spo2 ? Math.round(currentReading.spo2 + (Math.random() - 0.5) * 4) : undefined, // +/- 2%
-          respiratoryRate: currentReading.respiratoryRate,
-          bloodPressure: currentReading.bloodPressure,
-          consciousness: currentReading.consciousness,
-          onOxygen: currentReading.onOxygen,
-          timestamp: now - (i * 30 * 60 * 1000) // Every 30 minutes going back
-        };
-        readings.push(historicalReading);
-      }
-    }
+  const nodes = deviceId ? [deviceId] : DEVICE_NODES;
+  const out = [];
+  for (const node of nodes) {
+    out.push(await alertEngine.evaluateDevice(db, node, { dryRun }));
   }
-
-  // If no current health data, use patient baseline data
-  if (readings.length === 0 && patient.heartRate) {
-    // Generate readings based on stored patient data
-    for (let i = 0; i < 15; i++) {
-      readings.push({
-        heartRate: patient.heartRate + (Math.random() - 0.5) * 10,
-        temperature: patient.temperature ? patient.temperature + (Math.random() - 0.5) * 0.8 : undefined,
-        spo2: patient.spo2 ? Math.round(patient.spo2 + (Math.random() - 0.5) * 3) : undefined,
-        timestamp: now - (i * 60 * 60 * 1000) // Every hour
-      });
-    }
-  }
-
-  // Sort by timestamp (most recent first)
-  readings.sort((a, b) => b.timestamp - a.timestamp);
-
-  logger.debug(`Generated ${readings.length} historical readings for patient ${patientId}`);
-  return readings;
-};
-
-// Check if similar alert already exists
-const checkExistingAlert = async (patientId, predictionId) => {
-  try {
-    const alertsRef = collection(COLLECTIONS.ALERTS);
-    if (!alertsRef) return false;
-
-    const snapshot = await alertsRef.once('value');
-    const alertsData = snapshot.val() || {};
-
-    // Check for existing active alerts for this patient with same prediction
-    for (const [alertId, alert] of Object.entries(alertsData)) {
-      if (alert.patientId === patientId &&
-          alert.predictionId === predictionId &&
-          alert.status === 'active') {
-        return true;
-      }
-    }
-
-    return false;
-  } catch (error) {
-    logger.error('Error checking existing alert:', error);
-    return false;
-  }
-};
-
-// Create alert helper function
-const createAlert = async (alertData) => {
-  const alertId = `ALT-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-  const formattedData = {
-    ...alertData,
-    alertId,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  const alertRef = collection(`${COLLECTIONS.ALERTS}/${alertId}`);
-  if (alertRef) {
-    await alertRef.set(formattedData);
-    logger.info(`Alert created: ${alertId}`);
-  }
+  return out;
 };
 
 // Read every alert as an array (Realtime Database has no compound queries, so filter in memory)
@@ -289,54 +120,72 @@ router.get('/active', async (req, res) => {
   }
 });
 
-// POST /api/alerts/generate-predictions - Generate prediction-based alerts
-router.post('/generate-predictions', async (req, res) => {
+// POST /api/alerts/evaluate - run the alert engine on the latest device readings
+// Body: { deviceId?, dryRun? }. Called by the worker, a scheduler, or an open dashboard.
+router.post('/evaluate', async (req, res) => {
   try {
-    logger.info('🧠 Starting AI-powered prediction-based alert generation...');
-    const alertsCreated = await generatePredictionAlerts();
-    const patientsData = await getPatientsData();
-
-    res.json({
-      success: true,
-      message: `🤖 AI Analysis Complete: Generated ${alertsCreated.length} prediction-based alerts`,
-      alertsCreated: alertsCreated.length,
-      alerts: alertsCreated,
-      timestamp: new Date().toISOString(),
-      analysis: {
-        patientsAnalyzed: Object.keys(patientsData).length,
-        alertsGenerated: alertsCreated.length,
-        riskLevels: alertsCreated.reduce((acc, alert) => {
-          acc[alert.severity] = (acc[alert.severity] || 0) + 1;
-          return acc;
-        }, {})
-      }
-    });
+    const deviceId = req.body.deviceId;
+    if (deviceId !== undefined && !DEVICE_NODES.includes(deviceId)) {
+      return res.status(400).json({ success: false, error: 'Unknown device' });
+    }
+    const results = await evaluateAll({ deviceId, dryRun: req.body.dryRun === true });
+    res.json({ success: true, results });
   } catch (error) {
-    logger.error('❌ Error generating prediction alerts:', error);
-    res.status(500).json({ success: false, error: 'Failed to generate AI prediction alerts' });
+    logger.error('Alert evaluation failed:', error);
+    res.status(error.status || 500).json({ success: false, error: 'Alert evaluation failed' });
   }
 });
 
-// GET /api/alerts/predictions/status - Get prediction system status
+// POST /api/alerts/generate-predictions - "Run Analysis" button: evaluate now
+router.post('/generate-predictions', async (req, res) => {
+  try {
+    const devices = await evaluateAll();
+    const results = devices.flatMap(d => d.results);
+    const created = results.flatMap(r => (r.actions || []).filter(a => a.type === 'create' || a.type === 'escalate'));
+
+    res.json({
+      success: true,
+      message: `Analysis complete: ${created.length} new or escalated alert(s)`,
+      alertsCreated: created.length,
+      timestamp: new Date().toISOString(),
+      analysis: {
+        patientsAnalyzed: results.length,
+        alertsGenerated: created.length,
+        riskLevels: created.reduce((acc, a) => {
+          acc[a.severity] = (acc[a.severity] || 0) + 1;
+          return acc;
+        }, {}),
+        scores: results.map(r => ({ patientId: r.patientId, news2: r.news2 ?? null, risk: r.risk ?? null, skipped: !!r.skipped }))
+      }
+    });
+  } catch (error) {
+    logger.error('❌ Error running alert analysis:', error);
+    res.status(error.status || 500).json({ success: false, error: 'Failed to run alert analysis' });
+  }
+});
+
+// GET /api/alerts/predictions/status - alert engine status
 router.get('/predictions/status', async (req, res) => {
   try {
-    const patientsData = await getPatientsData();
-    const alerts = (await getAllAlerts()) || [];
+    const db = getDb();
+    if (!db) return res.status(503).json({ success: false, error: 'Database unavailable' });
+    const s = await alertEngine.engineStatus(db);
 
     res.json({
       success: true,
       status: {
-        patients: Object.keys(patientsData).length,
-        totalAlerts: alerts.length,
-        predictionAlerts: alerts.filter(a => a.source === 'ml_prediction').length,
-        systemActive: true,
-        lastCheck: new Date().toISOString(),
-        aiModel: 'v2.0-ml-enhanced'
+        patients: s.patients,
+        totalAlerts: s.evaluations,       // shown as "risk assessments"
+        predictionAlerts: s.activeAlerts, // shown as "active AI alerts"
+        baselinesReady: s.baselinesReady,
+        systemActive: s.live,
+        lastCheck: s.lastEvaluatedAt,
+        aiModel: s.engine
       }
     });
   } catch (error) {
-    logger.error('Error getting prediction status:', error);
-    res.status(500).json({ success: false, error: 'Failed to get prediction status' });
+    logger.error('Error getting alert engine status:', error);
+    res.status(500).json({ success: false, error: 'Failed to get alert engine status' });
   }
 });
 
@@ -433,15 +282,27 @@ router.put('/:alertId/acknowledge', async (req, res) => {
 router.put('/:alertId/resolve', async (req, res) => {
   try {
     const { method, notes } = req.body;
+    // Clinician feedback teaches the engine this patient's sensitivity: 'useful' | 'false_alarm'
+    const feedback = ['useful', 'false_alarm'].includes(req.body.feedback) ? req.body.feedback : null;
+
     const result = await updateAlert(req.params.alertId, (alert) => {
       if (alert.status === 'resolved') return { status: 400, error: 'Alert is already resolved' };
       return {
         status: 'resolved',
         resolvedBy: req.user?.email || req.body.userId || 'unknown',
         resolvedAt: new Date().toISOString(),
-        resolution: { method: method || 'manual', notes: notes || '' }
+        resolution: { method: method || 'manual', notes: notes || '', feedback }
       };
     });
+
+    if (!result.error && result.alert.engineKey) {
+      try {
+        const tuning = await alertEngine.recordResolution(getDb(), result.alert, feedback);
+        if (tuning) result.alert.tuning = tuning;
+      } catch (error) {
+        logger.warn(`Could not record alert feedback: ${error.message}`);
+      }
+    }
     sendUpdate(res, result);
   } catch (error) {
     logger.error('Error resolving alert:', error);
@@ -470,19 +331,5 @@ router.put('/:alertId/escalate', async (req, res) => {
     res.status(500).json({ error: 'Failed to escalate alert' });
   }
 });
-
-// Helper function to get patients data
-const getPatientsData = async () => {
-  try {
-    const patientsRef = collection(COLLECTIONS.PATIENTS);
-    if (!patientsRef) return {};
-
-    const snapshot = await patientsRef.once('value');
-    return snapshot.val() || {};
-  } catch (error) {
-    logger.error('Error getting patients data:', error);
-    return {};
-  }
-};
 
 module.exports = router;

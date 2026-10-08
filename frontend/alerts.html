@@ -234,90 +234,164 @@
     <script>
         console.log('Alerts page script loaded');
 
-        // Test function availability
-        window.testFunction = function() {
-            alert('Test function works!');
+        const SOURCE_LABELS = {
+            early_warning: { label: 'Early warning (NEWS2)', icon: 'fa-heart-pulse' },
+            ml_anomaly: { label: 'AI baseline', icon: 'fa-brain' },
+            ml_prediction: { label: 'AI prediction', icon: 'fa-brain' },
+            device: { label: 'Device', icon: 'fa-microchip' }
         };
+        const isAI = (a) => a.source === 'ml_anomaly' || a.source === 'ml_prediction';
+        let allAlerts = [];
+        let currentFilter = 'all';
+        // Not window.alertChart: <canvas id="alertChart"> already owns that global name
+        let alertDonut = null;
 
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
 
+        function timeAgo(iso) {
+            if (!iso) return 'Unknown time';
+            const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+            if (s < 60) return 'just now';
+            if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+            if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+            return new Date(iso).toLocaleString();
+        }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            console.log('Alerts page loaded, initializing...');
+            if (typeof initFirebaseRealtime === 'function') await initFirebaseRealtime();
 
-            // Initialize Firebase real-time listeners
-            await initFirebaseRealtime();
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentFilter = tab.dataset.filter;
+                    renderAlerts();
+                });
+            });
 
+            initializeAlertCharts();
             loadAlertsPage();
+            loadPredictionStatus();
+            setInterval(() => { loadAlertsPage(); loadPredictionStatus(); }, 30000);
         });
 
         async function loadAlertsPage() {
             try {
-                const response = await fetch('/api/alerts');
-                let alerts = [];
-
-                if (response.ok) {
-                    const data = await response.json();
-                    alerts = data.alerts || [];
-                } else {
-                    console.warn('Failed to load alerts from API, showing empty state');
-                }
-
-                // Update stats
-                updateAlertStats(alerts);
-
-                const list = document.getElementById('alerts-list');
-
-                if (alerts.length === 0) {
-                    list.innerHTML = '<div class="no-data">No alerts found.</div>';
-                    return;
-                }
-
-                list.innerHTML = alerts.map(a => {
-                    const type = a.severity || a.type || 'info';
-                    const title = a.title || 'Alert';
-                    const message = a.message || a.description || '';
-                    const time = a.createdAt ? new Date(a.createdAt).toLocaleString() : 'Unknown time';
-                    const patient = a.patientName || a.patientId || '';
-                    const device = a.deviceId || '';
-
-                    return `
-                        <div class="alert-full-item ${type}">
-                            <div class="alert-icon">
-                                <i class="fas ${type === 'critical' ? 'fa-exclamation-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i>
-                            </div>
-                            <div class="alert-content">
-                                <h4>${title}</h4>
-                                <p>${message}</p>
-                                <span class="alert-meta">
-                                    ${patient ? `<span class="meta-item"><i class="fas fa-user"></i> ${patient}</span>` : ''}
-                                    ${device ? `<span class="meta-item"><i class="fas fa-microchip"></i> ${device}</span>` : ''}
-                                    <span class="meta-item"><i class="fas fa-clock"></i> ${time}</span>
-                                </span>
-                            </div>
-                            <div class="alert-actions">
-                                <button class="action-btn" title="View Details"><i class="fas fa-eye"></i></button>
-                                <button class="action-btn" title="Dismiss" onclick="dismissAlert('${a.id}')"><i class="fas fa-times"></i></button>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                // Initialize and update charts with real data
-                initializeAlertCharts();
-                updateAlertCharts(alerts);
-
+                const response = await fetch('/api/alerts?limit=200');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                allAlerts = data.alerts || [];
+                updateAlertStats(allAlerts.filter(a => a.status !== 'resolved'));
+                updateAlertCharts(allAlerts.filter(a => a.status !== 'resolved'));
+                renderAlerts();
             } catch (error) {
                 console.error('Error loading alerts:', error);
-                const list = document.getElementById('alerts-list');
-                list.innerHTML = '<div class="no-data">Error loading alerts. Please try again.</div>';
+                document.getElementById('alerts-list').innerHTML = '<div class="no-data">Couldn\'t load alerts. Retrying shortly…</div>';
             }
         }
 
+        function renderAlerts() {
+            const list = document.getElementById('alerts-list');
+            const order = { active: 0, escalated: 0, acknowledged: 1, resolved: 2 };
+            const visible = allAlerts
+                .filter(a => currentFilter === 'all' || (a.severity || 'info') === currentFilter)
+                .sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1) || new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 50);
+
+            if (!visible.length) {
+                list.innerHTML = `<div class="no-data"><i class="fas fa-circle-check" style="color: var(--success)"></i> ${currentFilter === 'all' ? 'No alerts. All monitored patients are within expected ranges.' : `No ${currentFilter} alerts.`}</div>`;
+                return;
+            }
+
+            list.innerHTML = visible.map(a => {
+                const severity = ['critical', 'warning', 'info'].includes(a.severity) ? a.severity : 'info';
+                const source = SOURCE_LABELS[a.source];
+                const resolved = a.status === 'resolved';
+                const icon = severity === 'critical' ? 'fa-exclamation-circle' : severity === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+                const vitals = a.vitals ? [
+                    a.vitals.heartRate != null ? `HR ${Math.round(a.vitals.heartRate)}` : '',
+                    a.vitals.spo2 != null ? `SpO₂ ${Math.round(a.vitals.spo2)}%` : '',
+                    a.vitals.temperature != null ? `${Number(a.vitals.temperature).toFixed(1)} °C` : ''
+                ].filter(Boolean).join(' · ') : '';
+                const feedback = a.resolution && a.resolution.feedback;
+                const id = escapeHtml(a.id);
+
+                const actions = resolved ? `
+                        <span class="alert-status resolved" title="${escapeHtml(a.resolution?.notes || '')}">
+                            <i class="fas fa-check"></i> ${a.resolvedBy === 'alert-engine' ? 'Auto-resolved' : 'Resolved'}${feedback ? ` · ${feedback === 'useful' ? 'useful' : 'false alarm'}` : ''}
+                        </span>` : `
+                        ${a.status === 'active' ? `<button class="action-btn" title="Acknowledge" aria-label="Acknowledge" onclick="acknowledgeAlert('${id}')"><i class="fas fa-eye"></i></button>` : ''}
+                        ${a.engineKey ? `
+                        <button class="action-btn" title="Resolve: this alert was useful" aria-label="Resolve as useful" onclick="resolveAlert('${id}', 'useful')"><i class="fas fa-thumbs-up"></i></button>
+                        <button class="action-btn" title="Resolve: false alarm (makes AI baseline alerts less sensitive for this patient)" aria-label="Resolve as false alarm" onclick="resolveAlert('${id}', 'false_alarm')"><i class="fas fa-thumbs-down"></i></button>` : `
+                        <button class="action-btn" title="Resolve" aria-label="Resolve" onclick="resolveAlert('${id}')"><i class="fas fa-check"></i></button>`}`;
+
+                return `
+                    <div class="alert-full-item ${severity}${resolved ? ' is-resolved' : ''}">
+                        <div class="alert-icon"><i class="fas ${icon}"></i></div>
+                        <div class="alert-content">
+                            <div class="alert-tags">
+                                ${source ? `<span class="alert-tag"><i class="fas ${source.icon}"></i> ${source.label}</span>` : ''}
+                                ${a.status === 'acknowledged' ? '<span class="alert-tag ack"><i class="fas fa-eye"></i> Acknowledged</span>' : ''}
+                                ${a.escalation ? `<span class="alert-tag esc"><i class="fas fa-arrow-up"></i> Escalated</span>` : ''}
+                            </div>
+                            <h4>${escapeHtml(a.title || 'Alert')}</h4>
+                            <p>${escapeHtml(a.message || a.description || '')}</p>
+                            <span class="alert-meta">
+                                ${a.patientName || a.patientId ? `<span class="meta-item"><i class="fas fa-user"></i> ${escapeHtml(a.patientName || a.patientId)}</span>` : ''}
+                                ${vitals ? `<span class="meta-item"><i class="fas fa-wave-square"></i> ${escapeHtml(vitals)}</span>` : ''}
+                                <span class="meta-item" title="${escapeHtml(a.createdAt ? new Date(a.createdAt).toLocaleString() : '')}"><i class="fas fa-clock"></i> ${timeAgo(a.createdAt)}</span>
+                            </span>
+                        </div>
+                        <div class="alert-actions">${actions}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        async function updateAlert(id, action, body) {
+            const response = await fetch(`/api/alerts/${encodeURIComponent(id)}/${action}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body || {})
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || data.success === false) throw new Error(data.error || 'Request failed');
+            return data;
+        }
+
+        window.acknowledgeAlert = async function (id) {
+            try {
+                await updateAlert(id, 'acknowledge');
+                showToast('Alert acknowledged', 'success');
+                loadAlertsPage();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        };
+
+        window.resolveAlert = async function (id, feedback) {
+            try {
+                const data = await updateAlert(id, 'resolve', { method: 'manual', feedback });
+                const tuning = data.alert && data.alert.tuning;
+                if (feedback === 'false_alarm' && tuning) {
+                    showToast(`Marked as false alarm. AI baseline sensitivity for this patient adjusted (×${tuning.multiplier}).`, 'info');
+                } else if (feedback === 'false_alarm') {
+                    showToast('Marked as false alarm. Clinical early-warning thresholds are fixed and are not changed by feedback.', 'info');
+                } else {
+                    showToast('Alert resolved', 'success');
+                }
+                loadAlertsPage();
+            } catch (error) {
+                showToast(error.message, 'error');
+            }
+        };
+
         function initializeAlertCharts() {
-            // Initialize alert distribution chart
             const alertChartCanvas = document.getElementById('alertChart');
-            if (alertChartCanvas && !window.alertChart) {
-                window.alertChart = new Chart(alertChartCanvas, {
+            if (alertChartCanvas && !alertDonut && typeof Chart !== 'undefined') {
+                alertDonut = new Chart(alertChartCanvas, {
                     type: 'doughnut',
                     data: {
                         labels: ['Critical', 'Warning', 'Info', 'AI Predictions'],
@@ -335,208 +409,111 @@
                     }
                 });
             }
+        }
 
-            // Initialize alerts over time chart
-            const timeChartCanvas = document.getElementById('alertsTimeChart');
-            if (timeChartCanvas && !window.alertsTimeChart) {
-                window.alertsTimeChart = new Chart(timeChartCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                        datasets: [{
-                            label: 'Alerts',
-                            data: [0, 0, 0, 0, 0, 0, 0],
-                            backgroundColor: 'rgba(99, 102, 241, 0.8)',
-                            borderRadius: 4
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { display: false } },
-                            y: { beginAtZero: true }
-                        }
-                    }
-                });
+        function countBy(alerts) {
+            return {
+                total: alerts.length,
+                critical: alerts.filter(a => a.severity === 'critical').length,
+                warning: alerts.filter(a => a.severity === 'warning').length,
+                info: alerts.filter(a => (a.severity || 'info') === 'info').length,
+                ai: alerts.filter(isAI).length
+            };
+        }
+
+        function updateAlertStats(openAlerts) {
+            const c = countBy(openAlerts);
+            const numbers = document.querySelectorAll('.stat-card .stat-number');
+            [c.total, c.critical, c.warning, c.info].forEach((v, i) => { if (numbers[i]) numbers[i].textContent = v; });
+            const ai = document.getElementById('ai-prediction-count');
+            if (ai) ai.textContent = c.ai;
+            document.querySelectorAll('.nav-badge, .sidebar .badge').forEach(el => { el.textContent = c.total; });
+        }
+
+        function updateAlertCharts(openAlerts) {
+            const c = countBy(openAlerts);
+            if (alertDonut) {
+                alertDonut.data.datasets[0].data = [c.critical, c.warning, c.info, c.ai];
+                alertDonut.update();
             }
+            const center = document.querySelector('.chart-center-text .center-value') || document.getElementById('total-alerts-value');
+            if (center) center.textContent = c.total;
         }
 
-        function updateAlertStats(alerts) {
-            const totalAlerts = alerts.length;
-            const criticalAlerts = alerts.filter(a => (a.severity || a.type) === 'critical').length;
-            const warningAlerts = alerts.filter(a => (a.severity || a.type) === 'warning').length;
-            const infoAlerts = alerts.filter(a => (a.severity || a.type) === 'info').length;
-            const aiPredictionAlerts = alerts.filter(a => a.source === 'ml_prediction').length;
-
-            // Update stats cards
-            document.querySelectorAll('.stat-card .stat-number')[0].textContent = totalAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[1].textContent = criticalAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[2].textContent = warningAlerts;
-            document.querySelectorAll('.stat-card .stat-number')[3].textContent = infoAlerts;
-
-            // Update AI prediction count
-            document.getElementById('ai-prediction-count').textContent = aiPredictionAlerts;
-        }
-
-        function updateAlertCharts(alerts) {
-            // Update donut chart
-            const criticalCount = alerts.filter(a => (a.severity || a.type) === 'critical').length;
-            const warningCount = alerts.filter(a => (a.severity || a.type) === 'warning').length;
-            const infoCount = alerts.filter(a => (a.severity || a.type) === 'info').length;
-            const aiPredictionCount = alerts.filter(a => a.source === 'ml_prediction').length;
-
-            // Update donut chart data (include AI predictions as a separate category)
-            if (window.alertChart) {
-                window.alertChart.data.datasets[0].data = [criticalCount, warningCount, infoCount, aiPredictionCount];
-                window.alertChart.update();
-            }
-
-            // Update center text
-            const totalAlertsValue = document.getElementById('total-alerts-value');
-            if (totalAlertsValue) {
-                totalAlertsValue.textContent = totalAlerts;
-            }
-
-            // Update center text
-            const chartCenterValue = document.querySelector('.chart-center-text .center-value');
-            if (chartCenterValue) chartCenterValue.textContent = alerts.length;
-
-            // For the time chart, we could implement date grouping if needed
-            // For now, keep it simple
-        }
-
-        function dismissAlert(id) {
-            showToast('Alert dismissed', 'info');
-        }
-
-        // Make functions globally available
-        window.generatePredictionAlerts = async function() {
-            console.log('🤖 Starting AI prediction analysis...');
-
-            // Show loading state
-            const button = document.querySelector('button[onclick*="generatePredictionAlerts"]');
-            const originalText = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
-            button.disabled = true;
+        // "AI Risk Analysis" / "Run Analysis": evaluate the latest readings right now
+        window.generatePredictionAlerts = async function () {
+            const buttons = document.querySelectorAll('button[onclick*="generatePredictionAlerts"]');
+            const originals = [...buttons].map(b => b.innerHTML);
+            buttons.forEach(b => { b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing…'; b.disabled = true; });
 
             try {
                 const response = await fetch('/api/alerts/generate-predictions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
-
                 const result = await response.json();
-                console.log('AI Analysis Result:', result);
+                if (!response.ok || !result.success) throw new Error(result.error || 'Analysis failed');
 
-                if (result.success) {
-                    let message = `🧠 AI Analysis Complete!\n\n`;
-                    message += `📊 Patients Analyzed: ${result.analysis.patientsAnalyzed}\n`;
-                    message += `🚨 Alerts Generated: ${result.alertsCreated}\n`;
-
-                    if (result.alertsCreated > 0) {
-                        message += `\n⚠️ Risk Breakdown:\n`;
-                        Object.entries(result.analysis.riskLevels).forEach(([level, count]) => {
-                            message += `• ${level.toUpperCase()}: ${count}\n`;
-                        });
-                        message += `\n🔄 Refreshing alerts list...`;
-                    }
-
-                    alert(message);
-
-                    // Refresh alerts and stats
-                    if (typeof loadAlerts === 'function') loadAlerts();
-                    if (typeof updateStats === 'function') updateStats();
-
-                } else {
-                    throw new Error(result.error || 'AI analysis failed');
-                }
-
+                const scores = (result.analysis.scores || []).filter(s => !s.skipped && s.news2 !== null);
+                const scoreText = scores.length ? ` NEWS2: ${scores.map(s => `${s.news2} (${s.risk})`).join(', ')}.` : '';
+                showToast(result.alertsCreated
+                    ? `Analysis complete: ${result.alertsCreated} new or escalated alert(s).${scoreText}`
+                    : `Analysis complete: no new alerts.${scoreText}`, result.alertsCreated ? 'warning' : 'success');
+                loadAlertsPage();
+                loadPredictionStatus();
             } catch (error) {
-                console.error('AI Analysis Error:', error);
-                alert('❌ AI Analysis Failed: ' + error.message);
+                showToast('Analysis failed: ' + error.message, 'error');
             } finally {
-                // Reset button
-                button.innerHTML = originalText;
-                button.disabled = false;
+                buttons.forEach((b, i) => { b.innerHTML = originals[i]; b.disabled = false; });
             }
         };
 
-        window.showPredictionStatus = async function() {
-            console.log('Getting AI prediction system status...');
-
+        window.showPredictionStatus = async function () {
             try {
                 const response = await fetch('/api/alerts/predictions/status');
                 const result = await response.json();
-
-                if (result.success) {
-                    const status = result.status;
-                    let message = `🤖 AI Prediction System Status\n\n`;
-                    message += `📈 Patients Monitored: ${status.patients}\n`;
-                    message += `🚨 Total Alerts: ${status.totalAlerts}\n`;
-                    message += `🧠 AI Prediction Alerts: ${status.predictionAlerts}\n`;
-                    message += `⚡ System Active: ${status.systemActive ? '✅' : '❌'}\n`;
-                    message += `🎯 AI Model: ${status.aiModel}\n`;
-                    message += `🕒 Last Check: ${new Date(status.lastCheck).toLocaleString()}\n`;
-
-                    alert(message);
-                } else {
-                    throw new Error(result.error || 'Failed to get status');
-                }
-
+                if (!result.success) throw new Error(result.error || 'Failed to get status');
+                const s = result.status;
+                showToast(`Engine ${s.aiModel}: ${s.systemActive ? 'live' : 'idle'} · ${s.patients} patient(s) · ${s.baselinesReady} baseline(s) learned · ` +
+                    `last check ${s.lastCheck ? timeAgo(s.lastCheck) : 'never'}`, s.systemActive ? 'success' : 'warning');
             } catch (error) {
-                console.error('Status check error:', error);
-                alert('❌ Could not get system status: ' + error.message);
+                showToast('Could not get system status: ' + error.message, 'error');
             }
         };
 
-        // Load AI prediction system status
         async function loadPredictionStatus() {
             try {
                 const response = await fetch('/api/alerts/predictions/status');
                 const result = await response.json();
+                if (!result.success) return;
+                const s = result.status;
 
-                if (result.success) {
-                    const status = result.status;
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+                set('patients-monitored', s.patients || 0);
+                set('risk-assessments', s.totalAlerts || 0);
+                set('active-alerts', s.predictionAlerts || 0);
+                set('last-analysis-time', s.lastCheck ? `${timeAgo(s.lastCheck)} · ${s.aiModel}` : 'Never');
 
-                    // Update AI stats
-                    document.getElementById('patients-monitored').textContent = status.patients || 0;
-                    document.getElementById('risk-assessments').textContent = status.totalAlerts || 0;
-                    document.getElementById('active-alerts').textContent = status.predictionAlerts || 0;
-                    document.getElementById('ai-prediction-count').textContent = status.predictionAlerts || 0;
-
-                    // Update last analysis time
-                    const lastUpdate = status.lastCheck ? new Date(status.lastCheck).toLocaleString() : 'Never';
-                    document.getElementById('last-analysis-time').textContent = lastUpdate;
-
-                    // Update system status
-                    const statusDot = document.querySelector('.status-dot');
-                    const statusText = document.querySelector('.status-text');
-                    if (status.systemActive) {
-                        statusDot.classList.add('active');
-                        statusText.textContent = 'Active';
-                        statusText.style.color = 'var(--success)';
-                    } else {
-                        statusDot.classList.remove('active');
-                        statusText.textContent = 'Inactive';
-                        statusText.style.color = 'var(--danger)';
-                    }
-
-                    console.log('AI Prediction status loaded:', status);
+                const dot = document.querySelector('.status-dot');
+                const text = document.querySelector('.status-text');
+                if (dot && text) {
+                    dot.classList.toggle('active', s.systemActive);
+                    text.textContent = s.systemActive ? 'Live' : 'Idle';
+                    text.style.color = s.systemActive ? 'var(--success)' : 'var(--warning)';
+                    text.title = s.systemActive ? '' : 'No evaluation in the last 10 minutes. Is the alert worker running?';
                 }
             } catch (error) {
-                console.error('Error loading prediction status:', error);
-                // Don't show error to user, just log it
+                console.error('Error loading alert engine status:', error);
             }
         }
 
-        function markAllRead() {
-            if (typeof showToast === 'function') {
-                showToast('All alerts marked as read', 'success');
-            } else {
-                alert('All alerts marked as read');
-            }
+        async function markAllRead() {
+            const active = allAlerts.filter(a => a.status === 'active');
+            if (!active.length) return showToast('No unacknowledged alerts', 'info');
+            const results = await Promise.allSettled(active.map(a => updateAlert(a.id, 'acknowledge')));
+            const failed = results.filter(r => r.status === 'rejected').length;
+            showToast(failed ? `${active.length - failed} acknowledged, ${failed} failed` : `${active.length} alert(s) acknowledged`, failed ? 'warning' : 'success');
+            loadAlertsPage();
         }
     </script>
     <div class="toast-container" id="toast-container"></div>
