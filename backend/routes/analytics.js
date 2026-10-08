@@ -7,6 +7,22 @@ const express = require('express');
 const router = express.Router();
 const { getDb, getDbConnected } = require('../database');
 
+// Read stored device readings newer than startTime (flat numbers, see routes/healthData.js)
+async function loadReadings(db, startTime, patientId, max) {
+  const snapshot = await db.ref('healthData')
+    .orderByChild('timestamp').startAt(startTime).limitToLast(max).once('value');
+
+  return Object.values(snapshot.val() || {})
+    .filter(r => !patientId || r.patientId === patientId)
+    .map(r => ({
+      patientId: r.patientId,
+      heartRate: typeof r.heartRate === 'object' ? r.heartRate?.value : r.heartRate,
+      temperature: typeof r.temperature === 'object' ? r.temperature?.value : r.temperature,
+      spo2: typeof r.spo2 === 'object' ? r.spo2?.value : r.spo2,
+      timestamp: r.timestamp
+    }));
+}
+
 // GET /api/analytics/readings - Get historical health readings for analytics
 router.get('/readings', async (req, res) => {
   try {
@@ -40,72 +56,35 @@ router.get('/readings', async (req, res) => {
         groupByHours = 24;
     }
 
-    // Get actual health data from Firestore
-    let query = db.collection('healthData')
-      .where('createdAt', '>=', new Date(startTime))
-      .orderBy('createdAt', 'desc');
+    // Real readings recorded by devices
+    const readings = await loadReadings(db, startTime, patientId, 5000);
+    let isSample = false;
 
-    if (patientId) {
-      query = query.where('patientId', '==', patientId);
-    }
+    // No device history yet: show clearly-labelled sample trends so the charts aren't empty
+    if (readings.length === 0) {
+      isSample = true;
+      const patientsSnap = await db.ref('patients').once('value');
+      const patientsData = patientsSnap.val() || { demo_patient: {} };
 
-    const snapshot = await query.limit(5000).get();
+      Object.keys(patientsData).forEach((pid) => {
+        if (patientId && pid !== patientId) return;
 
-    const readings = [];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      readings.push({
-        id: doc.id,
-        patientId: data.patientId,
-        deviceId: data.deviceId,
-        heartRate: data.heartRate?.value || data.heartRate || null,
-        temperature: data.temperature?.value || data.temperature || null,
-        spo2: data.spo2?.value || data.spo2 || null,
-        bloodPressure: data.bloodPressure,
-        status: data.status,
-        timestamp: data.createdAt?.toDate?.()?.getTime() || data.timestamp,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt
+        const baseHeartRate = 70 + Math.random() * 20;
+        const baseTemp = 36.5 + Math.random() * 0.6;
+        const baseSpo2 = 96 + Math.random() * 3;
+        const dataPoints = range === '7d' ? 168 : range === '30d' ? 30 : 12;
+
+        for (let i = 0; i < dataPoints; i++) {
+          readings.push({
+            patientId: pid,
+            heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 10),
+            temperature: Math.round((baseTemp + (Math.random() - 0.5) * 0.5) * 10) / 10,
+            spo2: Math.min(100, Math.round(baseSpo2 + (Math.random() - 0.5) * 2)),
+            timestamp: startTime + (i * (now - startTime) / dataPoints)
+          });
+        }
       });
-    });
-
-    // Always generate sample readings for demo if no real data
-    console.log(`Found ${readings.length} real readings, generating sample data for demo`);
-
-    // Generate sample data regardless to ensure trends show
-    const patientsSnap = await db.ref('patients').once('value');
-    const patientsData = patientsSnap.val() || {};
-
-    // If no patients data, create default patient
-    if (Object.keys(patientsData).length === 0) {
-      patientsData['demo_patient'] = {
-        name: 'Demo Patient',
-        age: 30,
-        status: 'active'
-      };
     }
-
-    Object.entries(patientsData).forEach(([pid, patient]) => {
-      if (patientId && pid !== patientId) return;
-
-      const baseHeartRate = 70 + Math.random() * 20;
-      const baseTemp = 36.5 + Math.random() * 1;
-      const baseSpo2 = 95 + Math.random() * 4;
-
-      // Generate more data points for better trends
-      const dataPoints = range === '7d' ? 168 : range === '30d' ? 30 : 12; // hourly for 7d, daily for 30d/90d
-
-      for (let i = 0; i < dataPoints; i++) {
-        const timestamp = startTime + (i * (now - startTime) / dataPoints);
-        readings.push({
-          id: `${pid}_sample_${i}`,
-          patientId: pid,
-          heartRate: Math.round(baseHeartRate + (Math.random() - 0.5) * 10),
-          temperature: Math.round((baseTemp + (Math.random() - 0.5) * 0.5) * 10) / 10,
-          spo2: Math.round(baseSpo2 + (Math.random() - 0.5) * 2),
-          timestamp: timestamp
-        });
-      }
-    });
 
     // Group readings by time period
     const groupedData = groupReadingsByTime(readings, groupByHours);
@@ -115,7 +94,8 @@ router.get('/readings', async (req, res) => {
       data: {
         readings: groupedData,
         range,
-        totalReadings: readings.length
+        totalReadings: readings.length,
+        sample: isSample
       }
     });
 
@@ -143,13 +123,13 @@ function groupReadingsByTime(readings, hoursInterval) {
       };
     }
 
-    if (reading.heartRate !== undefined) {
+    if (reading.heartRate != null) {
       groups[groupKey].heartRate.push(reading.heartRate);
     }
-    if (reading.temperature !== undefined) {
+    if (reading.temperature != null) {
       groups[groupKey].temperature.push(reading.temperature);
     }
-    if (reading.spo2 !== undefined) {
+    if (reading.spo2 != null) {
       groups[groupKey].spo2.push(reading.spo2);
     }
     groups[groupKey].count++;
@@ -187,29 +167,15 @@ router.get('/insights', async (req, res) => {
     const { range = '7d', patientId } = req.query;
 
     // Get historical data
-    const now = Date.now();
-    const startTime = now - (7 * 24 * 60 * 60 * 1000); // Default to 7 days
+    const days = { '7d': 7, '30d': 30, '90d': 90 }[range] || 7;
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000;
+    const readings = await loadReadings(db, startTime, patientId, 1000);
 
-    let query = db.collection('healthData')
-      .where('createdAt', '>=', new Date(startTime))
-      .orderBy('createdAt', 'desc');
-
-    if (patientId) {
-      query = query.where('patientId', '==', patientId);
+    // No stored history: fall back to the live device node so insights reflect current vitals
+    if (readings.length === 0) {
+      const live = (await db.ref('health').once('value')).val();
+      if (live) readings.push({ heartRate: live.heartRate, temperature: live.temperature, spo2: live.spo2, timestamp: Date.now() });
     }
-
-    const snapshot = await query.limit(1000).get();
-
-    const readings = [];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      readings.push({
-        heartRate: data.heartRate?.value || data.heartRate,
-        temperature: data.temperature?.value || data.temperature,
-        spo2: data.spo2?.value || data.spo2,
-        timestamp: data.createdAt?.toDate?.()?.getTime() || data.timestamp
-      });
-    });
 
     // Generate AI insights
     const insights = generateAIInsights(readings);

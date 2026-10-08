@@ -3,185 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up - HealthMonitor</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="css/login.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Create account · HealthMonitor</title>
+    <meta name="description" content="Create a HealthMonitor account to monitor patient vitals in real time.">
+    <meta name="theme-color" content="#070b16">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M4 17h6l2-5 4 10 3-7 2 2h7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/auth.css">
 
-    <!-- Firebase SDK (Official Google CDN) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="js/session.js"></script>
 </head>
-<body class="login-page signup-page">
-    <!-- Background Effects -->
-    <div class="login-background">
-        <div class="gradient-orb orb-1"></div>
-        <div class="gradient-orb orb-2"></div>
-        <div class="grid-overlay"></div>
-    </div>
+<body class="auth-page">
+    <div class="auth-shell">
 
-    <!-- Back to Home -->
-    <a href="index.html" class="back-link">
-        <i class="fas fa-arrow-left"></i>
-        <span>Back to Home</span>
-    </a>
+        <!-- Showcase -->
+        <aside class="showcase" aria-hidden="true">
+            <a href="index.html" class="brand" tabindex="-1">
+                <span class="brand-mark"><i class="fas fa-heart-pulse"></i></span>
+                HealthMonitor
+            </a>
 
-    <!-- Signup Container -->
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <a href="index.html" class="login-logo">
-                    <i class="fas fa-heartbeat heartbeat-icon"></i>
-                    <span>HealthMonitor</span>
-                </a>
-                <h1>Create Account</h1>
-                <p>Sign up to start monitoring your health</p>
+            <div class="showcase-copy">
+                <span class="eyebrow"><span class="live-dot"></span> Live patient monitoring</span>
+                <h1>Set up monitoring<br><span class="grad">in under a minute.</span></h1>
+                <p class="lead">Create your account, pair an ESP32 sensor, and watch vitals arrive live. Dr. AI flags risk early so your team can act sooner.</p>
             </div>
 
-            <form class="login-form" id="signupForm" onsubmit="handleSignup(event)">
-                <div class="form-group reveal-scroll">
-                    <label for="name">
-                        <i class="fas fa-user"></i>
-                        Full Name
-                    </label>
-                    <div class="input-wrapper">
-                        <input type="text" id="name" placeholder="Enter your full name" required>
-                        <span class="input-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </span>
+            <div class="monitor">
+                <div class="monitor-head">
+                    <span class="patient"><span class="avatar">YJ</span> Bed 04 · ICU-East</span>
+                    <span class="status-pill"><span class="live-dot"></span> Stable</span>
+                </div>
+                <div class="ecg-wrap">
+                    <span class="ecg-label">ECG · LEAD II</span>
+                    <canvas id="ecg"></canvas>
+                </div>
+                <div class="vitals">
+                    <div class="vital hr">
+                        <div class="vital-label"><i class="fas fa-heart"></i> Heart rate</div>
+                        <div class="vital-value"><span id="v-hr">72</span><small>bpm</small></div>
+                    </div>
+                    <div class="vital spo2">
+                        <div class="vital-label"><i class="fas fa-lungs"></i> SpO₂</div>
+                        <div class="vital-value"><span id="v-spo2">98</span><small>%</small></div>
+                    </div>
+                    <div class="vital temp">
+                        <div class="vital-label"><i class="fas fa-temperature-half"></i> Temp</div>
+                        <div class="vital-value"><span id="v-temp">36.7</span><small>°C</small></div>
                     </div>
                 </div>
+            </div>
 
-                <div class="form-group reveal-scroll" data-delay="100">
-                    <label for="email">
-                        <i class="fas fa-envelope"></i>
-                        Email Address
-                    </label>
-                    <div class="input-wrapper">
-                        <input type="email" id="email" placeholder="Enter your email" required>
-                        <span class="input-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </span>
-                    </div>
+            <ul class="trust">
+                <li><i class="fas fa-shield-halved"></i> Encrypted sessions</li>
+                <li><i class="fas fa-bell"></i> Instant risk alerts</li>
+                <li><i class="fas fa-robot"></i> Dr. AI insights</li>
+            </ul>
+        </aside>
+
+        <!-- Form -->
+        <main class="form-side">
+            <div class="form-top">
+                <a href="index.html" class="brand">
+                    <span class="brand-mark"><i class="fas fa-heart-pulse" aria-hidden="true"></i></span>
+                    HealthMonitor
+                </a>
+                <a href="index.html" class="back-home"><i class="fas fa-arrow-left" aria-hidden="true"></i> Home</a>
+            </div>
+
+            <div class="auth-card">
+                <h2>Create your account</h2>
+                <p class="sub">Free to start. No credit card required.</p>
+
+                <div id="form-alert" class="form-alert" role="alert" aria-live="assertive"></div>
+
+                <div class="social">
+                    <button type="button" class="btn-social" data-provider="google">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Google
+                    </button>
+                    <button type="button" class="btn-social" data-provider="github">
+                        <i class="fab fa-github" aria-hidden="true" style="font-size:18px"></i>
+                        GitHub
+                    </button>
                 </div>
 
-                <div class="form-group reveal-scroll" data-delay="200">
-                    <label for="phone">
-                        <i class="fas fa-phone"></i>
-                        Phone Number
-                    </label>
-                    <div class="input-wrapper">
-                        <input type="tel" id="phone" placeholder="Enter your phone number" required>
-                        <span class="input-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </span>
-                    </div>
-                </div>
+                <div class="divider">or with email</div>
 
-                <div class="form-group reveal-scroll" data-delay="300">
-                    <label for="password">
-                        <i class="fas fa-lock"></i>
-                        Password
-                    </label>
-                    <div class="input-wrapper">
-                        <input type="password" id="password" placeholder="Create a password" required minlength="6">
-                        <span class="input-icon toggle-password" onclick="togglePassword('password')">
-                            <i class="fas fa-eye"></i>
-                        </span>
+                <form id="signup-form" novalidate>
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="firstName">First name</label>
+                            <div class="control">
+                                <input type="text" id="firstName" name="firstName" autocomplete="given-name"
+                                       placeholder="Ada" required maxlength="50" aria-describedby="firstName-msg">
+                                <i class="fas fa-user lead-icon" aria-hidden="true"></i>
+                            </div>
+                            <div class="field-msg" id="firstName-msg"></div>
+                        </div>
+                        <div class="field">
+                            <label for="lastName">Last name</label>
+                            <div class="control">
+                                <input type="text" id="lastName" name="lastName" autocomplete="family-name"
+                                       placeholder="Lovelace" maxlength="50" aria-describedby="lastName-msg">
+                                <i class="fas fa-user lead-icon" aria-hidden="true"></i>
+                            </div>
+                            <div class="field-msg" id="lastName-msg"></div>
+                        </div>
                     </div>
-                    <small class="input-hint">Must be at least 6 characters</small>
-                </div>
 
-                <div class="form-group reveal-scroll" data-delay="400">
-                    <label for="confirm-password">
-                        <i class="fas fa-lock"></i>
-                        Confirm Password
-                    </label>
-                    <div class="input-wrapper">
-                        <input type="password" id="confirm-password" placeholder="Confirm your password" required>
-                        <span class="input-icon toggle-password" onclick="togglePassword('confirm-password')">
-                            <i class="fas fa-eye"></i>
-                        </span>
+                    <div class="field">
+                        <label for="email">Work email</label>
+                        <div class="control">
+                            <input type="email" id="email" name="email" autocomplete="email" inputmode="email"
+                                   placeholder="you@hospital.org" required aria-describedby="email-msg">
+                            <i class="fas fa-envelope lead-icon" aria-hidden="true"></i>
+                        </div>
+                        <div class="field-msg" id="email-msg"></div>
                     </div>
-                </div>
 
-                <div class="form-options reveal-scroll" data-delay="500">
-                    <label class="checkbox-wrapper">
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <div class="control">
+                            <input type="password" id="password" name="password" autocomplete="new-password"
+                                   placeholder="At least 8 characters" required minlength="8"
+                                   aria-describedby="password-msg password-caps password-strength">
+                            <i class="fas fa-lock lead-icon" aria-hidden="true"></i>
+                            <button type="button" class="toggle-visibility" data-target="password" aria-label="Show password" aria-pressed="false">
+                                <i class="fas fa-eye" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                        <div class="caps-warning" id="password-caps"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> Caps Lock is on</div>
+                        <div class="strength" id="password-strength" data-score="0">
+                            <div class="strength-bars" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                            <div class="strength-text" id="strength-text" aria-live="polite">Use 8+ characters with a mix of letters, numbers and symbols.</div>
+                            <ul class="checks">
+                                <li data-rule="length"><i class="fas fa-circle" aria-hidden="true"></i> 8+ characters</li>
+                                <li data-rule="case"><i class="fas fa-circle" aria-hidden="true"></i> Upper &amp; lowercase</li>
+                                <li data-rule="number"><i class="fas fa-circle" aria-hidden="true"></i> A number</li>
+                                <li data-rule="symbol"><i class="fas fa-circle" aria-hidden="true"></i> A symbol</li>
+                            </ul>
+                        </div>
+                        <div class="field-msg" id="password-msg"></div>
+                    </div>
+
+                    <label class="check">
                         <input type="checkbox" id="terms" required>
-                        <span class="checkmark"></span>
-                        <span class="label-text">I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></span>
+                        <span>I agree to the Terms of Service and Privacy Policy, and understand HealthMonitor does not replace professional medical advice.</span>
                     </label>
-                </div>
 
-                <button type="submit" class="btn btn-primary btn-block login-btn reveal-scroll" data-delay="600">
-                    <span class="btn-text">Create Account</span>
-                    <span class="btn-loader">
-                        <i class="fas fa-spinner fa-spin"></i>
-                    </span>
+                    <button type="submit" class="btn-primary" id="submit-btn">
+                        <span class="label">Create account</span>
+                        <span class="spinner" aria-hidden="true"></span>
+                    </button>
+                </form>
+
+                <button type="button" class="btn-ghost" id="demo-btn">
+                    <i class="fas fa-play" aria-hidden="true"></i> Explore the live demo
                 </button>
 
-                <div class="divider reveal-scroll" data-delay="700">
-                    <span>or continue with</span>
-                </div>
-
-                <div class="social-login reveal-scroll" data-delay="800">
-                    <button type="button" class="social-btn google" onclick="socialSignup('google')">
-                        <i class="fab fa-google"></i>
-                    </button>
-                    <button type="button" class="social-btn github" onclick="socialSignup('github')">
-                        <i class="fab fa-github"></i>
-                    </button>
-                    <button type="button" class="social-btn microsoft" onclick="socialSignup('microsoft')">
-                        <i class="fab fa-microsoft"></i>
-                    </button>
-                </div>
-            </form>
-
-            <div class="login-footer reveal-scroll" data-delay="900">
-                <p>Already have an account? <a href="login.html">Sign in</a></p>
+                <p class="switch">Already have an account? <a href="login.html">Sign in</a></p>
             </div>
-        </div>
-
-        <!-- Benefits Preview -->
-        <div class="dashboard-preview signup-preview">
-            <div class="preview-header">
-                <h3>Join HealthMonitor Today</h3>
-            </div>
-            <div class="preview-content">
-                <div class="benefit-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Real-time health monitoring</span>
-                </div>
-                <div class="benefit-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span>AI-powered health predictions</span>
-                </div>
-                <div class="benefit-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Instant alerts & notifications</span>
-                </div>
-                <div class="benefit-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Secure cloud storage</span>
-                </div>
-                <div class="signup-bonus">
-                    <span class="bonus-label">New User Bonus</span>
-                    <span class="bonus-value">Free 30-day premium trial</span>
-                </div>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
-        <i class="toast-icon"></i>
-        <span class="toast-message"></span>
-    </div>
-
+    <!-- Firebase is only used to verify Google / GitHub sign-in -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="js/auth.js"></script>
+    <script src="js/auth-ui.js"></script>
     <script src="js/signup.js"></script>
 </body>
 </html>

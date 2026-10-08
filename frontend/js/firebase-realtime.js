@@ -71,7 +71,7 @@ function setupRealtimeListeners() {
 
   // Health data listener
   realtimeListeners.health = database.ref('health').on('value', (snapshot) => {
-    const data = snapshot.val();
+    const data = snapshot && snapshot.val();
     if (data) {
       console.log('💓 Health data updated:', data);
       updateHealthDisplays(data);
@@ -82,7 +82,7 @@ function setupRealtimeListeners() {
 
   // Patients data listener
   realtimeListeners.patients = database.ref('patients').on('value', (snapshot) => {
-    const data = snapshot.val();
+    const data = snapshot && snapshot.val();
     if (data) {
       console.log('👥 Patients data updated:', Object.keys(data).length, 'patients');
       updatePatientsList(data);
@@ -92,7 +92,7 @@ function setupRealtimeListeners() {
 
   // Alerts listener
   realtimeListeners.alerts = database.ref('alerts').on('value', (snapshot) => {
-    const data = snapshot.val();
+    const data = snapshot && snapshot.val();
     if (data) {
       console.log('🚨 Alerts updated:', Object.keys(data).length, 'alerts');
       updateAlertsList(data);
@@ -102,7 +102,7 @@ function setupRealtimeListeners() {
 
   // Device status listener
   realtimeListeners.devices = database.ref('devices').on('value', (snapshot) => {
-    const data = snapshot.val();
+    const data = snapshot && snapshot.val();
     if (data) {
       console.log('🔧 Devices updated:', Object.keys(data).length, 'devices');
       updateDevicesList(data);

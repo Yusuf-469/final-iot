@@ -1,351 +1,126 @@
 /**
- * Signup Page JavaScript
- * Handles signup functionality and validation
+ * Sign-up page
+ * Creates an account via POST /api/auth/signup and signs the user straight in.
+ * Shared helpers (alerts, loading state, social sign-in, demo) come from js/auth-ui.js.
  */
+(function () {
+    const ui = window.authUI;
+    if (!ui) return; // auth-ui.js is redirecting an already signed-in user
 
-// DOM Elements
-const signupForm = document.getElementById('signupForm');
-const nameInput = document.getElementById('name');
-const emailInput = document.getElementById('email');
-const phoneInput = document.getElementById('phone');
-const passwordInput = document.getElementById('password');
-const confirmPasswordInput = document.getElementById('confirm-password');
+    const form = document.getElementById('signup-form');
+    const firstName = document.getElementById('firstName');
+    const lastName = document.getElementById('lastName');
+    const email = document.getElementById('email');
+    const password = document.getElementById('password');
+    const terms = document.getElementById('terms');
+    const submit = document.getElementById('submit-btn');
+    const strength = document.getElementById('password-strength');
+    const strengthText = document.getElementById('strength-text');
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initScrollReveal();
-    initInputValidation();
-    checkAuthStatus();
-});
+    const RULES = {
+        length: (p) => p.length >= 8,
+        case: (p) => /[a-z]/.test(p) && /[A-Z]/.test(p),
+        number: (p) => /\d/.test(p),
+        symbol: (p) => /[^A-Za-z0-9]/.test(p)
+    };
+    const LABELS = ['', 'Weak', 'Fair', 'Good', 'Strong'];
 
-/**
- * Initialize scroll reveal animations
- */
-function initScrollReveal() {
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-            }
+    firstName.focus();
+
+    function scorePassword(p) {
+        const passed = Object.keys(RULES).filter(rule => RULES[rule](p));
+        strength.querySelectorAll('[data-rule]').forEach(li => {
+            const ok = passed.includes(li.dataset.rule);
+            li.classList.toggle('ok', ok);
+            li.querySelector('i').className = 'fas ' + (ok ? 'fa-check' : 'fa-circle');
         });
-    }, { threshold: 0.1 });
 
-    document.querySelectorAll('.reveal-scroll').forEach(el => {
-        observer.observe(el);
+        let score = p ? passed.length : 0;
+        if (!RULES.length(p)) score = Math.min(score, 1);
+        if (p.length >= 14 && score >= 3) score = 4;
+
+        strength.dataset.score = String(score);
+        strengthText.textContent = p
+            ? `Password strength: ${LABELS[score] || 'Weak'}`
+            : 'Use 8+ characters with a mix of letters, numbers and symbols.';
+        return { score, passed };
+    }
+
+    function validate() {
+        const errors = [];
+        const check = (input, message) => {
+            ui.setFieldError(input, message);
+            if (message) errors.push(input);
+        };
+
+        check(firstName, firstName.value.trim() ? '' : 'Enter your first name.');
+
+        const e = email.value.trim();
+        check(email, !e ? 'Enter your email address.' : (!ui.EMAIL_RE.test(e) ? 'That doesn\'t look like a valid email.' : ''));
+
+        const { score } = scorePassword(password.value);
+        let pwMsg = '';
+        if (!password.value) pwMsg = 'Choose a password.';
+        else if (!RULES.length(password.value)) pwMsg = 'Use at least 8 characters.';
+        else if (score < 2) pwMsg = 'Add a number, symbol, or mixed case to make it stronger.';
+        check(password, pwMsg);
+
+        if (!terms.checked && !errors.length) {
+            ui.showAlert('Please accept the terms to continue.');
+            errors.push(terms);
+        }
+        return errors;
+    }
+
+    password.addEventListener('input', () => scorePassword(password.value));
+    email.addEventListener('blur', () => {
+        const e = email.value.trim();
+        if (e) ui.setFieldError(email, ui.EMAIL_RE.test(e) ? '' : 'That doesn\'t look like a valid email.');
     });
-}
+    [firstName, lastName, email, password].forEach(input => input.addEventListener('input', () => {
+        if (input.closest('.field').classList.contains('invalid')) ui.setFieldError(input, '');
+        ui.hideAlert();
+    }));
+    terms.addEventListener('change', ui.hideAlert);
 
-/**
- * Initialize input validation
- */
-function initInputValidation() {
-    nameInput.addEventListener('input', () => validateField(nameInput, nameInput.value.length >= 2));
-    emailInput.addEventListener('input', () => validateEmailField(emailInput));
-    phoneInput.addEventListener('input', () => validatePhoneField(phoneInput));
-    passwordInput.addEventListener('input', () => validatePasswordField(passwordInput));
-    confirmPasswordInput.addEventListener('input', () => validateConfirmPassword());
-}
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        ui.hideAlert();
 
-/**
- * Validate email field
- */
-function validateEmailField(input) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const icon = input.parentElement.querySelector('.input-icon');
-    const isValid = emailRegex.test(input.value);
-    
-    if (input.value && isValid) {
-        icon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i>';
-        return true;
-    } else if (input.value) {
-        icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--warning);"></i>';
-        return false;
-    } else {
-        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
-        return false;
-    }
-}
-
-/**
- * Validate phone field
- */
-function validatePhoneField(input) {
-    const phoneRegex = /^[0-9]{10,15}$/;
-    const icon = input.parentElement.querySelector('.input-icon');
-    const isValid = phoneRegex.test(input.value.replace(/\D/g, ''));
-    
-    if (input.value && isValid) {
-        icon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i>';
-        return true;
-    } else if (input.value) {
-        icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--warning);"></i>';
-        return false;
-    } else {
-        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
-        return false;
-    }
-}
-
-/**
- * Validate password field
- */
-function validatePasswordField(input) {
-    const icon = input.parentElement.querySelector('.input-icon');
-    const isValid = input.value.length >= 6;
-    
-    if (input.value && isValid) {
-        icon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i>';
-        return true;
-    } else if (input.value) {
-        icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--warning);"></i>';
-        return false;
-    } else {
-        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
-        return false;
-    }
-}
-
-/**
- * Validate confirm password
- */
-function validateConfirmPassword() {
-    const icon = confirmPasswordInput.parentElement.querySelector('.input-icon');
-    const isValid = confirmPasswordInput.value === passwordInput.value && confirmPasswordInput.value.length >= 6;
-    
-    if (confirmPasswordInput.value) {
-        if (isValid) {
-            icon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i>';
-            return true;
-        } else {
-            icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--danger);"></i>';
-            return false;
-        }
-    } else {
-        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
-        return false;
-    }
-}
-
-/**
- * Generic field validation
- */
-function validateField(input, isValid) {
-    const icon = input.parentElement.querySelector('.input-icon');
-    
-    if (input.value && isValid) {
-        icon.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i>';
-        return true;
-    } else if (input.value) {
-        icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color: var(--warning);"></i>';
-        return false;
-    } else {
-        icon.innerHTML = '<i class="fas fa-check-circle"></i>';
-        return false;
-    }
-}
-
-/**
- * Toggle password visibility
- */
-function togglePassword(inputId) {
-    const input = document.getElementById(inputId);
-    const icon = input.parentElement.querySelector('.toggle-password i');
-    
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-    } else {
-        input.type = 'password';
-        icon.classList.remove('fa-eye-slash');
-        icon.classList.add('fa-eye');
-    }
-}
-
-/**
- * Handle signup form submission
- */
-async function handleSignup(event) {
-    event.preventDefault();
-    
-    const name = nameInput.value.trim();
-    const email = emailInput.value.trim();
-    const phone = phoneInput.value.trim();
-    const password = passwordInput.value;
-    const confirmPassword = confirmPasswordInput.value;
-    const terms = document.getElementById('terms').checked;
-    
-    // Validate all fields
-    const isEmailValid = validateEmailField(emailInput);
-    const isPhoneValid = validatePhoneField(phoneInput);
-    const isPasswordValid = password.length >= 6;
-    const isConfirmValid = confirmPassword === password && confirmPassword.length >= 6;
-    
-    if (!name || name.length < 2) {
-        showToast('Please enter your full name', 'error');
-        return;
-    }
-    
-    if (!isEmailValid) {
-        showToast('Please enter a valid email address', 'error');
-        return;
-    }
-    
-    if (!isPhoneValid) {
-        showToast('Please enter a valid phone number', 'error');
-        return;
-    }
-    
-    if (!isPasswordValid) {
-        showToast('Password must be at least 6 characters', 'error');
-        return;
-    }
-    
-    if (!isConfirmValid) {
-        showToast('Passwords do not match', 'error');
-        return;
-    }
-    
-    if (!terms) {
-        showToast('Please accept the Terms of Service', 'error');
-        return;
-    }
-    
-    // Show loading state
-    const submitBtn = signupForm.querySelector('.login-btn');
-    submitBtn.classList.add('loading');
-    submitBtn.disabled = true;
-    
-    try {
-        // Register with backend API
-        const response = await fetch('/api/auth/signup', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-                email, 
-                password,
-                firstName: name.split(' ')[0],
-                lastName: name.split(' ').slice(1).join(' ') || 'User'
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Registration failed');
-        }
-        
-        // Store auth state
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('userEmail', data.user.email);
-        localStorage.setItem('userName', `${data.user.firstName} ${data.user.lastName}`);
-        localStorage.setItem('userRole', data.user.role);
-        
-        showToast('Account created successfully!', 'success');
-        
-        // Redirect to dashboard
-        setTimeout(() => {
-            window.location.href = 'dashboard.html';
-        }, 1500);
-    } catch (error) {
-        console.error('Signup error:', error);
-        let errorMessage = 'Registration failed';
-        if (error.message.includes('Email already registered') || error.message.includes('already registered')) {
-            errorMessage = 'Email already registered';
-        } else if (error.message.includes('Password must be at least 8 characters')) {
-            errorMessage = 'Password must be at least 8 characters';
-        } else if (error.message.includes('Invalid email')) {
-            errorMessage = 'Invalid email address';
-        }
-        showToast(errorMessage, 'error');
-        submitBtn.classList.remove('loading');
-        submitBtn.disabled = false;
-    }
-}
-
-/**
- * Handle social signup
- */
-async function socialSignup(provider) {
-    showToast(`Creating account with ${provider}...`, 'info');
-    
-    try {
-        let user;
-        if (provider === 'google') {
-            user = await window.auth.signInWithGoogle();
-        } else if (provider === 'github') {
-            user = await window.auth.signInWithGitHub();
-        } else if (provider === 'microsoft') {
-            user = await window.auth.signInWithMicrosoft();
-        } else {
-            showToast('Unsupported provider', 'error');
+        const errors = validate();
+        if (errors.length) {
+            errors[0].focus();
             return;
         }
-        
-        // Update profile with name if not set
-        if (!user.displayName) {
-            await user.updateProfile({
-                displayName: `${provider} User`
+
+        ui.setLoading(submit, true);
+        try {
+            const data = await ui.postJSON('/api/auth/signup', {
+                firstName: firstName.value.trim(),
+                lastName: lastName.value.trim(),
+                email: email.value.trim(),
+                password: password.value
             });
+            window.session.save(data.token, data.user);
+            try { localStorage.setItem('lastEmail', data.user.email); } catch (e) { /* storage blocked */ }
+            ui.showAlert(`Welcome, ${data.user.firstName}! Setting up your dashboard…`, 'success');
+            ui.enterApp(submit);
+        } catch (error) {
+            ui.setLoading(submit, false);
+            if (error.status === 409) {
+                ui.setFieldError(email, 'An account with this email already exists.');
+                ui.showAlert('That email is already registered. Sign in instead?', 'info');
+                const alert = document.getElementById('form-alert');
+                const link = document.createElement('a');
+                link.href = 'login.html';
+                link.textContent = ' Go to sign in →';
+                link.style.marginLeft = '4px';
+                link.style.fontWeight = '600';
+                alert.querySelector('span').appendChild(link);
+                email.focus();
+            } else {
+                ui.showAlert(error.message);
+            }
         }
-        
-        // Get ID token for API calls
-        const idToken = await user.getIdToken();
-        
-        // Store auth state
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('authToken', idToken);
-        localStorage.setItem('userEmail', user.email);
-        localStorage.setItem('userName', user.displayName || `${provider} User`);
-        localStorage.setItem('userRole', 'viewer'); // Default role
-        
-        showToast('Account created successfully!', 'success');
-        
-        setTimeout(() => {
-            window.location.href = 'dashboard.html';
-        }, 1500);
-    } catch (error) {
-        console.error('Social signup error:', error);
-        showToast('Social signup failed. Please try again.', 'error');
-    }
-}
-
-/**
- * Check if user is already logged in
- */
-function checkAuthStatus() {
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    
-    if (isLoggedIn) {
-        window.location.href = 'dashboard.html';
-    }
-}
-
-/**
- * Show toast notification
- */
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    const icons = {
-        success: 'fa-check-circle',
-        error: 'fa-times-circle',
-        warning: 'fa-exclamation-triangle',
-        info: 'fa-info-circle'
-    };
-    
-    toast.querySelector('.toast-icon').className = `toast-icon fas ${icons[type] || icons.info}`;
-    toast.querySelector('.toast-message').textContent = message;
-    toast.className = `toast ${type} show`;
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 4000);
-}
-
-// Expose functions globally
-window.handleSignup = handleSignup;
-window.togglePassword = togglePassword;
-window.socialSignup = socialSignup;
+    });
+})();

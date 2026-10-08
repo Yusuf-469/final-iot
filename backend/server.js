@@ -1,209 +1,160 @@
 /**
  * Medical IoT Backend Server
- * Main Express application entry point
+ * Main Express application entry point (runs standalone or as a Vercel serverless function)
  */
 
 // Load environment variables early
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-// Express setup
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const http = require('http');
 
-// Database (now Firebase) - imported later to avoid startup crashes
-const { getDbConnected } = require('./database');
+const { getDb, getDbConnected } = require('./database');
+const { requireAuth, requireUserOrDevice } = require('./middleware/auth');
 
-// Logger
-const logger = require('./utils/logger');
-
-// Create Express app
 const app = express();
 const server = http.createServer(app);
+const FRONTEND_DIR = path.join(__dirname, '../frontend');
 
-  // ============================================
-  // MIDDLEWARE SETUP
-  // ============================================
+// ============================================
+// MIDDLEWARE SETUP
+// ============================================
 
-  // CORS configuration
-  app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    credentials: true
-  }));
+// Behind Vercel / Railway proxies: needed for correct client IPs in rate limiting
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-  // Body parsing middleware
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true }));
+// Security headers. CSP is off because pages use inline scripts and CDN libraries.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' } // required for Google/GitHub sign-in popups
+}));
 
-// Request logging (simple)
+app.use(cors({
+  origin: process.env.FRONTEND_URL || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Device-Key'],
+  credentials: true
+}));
+
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// General API rate limit: 300 requests / minute / IP
+app.use('/api/', rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests. Please slow down.' }
+}));
+
+// Request logging
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
-    const duration = Date.now() - start;
-    if (req.path !== '/health' && req.path !== '/ready' && req.path !== '/ping') {
-      console.log(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+    if (req.path.startsWith('/api')) {
+      console.log(`${req.method} ${req.originalUrl.split('?')[0]} ${res.statusCode} ${Date.now() - start}ms`);
     }
   });
   next();
 });
 
-// Error handling will be at the end of the file
-
 // ============================================
-// STATIC FILES (for frontend in production)
+// STATIC FILES
 // ============================================
 
-// Serve static files from frontend directory
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(FRONTEND_DIR, { extensions: ['html'] }));
 
 // ============================================
-// API ROUTES
+// PUBLIC ENDPOINTS
 // ============================================
 
-// Health check endpoints - ALWAYS return 200 for Railway
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    database: getDbConnected() ? 'connected' : 'disconnected',
-    memory: process.memoryUsage()
+    database: getDbConnected() ? 'connected' : 'disconnected'
   });
 });
 
-app.get('/ready', (req, res) => {
-  res.status(200).json({
-    ready: true,
-    service: 'ready'
-  });
-});
+app.get('/ready', (req, res) => res.status(200).json({ ready: true, service: 'ready' }));
 
-// Keep-alive ping endpoint (for uptime monitors)
 app.get('/ping', (req, res) => {
-  res.status(200).json({
-    pong: true,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+  res.status(200).json({ pong: true, timestamp: new Date().toISOString(), uptime: process.uptime() });
+});
+
+// Public Firebase web config (database URL / project id are not secrets)
+app.get('/api/config/firebase', (req, res) => {
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'iothealth-2335a';
+  res.json({
+    success: true,
+    data: {
+      databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${projectId}-default-rtdb.firebaseio.com`,
+      projectId,
+      authDomain: `${projectId}.firebaseapp.com`
+    }
   });
 });
 
-// Direct health data from Firebase RTDB
-app.get('/api/health', async (req, res) => {
-  try {
-    const { db, getDbConnected } = require('./database');
-    if (!db || !getDbConnected()) {
-      return res.status(200).json({ health: null, timestamp: new Date().toISOString() });
-    }
-    const snapshot = await db.ref('health').once('value');
-    const healthData = snapshot.val();
-    res.json({
-      health: healthData,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Health API error:', error);
-    res.status(200).json({ health: null, error: 'unavailable', timestamp: new Date().toISOString() });
-  }
-});
-
-// Firebase config endpoint
-app.get('/api/config/firebase', (req, res) => {
-  console.log('GET /api/config/firebase called');
-  try {
-    const config = {
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://iothealth-2335a-default-rtdb.firebaseio.com',
-      projectId: process.env.FIREBASE_PROJECT_ID || 'iothealth-2335a',
-      authDomain: process.env.FIREBASE_PROJECT_ID ? `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com` : 'iothealth-2335a.firebaseapp.com'
-    };
-
-    console.log('Returning Firebase config');
-    res.json({
-      success: true,
-      data: config
-    });
-  } catch (error) {
-    console.error('Firebase config error:', error);
-    res.status(500).json({ success: false, error: 'Config unavailable' });
-  }
-});
-
-// API Info
 app.get('/api', (req, res) => {
   res.json({
     name: 'Medical IoT API',
-    version: '1.0.0',
+    version: '2.0.0',
     status: 'operational',
     endpoints: {
       auth: '/api/auth',
       patients: '/api/patients',
       healthData: '/api/health-data',
       alerts: '/api/alerts',
-      devices: '/api/devices'
+      devices: '/api/devices',
+      analytics: '/api/analytics',
+      chat: '/api/chat'
     }
   });
 });
 
-// Test route for debugging body parsing
-app.post('/api/test-body', (req, res) => {
-  console.log('Request body:', req.body);
-  console.log('Request headers:', req.headers);
-  console.log('Raw body (if available):', req._rawBody || 'Not available');
-  res.json({ received: req.body, headers: req.headers });
-});
-
-// Mount routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/patients', require('./routes/patients'));
-app.use('/api/health-data', require('./routes/healthData'));
-app.use('/api/alerts', require('./routes/alerts'));
-app.use('/api/devices', require('./routes/devices'));
-app.use('/api/analytics', require('./routes/analytics'));
 
-// Legacy routes (redirect)
-app.use('/api/login', require('./routes/auth'));
-app.use('/api/signup', require('./routes/auth'));
+// ============================================
+// PROTECTED ENDPOINTS
+// ============================================
 
-// Chat endpoint
-app.post('/api/chat', async (req, res) => {
+// Reads need a logged-in user; ESP32 devices may write readings, heartbeats and alerts.
+const userReadsDeviceWrites = (req, res, next) =>
+  (req.method === 'GET' ? requireAuth : requireUserOrDevice)(req, res, next);
+
+const devicesAuth = (req, res, next) =>
+  (req.method === 'POST' && req.path === '/heartbeat' ? requireUserOrDevice : requireAuth)(req, res, next);
+
+// Live device node
+app.get('/api/health', requireAuth, async (req, res) => {
   try {
-    const { message } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    // Simple AI response logic - replace with actual AI integration
-    let response = 'I\'m sorry, I\'m still learning. Can you rephrase your question?';
-
-    // Basic keyword matching for demo
-    const lowerMessage = message.toLowerCase();
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
-      response = 'Hello! How can I help you with your health data today?';
-    } else if (lowerMessage.includes('status') || lowerMessage.includes('health')) {
-      response = 'Based on your recent readings, your overall health status looks good. Your heart rate is within normal range, and your temperature is stable. Is there anything specific you\'d like to know about?';
-    } else if (lowerMessage.includes('alert') || lowerMessage.includes('concern')) {
-      response = 'I don\'t see any concerning readings in your recent data. All your vital signs are within normal parameters. If you notice any symptoms, please let me know!';
-    } else if (lowerMessage.includes('trend') || lowerMessage.includes('history')) {
-      response = 'Your health trends show consistent patterns. Your heart rate has been stable around 72-78 BPM, and your temperature readings are normal. Would you like me to show you a detailed chart?';
-    } else if (lowerMessage.includes('recommend') || lowerMessage.includes('advice')) {
-      response = 'Based on your data, I recommend maintaining your current healthy lifestyle. Stay hydrated, get regular exercise, and continue monitoring your health metrics. Do you have any specific concerns?';
-    }
-
-    res.json({ response });
+    const db = getDb();
+    if (!db) return res.status(200).json({ health: null, timestamp: new Date().toISOString() });
+    const snapshot = await db.ref('health').once('value');
+    res.json({ health: snapshot.val(), timestamp: new Date().toISOString() });
   } catch (error) {
-    console.error('Chat error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Health API error:', error.message);
+    res.status(503).json({ health: null, error: 'unavailable', timestamp: new Date().toISOString() });
   }
 });
 
-// ============================================
-// DEBUG ROUTES (for testing)
-// ============================================
+app.use('/api/patients', requireAuth, require('./routes/patients'));
+app.use('/api/health-data', userReadsDeviceWrites, require('./routes/healthData'));
+app.use('/api/alerts', userReadsDeviceWrites, require('./routes/alerts'));
+app.use('/api/devices', devicesAuth, require('./routes/devices'));
+app.use('/api/analytics', requireAuth, require('./routes/analytics'));
+app.use('/api/chat', requireAuth, require('./routes/chat'));
 
-// Test environment variables
-app.get('/api/test-env', (req, res) => {
+// Diagnostics (signed-in users only)
+app.get('/api/test-env', requireAuth, (req, res) => {
   res.json({
     success: true,
     environment: {
@@ -211,179 +162,99 @@ app.get('/api/test-env', (req, res) => {
       VERCEL_ENV: process.env.VERCEL_ENV,
       FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET',
       FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET',
-      FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'SET (length: ' + process.env.FIREBASE_PRIVATE_KEY.length + ')' : 'NOT SET',
+      FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'NOT SET',
       FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL ? 'SET' : 'NOT SET',
+      JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT SET',
       OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? 'SET' : 'NOT SET'
     },
     timestamp: new Date().toISOString()
   });
 });
 
-// Test Firebase connection
-app.get('/api/test-firebase', async (req, res) => {
+app.get('/api/test-firebase', requireAuth, async (req, res) => {
   try {
-    const { getDb, getDbConnected } = require('./database');
     const db = getDb();
-
-    if (!getDbConnected()) {
-      return res.status(503).json({ error: 'Database not connected' });
-    }
-
-    // Test reading from patients
+    if (!db) return res.status(503).json({ success: false, error: 'Database not connected' });
     const patientsSnap = await db.ref('patients').once('value');
-    const patientsData = patientsSnap.val() || {};
-
-    // Test reading from health
     const healthSnap = await db.ref('health').once('value');
-    const healthData = healthSnap.val() || {};
-
     res.json({
       success: true,
       message: 'Firebase connection successful',
       data: {
-        patientsCount: Object.keys(patientsData).length,
-        healthData: !!healthData,
+        patientsCount: Object.keys(patientsSnap.val() || {}).length,
+        healthData: healthSnap.exists(),
         dbConnected: getDbConnected()
       }
     });
-
   } catch (error) {
-    console.error('Firebase test error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Firebase connection failed',
-      details: error.message
-    });
+    console.error('Firebase test error:', error.message);
+    res.status(500).json({ success: false, error: 'Firebase connection failed' });
   }
 });
 
+// Unknown API routes
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ success: false, error: 'API endpoint not found' });
+});
+
 // ============================================
-// FRONTEND ROUTES (SPA support)
+// FRONTEND ROUTES (clean URLs)
 // ============================================
 
-  // Serve index.html for all non-API routes (SPA)
-  app.get('*', (req, res) => {
-    // Only serve HTML for non-API routes
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/health') && !req.path.startsWith('/ready') && !req.path.startsWith('/ping')) {
-      // Serve appropriate HTML based on path
-      let filePath = path.join(__dirname, '../frontend');
+const PAGES = ['dashboard', 'patients', 'alerts', 'devices', 'analytics', 'settings', 'login', 'signup', 'dr-ai'];
 
-      if (req.path === '/' || req.path === '/index' || req.path === '/index.html') {
-        filePath = path.join(filePath, 'index.html');
-      } else if (req.path.startsWith('/dashboard')) {
-        filePath = path.join(filePath, 'dashboard.html');
-      } else if (req.path.startsWith('/patients')) {
-        filePath = path.join(filePath, 'patients.html');
-      } else if (req.path.startsWith('/alerts')) {
-        filePath = path.join(filePath, 'alerts.html');
-      } else if (req.path.startsWith('/devices')) {
-        filePath = path.join(filePath, 'devices.html');
-      } else if (req.path.startsWith('/analytics')) {
-        filePath = path.join(filePath, 'analytics.html');
-      } else if (req.path.startsWith('/settings')) {
-        filePath = path.join(filePath, 'settings.html');
-      } else if (req.path.startsWith('/login')) {
-        filePath = path.join(filePath, 'login.html');
-       } else if (req.path.startsWith('/signup')) {
-         filePath = path.join(filePath, 'signup.html');
-       } else if (req.path.startsWith('/dr-ai')) {
-         filePath = path.join(filePath, 'dr-ai.html');
-       } else {
-         filePath = path.join(filePath, 'index.html');
-       }
-
-      res.sendFile(filePath, (err) => {
-        if (err) {
-          res.status(404).json({ error: 'Page not found' });
-        }
-      });
-    } else {
-      // For API routes that don't match any handler
-      res.status(404).json({ error: 'API endpoint not found' });
-    }
+app.get('*', (req, res) => {
+  const page = PAGES.find(p => req.path === `/${p}` || req.path.startsWith(`/${p}/`));
+  res.sendFile(path.join(FRONTEND_DIR, `${page || 'index'}.html`), (err) => {
+    if (err) res.status(404).send('Page not found');
+  });
 });
 
 // ============================================
 // ERROR HANDLING
 // ============================================
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
-});
-
-// Global error handler - MUST return JSON for all API endpoints
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err.message);
 
-  // Always return JSON for API routes
-  if (req.path.startsWith('/api/')) {
-    return res.status(200).json({
-      error: 'Service temporarily unavailable',
-      message: err.message || 'Internal server error'
-    });
+  // Malformed JSON body
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, error: 'Invalid JSON body' });
   }
 
-  // HTML error for non-API routes
-  res.status(err.status || 500).send(`
-    <html>
-      <body>
-        <h1>Server Error</h1>
-        <p>An error occurred. Please try again later.</p>
-        <p>Error: ${err.message}</p>
-      </body>
-    </html>
-  `);
+  const status = err.status || err.statusCode || 500;
+  if (req.path.startsWith('/api/')) {
+    return res.status(status).json({
+      success: false,
+      error: status >= 500 ? 'Internal server error' : err.message
+    });
+  }
+  res.status(status).send('<h1>Something went wrong</h1><p>Please try again later.</p>');
 });
 
 // ============================================
 // SERVER STARTUP
 // ============================================
 
-// Check if running on Vercel (serverless)
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV || process.env.LAMBDA_TASK_ROOT;
 
-if (!isVercel) {
-  // Only start server if NOT on Vercel
+if (!isVercel && require.main === module) {
   const PORT = process.env.PORT || 8080;
-  const HOST = '0.0.0.0';
-
-  // Start server immediately (don't wait for database)
-  server.listen(PORT, HOST, () => {
-    console.log(`
-╔════════════════════════════════════════════════════╗
-║     Medical IoT Backend Server                    ║
-╠════════════════════════════════════════════════════╣
-║  Server running on: http://${HOST}:${PORT}                    ║
-║  Environment: ${process.env.NODE_ENV || 'production'}                        ║
-║  Health check: http://${HOST}:${PORT}/health               ║
-║  Ping endpoint: http://${HOST}:${PORT}/ping                ║
-╚════════════════════════════════════════════════════╝
-  `);
-
-    // Database connection is optional - routes handle missing DB gracefully
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Medical IoT server running on http://localhost:${PORT} (${process.env.NODE_ENV || 'production'})`);
   });
-} else {
-  // On Vercel, database connection is handled by routes
-  console.log('Running on Vercel serverless - database handled by routes');
+
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => process.exit(0));
+  });
 }
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
+// Prevent unhandled rejections from crashing the process
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
 });
 
-// Prevent unhandled rejections from crashing server
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-// Export for testing
 module.exports = { app, server };
-
-// Export for Vercel serverless functions
 module.exports.default = app;

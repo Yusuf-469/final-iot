@@ -35,9 +35,7 @@ const connectDB = async () => {
  */
 const getDbConnected = () => {
   try {
-    const connected = !!db && dbInitialized;
-    console.log('🔍 Database connection status:', connected ? 'CONNECTED' : 'NOT CONNECTED');
-    return connected;
+    return !!db && dbInitialized;
   } catch (error) {
     console.error('❌ Error checking database connection:', error.message);
     return false;
