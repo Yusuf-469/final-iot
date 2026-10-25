@@ -57,8 +57,10 @@ describe('notifyAlert', () => {
         const email = results.find((r) => r.channel === 'email');
         expect(email).toMatchObject({ status: 'sent', recipients: 3, messageId: 'm-1' });
         const mail = mockSendMail.mock.calls[0][0];
-        expect(mail.to).toBe('ward@example.com, nurse@example.com, family@example.com');
-        expect(mail.from).toBe('alerts@example.com');
+        expect(mail.bcc).toBe('ward@example.com, nurse@example.com, family@example.com');
+        expect(mail.to).toBe('alerts@example.com');
+        expect(mail.from).toBe('"HealthMonitor (No-Reply)" <alerts@example.com>');
+        expect(mail.headers['Auto-Submitted']).toBe('auto-generated');
         expect(mail.subject).toContain('CRITICAL');
         expect(mail.text).toContain('Asha Rao');
         expect(mail.text).toContain('HR 131 bpm');
@@ -88,6 +90,19 @@ describe('notifyAlert', () => {
         const results = await notifyAlert(ALERT);
         expect(results.find((r) => r.channel === 'email')).toMatchObject({ status: 'failed', error: 'SMTP down' });
         expect(results.find((r) => r.channel === 'sms')).toMatchObject({ status: 'failed' });
+    });
+
+    test('emails signed-up accounts; critical-only accounts skip warnings', async () => {
+        process.env.SMTP_HOST = 'smtp.example.com';
+        process.env.SMTP_USER = 'noreply.healthmonitor@example.com';
+        mockSendMail.mockResolvedValue({});
+        const accounts = [{ email: 'Doctor@Example.com' }, { email: 'nurse@example.com', criticalOnly: true }];
+
+        await notifyAlert({ ...ALERT, severity: 'warning' }, { accounts });
+        expect(mockSendMail.mock.calls[0][0].bcc).toBe('doctor@example.com');
+
+        await notifyAlert(ALERT, { accounts });
+        expect(mockSendMail.mock.calls[1][0].bcc).toBe('doctor@example.com, nurse@example.com');
     });
 
     test('respects ALERT_NOTIFY_SEVERITIES', async () => {
