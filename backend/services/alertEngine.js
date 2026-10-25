@@ -454,7 +454,7 @@ async function notifyCareTeam(db, alert, event, ctx) {
         const users = (await db.ref('users').once('value')).val() || {};
         const accounts = Object.values(users)
             .filter(u => u && u.email && !u.isDemo && u.alertEmails !== false)
-            .map(u => ({ email: u.email, criticalOnly: !!u.alertCriticalOnly }));
+            .map(u => ({ email: u.email, name: u.firstName || '', criticalOnly: !!u.alertCriticalOnly }));
         const results = await notifyAlert(alert, { event, accounts, patient: { contactEmail: ctx.contactEmail, contactPhone: ctx.contactPhone } });
         await db.ref(`alerts/${alert.alertId}/notifications/${event}`).set(JSON.parse(JSON.stringify({ at: new Date().toISOString(), results })));
     } catch (error) {
@@ -491,7 +491,7 @@ async function applyActions(db, result, ctx, now) {
             })));
             await notifyCareTeam(db, {
                 alertId: action.alertId, patientId: ctx.patientId, patientName: ctx.patientName, deviceId: ctx.deviceId,
-                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values
+                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values, createdAt: iso
             }, 'created', ctx);
         } else if (action.type === 'escalate') {
             await ref.update(JSON.parse(JSON.stringify({
@@ -505,7 +505,7 @@ async function applyActions(db, result, ctx, now) {
             })));
             await notifyCareTeam(db, {
                 alertId: action.alertId, patientId: ctx.patientId, patientName: ctx.patientName, deviceId: ctx.deviceId,
-                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values
+                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values, createdAt: iso
             }, 'escalated', ctx);
         } else if (action.type === 'resolve') {
             const current = (await ref.once('value')).val();
