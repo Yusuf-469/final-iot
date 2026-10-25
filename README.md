@@ -17,6 +17,7 @@ Real-time vital-sign monitoring for ESP32-based wearables. Sensors stream heart 
   - Learns each patient's sensitivity from clinician feedback.
 - **Analytics:** heart rate, temperature and SpO₂ trends over 7, 30 or 90 days, plus automated health insights.
 - **Dr. AI:** a 3D assistant that answers questions about the patient's current vitals (LLM via OpenRouter, with a built-in fallback).
+- **Email and SMS alerts:** warning and critical alerts are emailed (SMTP) and texted (Twilio) to the care team when they are created or escalated. Each send is recorded on the alert as sent, skipped or failed.
 - **Accounts:**
   - Email/password sign-up and sign-in, plus Google and GitHub sign-in.
   - Expiring JWT sessions.
@@ -138,6 +139,13 @@ Open http://localhost:3000, create an account, and add a patient whose **device 
 | `OPENROUTER_MODEL` | no | OpenRouter model ID, default `openrouter/free` |
 | `ALERT_DEVICE_NODES` | no | Comma-separated device nodes the alert engine watches, default `health` |
 | `ALERT_SWEEP_SEC` | no | How often the worker re-checks every device, default `60` |
+| `ALERT_EMAIL_TO` | no | Comma-separated care-team emails for alert notifications |
+| `ALERT_SMS_TO` | no | Comma-separated care-team phone numbers (E.164, e.g. `+919876543210`) |
+| `ALERT_NOTIFY_SEVERITIES` | no | Severities that notify, default `warning,critical` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `ALERT_EMAIL_FROM` | no | SMTP server for alert emails; email is skipped if `SMTP_HOST` is unset |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | no | Twilio credentials and sender number for alert SMS; SMS is skipped if unset |
+
+A patient record can also carry `contactEmail` and `contactPhone`; they are added to that patient's alert recipients.
 
 ---
 

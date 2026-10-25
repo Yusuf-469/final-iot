@@ -437,8 +437,25 @@ async function linkedPatients(db, deviceId) {
     const snap = await db.ref('patients').once('value');
     const list = Object.entries(snap.val() || {})
         .filter(([, p]) => p && p.deviceId === deviceId)
-        .map(([id, p]) => ({ patientId: id, patientName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || id }));
+        .map(([id, p]) => ({
+            patientId: id,
+            patientName: `${p.firstName || ''} ${p.lastName || ''}`.trim() || id,
+            contactEmail: p.contactEmail || null,
+            contactPhone: p.contactPhone || null
+        }));
     return list.length ? list : [{ patientId: `device_${deviceId}`, patientName: `${deviceId} device (unassigned)` }];
+}
+
+// Email/SMS the care team about a created or escalated alert, and record what happened on the
+// alert itself. Notification problems are logged and never interrupt the engine.
+async function notifyCareTeam(db, alert, event, ctx) {
+    try {
+        const { notifyAlert } = require('./notificationService');
+        const results = await notifyAlert(alert, { event, patient: { contactEmail: ctx.contactEmail, contactPhone: ctx.contactPhone } });
+        await db.ref(`alerts/${alert.alertId}/notifications/${event}`).set(JSON.parse(JSON.stringify({ at: new Date().toISOString(), results })));
+    } catch (error) {
+        console.error('Alert notification error:', error.message);
+    }
 }
 
 async function applyActions(db, result, ctx, now) {
@@ -468,6 +485,10 @@ async function applyActions(db, result, ctx, now) {
                 createdAt: iso,
                 updatedAt: iso
             })));
+            await notifyCareTeam(db, {
+                alertId: action.alertId, patientId: ctx.patientId, patientName: ctx.patientName, deviceId: ctx.deviceId,
+                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values
+            }, 'created', ctx);
         } else if (action.type === 'escalate') {
             await ref.update(JSON.parse(JSON.stringify({
                 severity: c.severity,
@@ -478,6 +499,10 @@ async function applyActions(db, result, ctx, now) {
                 escalation: { from: action.from, to: c.severity, escalatedAt: iso, escalatedBy: 'alert-engine' },
                 updatedAt: iso
             })));
+            await notifyCareTeam(db, {
+                alertId: action.alertId, patientId: ctx.patientId, patientName: ctx.patientName, deviceId: ctx.deviceId,
+                severity: c.severity, title: c.title, message: c.message, vitals: result.reading.values
+            }, 'escalated', ctx);
         } else if (action.type === 'resolve') {
             const current = (await ref.once('value')).val();
             if (current && current.status !== 'resolved') {
