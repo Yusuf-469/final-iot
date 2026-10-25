@@ -43,7 +43,9 @@ const publicUser = (user) => ({
   role: user.role || 'viewer',
   isDemo: !!user.isDemo,
   provider: user.provider || 'password',
-  createdAt: user.createdAt || null
+  createdAt: user.createdAt || null,
+  alertEmails: !user.isDemo && user.alertEmails !== false,
+  alertCriticalOnly: !!user.alertCriticalOnly
 });
 
 const sendSession = (res, user, status = 200) => {
@@ -218,6 +220,30 @@ router.get('/me', requireAuth, async (req, res) => {
     res.json({ success: true, user: publicUser(user) });
   } catch (error) {
     handleError(res, 'Session check', error);
+  }
+});
+
+// PUT /api/auth/preferences - alert email settings: { alertEmails?, alertCriticalOnly? }
+router.put('/preferences', requireAuth, async (req, res) => {
+  try {
+    if (req.user.isDemo) {
+      return res.status(403).json({ success: false, error: 'The demo account is read-only' });
+    }
+    const user = await getUserByEmail(req.user.email);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Account no longer exists' });
+    }
+    const updates = {};
+    ['alertEmails', 'alertCriticalOnly'].forEach((k) => {
+      if (typeof req.body[k] === 'boolean') updates[k] = req.body[k];
+    });
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ success: false, error: 'Nothing to update' });
+    }
+    await requireDb().ref(`${COLLECTIONS.USERS}/${user.id}`).update(updates);
+    res.json({ success: true, user: publicUser({ ...user, ...updates }) });
+  } catch (error) {
+    handleError(res, 'Update preferences', error);
   }
 });
 

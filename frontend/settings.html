@@ -121,7 +121,7 @@
                                     <p>Receive alerts via email</p>
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" checked>
+                                    <input type="checkbox" id="pref-alert-emails" checked>
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
@@ -151,7 +151,7 @@
                                     <p>Only notify for critical events</p>
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox">
+                                    <input type="checkbox" id="pref-critical-only">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
@@ -258,6 +258,37 @@
                 loadUserData();
             }, 1000); // Increased timeout to 1 second
         });
+
+        // Alert email preferences live on the account, so the alert engine can honour them
+        async function loadAlertPreferences() {
+            const emails = document.getElementById('pref-alert-emails');
+            const critical = document.getElementById('pref-critical-only');
+            if (!emails || !critical) return;
+            try {
+                const res = await fetch('/api/auth/me');
+                const data = await res.json();
+                if (!data.success) return;
+                emails.checked = data.user.alertEmails;
+                critical.checked = data.user.alertCriticalOnly;
+                if (data.user.isDemo) { emails.disabled = critical.disabled = true; return; }
+            } catch (e) { return; }
+            const save = async (input, key) => {
+                try {
+                    const res = await fetch('/api/auth/preferences', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ [key]: input.checked })
+                    });
+                    if (!res.ok) throw new Error();
+                } catch (e) {
+                    input.checked = !input.checked;
+                    alert('Could not save your notification setting. Please try again.');
+                }
+            };
+            emails.addEventListener('change', () => save(emails, 'alertEmails'));
+            critical.addEventListener('change', () => save(critical, 'alertCriticalOnly'));
+        }
+        document.addEventListener('DOMContentLoaded', loadAlertPreferences);
 
         async function loadUserData() {
             console.log('🔧 Loading user data for settings...');

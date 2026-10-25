@@ -8,11 +8,16 @@
  * as "skipped" (never as "sent"). A failure is reported as "failed" and never throws,
  * so notifications can't break the alert engine.
  *
+ * Recipients: every HealthMonitor account (unless the user turned email alerts off or chose
+ * critical-only in Settings), plus ALERT_EMAIL_TO / ALERT_SMS_TO and the patient's own contacts.
+ * Emails come from a no-reply sender: "HealthMonitor (No-Reply)" by default.
+ *
  * Environment:
- *   ALERT_EMAIL_TO              comma-separated care-team email addresses
+ *   ALERT_EMAIL_TO              extra comma-separated email addresses that always receive alerts
  *   ALERT_SMS_TO                comma-separated care-team phone numbers (E.164, e.g. +919876543210)
  *   ALERT_NOTIFY_SEVERITIES     severities that notify, default "warning,critical"
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE, ALERT_EMAIL_FROM
+ *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_SECURE
+ *   ALERT_EMAIL_FROM            sender, default "HealthMonitor (No-Reply)" <SMTP_USER>
  *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM
  *   FRONTEND_URL                used for the "open the dashboard" link
  * A patient record may also carry contactEmail / contactPhone, which are added to the recipients.
@@ -28,9 +33,13 @@ function notifySeverities() {
     return s.length ? s : ['warning', 'critical'];
 }
 
-function recipients(patient = {}) {
+// accounts: [{ email, criticalOnly }] from /users; critical-only accounts skip warnings
+function recipients(patient = {}, accounts = [], severity) {
+    const accountEmails = accounts
+        .filter((a) => a && a.email && (!a.criticalOnly || severity === 'critical'))
+        .map((a) => String(a.email).toLowerCase());
     return {
-        emails: unique([...list(process.env.ALERT_EMAIL_TO), ...list(patient.contactEmail)]),
+        emails: unique([...list(process.env.ALERT_EMAIL_TO), ...accountEmails, ...list(patient.contactEmail)]),
         phones: unique([...list(process.env.ALERT_SMS_TO), ...list(patient.contactPhone)]),
     };
 }
@@ -65,7 +74,8 @@ function formatAlert(alert, event = 'created') {
         alert.alertId ? `Alert ID: ${alert.alertId}` : '',
         link ? `Open the dashboard: ${link}` : '',
         '',
-        'Sent automatically by the HealthMonitor alert engine. Not a medical device.',
+        'Sent automatically by the HealthMonitor alert engine from a no-reply address; replies are not monitored.',
+        'You can turn these emails off in Settings > Notification Settings. HealthMonitor is not a medical device.',
     ].filter((line, i, all) => line !== '' || (all[i - 1] !== '' && i > 0)).join('\n');
 
     return { subject, text, sms };
@@ -96,8 +106,11 @@ async function sendEmailNotification(to, alert, event = 'created') {
     try {
         const { subject, text } = formatAlert(alert, event);
         const info = await transport.sendMail({
-            from: process.env.ALERT_EMAIL_FROM || process.env.SMTP_USER,
-            to: tos.join(', '),
+            from: process.env.ALERT_EMAIL_FROM || `"HealthMonitor (No-Reply)" <${process.env.SMTP_USER}>`,
+            // recipients are BCC'd so nobody sees the other accounts' addresses
+            to: process.env.ALERT_EMAIL_FROM || process.env.SMTP_USER,
+            bcc: tos.join(', '),
+            headers: { 'Auto-Submitted': 'auto-generated', 'X-Auto-Response-Suppress': 'All' },
             subject,
             text,
         });
@@ -146,11 +159,11 @@ async function sendSMSNotification(to, alert, event = 'created') {
  * Notify the care team about an alert the engine just created or escalated.
  * Returns one result per channel; never throws.
  */
-async function notifyAlert(alert, { event = 'created', patient = {} } = {}) {
+async function notifyAlert(alert, { event = 'created', patient = {}, accounts = [] } = {}) {
     if (!notifySeverities().includes(alert.severity)) {
         return [{ channel: 'all', status: 'skipped', reason: `severity ${alert.severity} does not notify` }];
     }
-    const { emails, phones } = recipients(patient);
+    const { emails, phones } = recipients(patient, accounts, alert.severity);
     const results = await Promise.all([
         sendEmailNotification(emails, alert, event),
         sendSMSNotification(phones, alert, event),

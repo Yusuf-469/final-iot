@@ -451,7 +451,11 @@ async function linkedPatients(db, deviceId) {
 async function notifyCareTeam(db, alert, event, ctx) {
     try {
         const { notifyAlert } = require('./notificationService');
-        const results = await notifyAlert(alert, { event, patient: { contactEmail: ctx.contactEmail, contactPhone: ctx.contactPhone } });
+        const users = (await db.ref('users').once('value')).val() || {};
+        const accounts = Object.values(users)
+            .filter(u => u && u.email && !u.isDemo && u.alertEmails !== false)
+            .map(u => ({ email: u.email, criticalOnly: !!u.alertCriticalOnly }));
+        const results = await notifyAlert(alert, { event, accounts, patient: { contactEmail: ctx.contactEmail, contactPhone: ctx.contactPhone } });
         await db.ref(`alerts/${alert.alertId}/notifications/${event}`).set(JSON.parse(JSON.stringify({ at: new Date().toISOString(), results })));
     } catch (error) {
         console.error('Alert notification error:', error.message);
