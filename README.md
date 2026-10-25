@@ -1,6 +1,6 @@
 # HealthMonitor: IoT Patient Monitoring & Alert System
 
-Real-time vital-sign monitoring for ESP32-based wearables. Sensors stream heart rate, SpO₂ and temperature into Firebase, a web dashboard shows them live, and an alert engine combines a clinical early-warning score with per-patient machine learning to flag deterioration early.
+Real-time vital-sign monitoring for ESP32-based wearables. The device posts heart rate, SpO₂ and temperature to an Express API that stores them in Firebase, a web dashboard shows them live, and an alert engine combines a clinical early-warning score with per-patient machine learning to flag deterioration early.
 
 **Live:** https://final-iot-delta.vercel.app (use **Explore the live demo** on the sign-in page for a read-only tour)
 
@@ -35,20 +35,34 @@ Real-time vital-sign monitoring for ESP32-based wearables. Sensors stream heart 
 
 ```
  ESP32 + MAX30102 / DS18B20
-        │  writes vitals
-        ▼
- Firebase Realtime Database ─────────────┐
-   /health  /patients  /alerts ...       │ live listener
-        ▲            ▲                   ▼
-        │            │            Alert worker (npm run worker)
-        │            │            runs the alert engine on every reading
-        │            │
-        │     Express API (Vercel serverless, api/server.js → backend/server.js)
-        │       auth · patients · devices · alerts · analytics · chat
-        │            ▲
-        └──────── Web dashboard (static HTML/CSS/JS in frontend/)
-                  reads live vitals from Firebase, everything else via the API
+   │  HTTP POST over Wi-Fi (JSON, optional X-Device-Key)
+   │    /api/health-data      one reading
+   │    /api/devices/heartbeat
+   │    /api/alerts           device-raised alert (button / local threshold)
+   ▼
+ Express API (Vercel serverless, api/server.js → backend/server.js)
+   validates the reading, stores history in /healthData,
+   updates the live /health node
+   auth · patients · devices · alerts · analytics · chat
+   ▼
+ Firebase Realtime Database
+   /health  /healthData  /patients  /devices  /alerts  /alertEngine
+   │  live listener + 1-minute sweep
+   ▼
+ Alert worker (npm run worker)
+   runs the alert engine: NEWS2, per-patient baselines, device faults
+   writes /alerts and /alertEngine/state
+   new or escalated warning/critical alert → email (SMTP) + SMS (Twilio),
+   result recorded at /alerts/{id}/notifications/{event}
+   ▼
+ Web dashboard (static HTML/CSS/JS in frontend/)
+   reads live vitals and alerts from Firebase, everything else via the API
 ```
+
+1. The ESP32 reads the sensors and POSTs a JSON reading to `/api/health-data`. It also sends heartbeats and can raise its own alert.
+2. The API checks the device key (when `DEVICE_API_KEY` is set) and validates the reading. It appends the reading to the history and updates `/health`.
+3. The alert worker sees the change and evaluates that patient. The engine opens, escalates or resolves alerts and notifies the care team.
+4. The dashboard subscribes to `/health` and `/alerts` for live updates, and calls the API (with a JWT session) for everything else.
 
 - **Backend:** Node.js 18+, Express, `firebase-admin` (Realtime Database and ID-token verification), `jsonwebtoken`, `bcryptjs`.
 - **Frontend:** plain HTML/CSS/JS, Chart.js, Firebase Web SDK v8 (live data and social sign-in), Three.js (Dr. AI model).
@@ -76,7 +90,8 @@ backend/
     chat.js                   Dr. AI chat
   services/
     alertEngine.js            The alert engine (see below)
-    __tests__/                Jest tests for the alert engine
+    notificationService.js    Email (SMTP) and SMS (Twilio) alerts to the care team
+    __tests__/                Jest tests for the alert engine and notifications
   models/HealthData.js        Reading validation and status assessment
 frontend/
   index.html                  Landing page
@@ -215,11 +230,11 @@ Defaults live in `DEFAULT_CONFIG` in `alertEngine.js`. Override any of them at r
 
 | Path | Contents | Written by |
 |---|---|---|
-| `/health` | Latest live reading: `heartRate`, `spo2`, `temperature` (optional `updatedAt`, `bloodPressure`, `respiratoryRate`) | ESP32 |
+| `/health` | Latest live reading: `heartRate`, `spo2`, `temperature` (optional `updatedAt`, `bloodPressure`, `respiratoryRate`) | API (from `POST /api/health-data`) |
 | `/patients/{id}` | `firstName`, `lastName`, `age`, `deviceId` (the device node, e.g. `health`) | API |
 | `/devices/{id}` | Device metadata and `lastHeartbeat` | API |
 | `/healthData/{id}` | Reading history: one entry per patient per minute, plus readings posted to the API | Alert engine, API |
-| `/alerts/{id}` | Alert records: severity, status, explanation, vitals, resolution and feedback | Alert engine, API |
+| `/alerts/{id}` | Alert records: severity, status, explanation, vitals, resolution, feedback and `notifications/{event}` send results | Alert engine, API |
 | `/alertEngine/state/{patientId}` | Baselines, open alerts, cooldowns, learned sensitivity | Alert engine |
 | `/alertEngine/config` | Optional threshold overrides | You |
 | `/users/{id}` | Accounts (bcrypt password hashes) | API |
@@ -315,7 +330,7 @@ Login, signup, social sign-in and demo are limited to 20 attempts per 15 minutes
 
 Before flashing, set `WIFI_SSID`, `WIFI_PASSWORD`, `SERVER_URL` (your deployment's `/api/health-data` URL), `DEVICE_ID` and `PATIENT_ID`. If `DEVICE_API_KEY` is set on the server, also add the `X-Device-Key` header in `transmitHealthData()` and `sendHeartbeat()`.
 
-Devices can also write straight to the `/health` node with the Firebase ESP32 client. The alert worker watches that node. If you do this, include an `updatedAt` timestamp so stale data is detected immediately.
+The firmware sends each reading to `SERVER_URL` and derives the heartbeat (`/api/devices/heartbeat`) and alert (`/api/alerts`) URLs from it. The API, not the device, writes to Firebase, so the device needs no Firebase credentials.
 
 ---
 
@@ -333,7 +348,7 @@ Devices can also write straight to the `/health` node with the Firebase ESP32 cl
 ```bash
 npm run dev       # API with auto-reload
 npm run worker    # alert worker
-npm test          # Jest tests (alert engine: scoring, baselines, lifecycle, feedback, device faults)
+npm test          # Jest tests (alert engine: scoring, baselines, lifecycle, feedback, device faults; notifications)
 npm run lint      # ESLint
 ```
 
