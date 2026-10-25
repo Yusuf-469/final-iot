@@ -55,15 +55,17 @@ describe('notifyAlert', () => {
 
         const results = await notifyAlert(ALERT, { patient: { contactEmail: 'family@example.com, ward@example.com' } });
         const email = results.find((r) => r.channel === 'email');
-        expect(email).toMatchObject({ status: 'sent', recipients: 3, messageId: 'm-1' });
+        expect(email).toMatchObject({ status: 'sent', recipients: 3 });
+        // one message per recipient, so nobody sees the other addresses
+        expect(mockSendMail.mock.calls.map(([m]) => m.to)).toEqual(['ward@example.com', 'nurse@example.com', 'family@example.com']);
         const mail = mockSendMail.mock.calls[0][0];
-        expect(mail.bcc).toBe('ward@example.com, nurse@example.com, family@example.com');
-        expect(mail.to).toBe('alerts@example.com');
-        expect(mail.from).toBe('"HealthMonitor (No-Reply)" <alerts@example.com>');
+        expect(mail.from).toBe('"HealthMonitor" <alerts@example.com>');
         expect(mail.headers['Auto-Submitted']).toBe('auto-generated');
         expect(mail.subject).toContain('CRITICAL');
         expect(mail.text).toContain('Asha Rao');
         expect(mail.text).toContain('HR 131 bpm');
+        expect(mail.text).toContain('Your HealthMonitor team');
+        expect(mail.html).toContain('Asha Rao');
     });
 
     test('sends SMS through the Twilio REST API with basic auth', async () => {
@@ -96,13 +98,26 @@ describe('notifyAlert', () => {
         process.env.SMTP_HOST = 'smtp.example.com';
         process.env.SMTP_USER = 'noreply.healthmonitor@example.com';
         mockSendMail.mockResolvedValue({});
-        const accounts = [{ email: 'Doctor@Example.com' }, { email: 'nurse@example.com', criticalOnly: true }];
+        const accounts = [{ email: 'Doctor@Example.com', name: 'Meera' }, { email: 'nurse@example.com', criticalOnly: true }];
 
         await notifyAlert({ ...ALERT, severity: 'warning' }, { accounts });
-        expect(mockSendMail.mock.calls[0][0].bcc).toBe('doctor@example.com');
+        expect(mockSendMail.mock.calls.map(([m]) => m.to)).toEqual(['doctor@example.com']);
+        expect(mockSendMail.mock.calls[0][0].text.startsWith('Hello Meera,')).toBe(true);
 
+        mockSendMail.mockClear();
         await notifyAlert(ALERT, { accounts });
-        expect(mockSendMail.mock.calls[1][0].bcc).toBe('doctor@example.com, nurse@example.com');
+        expect(mockSendMail.mock.calls.map(([m]) => m.to)).toEqual(['doctor@example.com', 'nurse@example.com']);
+        expect(mockSendMail.mock.calls[1][0].text.startsWith('Hello there,')).toBe(true);
+    });
+
+    test('escapes patient text in the HTML email', async () => {
+        process.env.SMTP_HOST = 'smtp.example.com';
+        process.env.ALERT_EMAIL_TO = 'ward@example.com';
+        mockSendMail.mockResolvedValue({});
+        await notifyAlert({ ...ALERT, patientName: '<b>Eve</b>' });
+        const { html } = mockSendMail.mock.calls[0][0];
+        expect(html).toContain('&lt;b&gt;Eve&lt;/b&gt;');
+        expect(html).not.toContain('<b>Eve</b>');
     });
 
     test('respects ALERT_NOTIFY_SEVERITIES', async () => {

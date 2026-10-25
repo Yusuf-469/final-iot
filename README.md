@@ -17,7 +17,7 @@ Real-time vital-sign monitoring for ESP32-based wearables. The device posts hear
   - Learns each patient's sensitivity from clinician feedback.
 - **Analytics:** heart rate, temperature and SpO₂ trends over 7, 30 or 90 days, plus automated health insights.
 - **Dr. AI:** a 3D assistant that answers questions about the patient's current vitals (LLM via OpenRouter, with a built-in fallback).
-- **Email and SMS alerts:** warning and critical alerts are emailed (SMTP) and texted (Twilio) to every signed-up account (each can turn them off or choose critical-only in Settings) when they are created or escalated. Emails come from a no-reply sender. Each send is recorded on the alert as sent, skipped or failed.
+- **Email and SMS alerts:** warning and critical alerts are emailed (SMTP) and texted (Twilio) to every signed-up account (each can turn them off or choose critical-only in Settings) when they are created or escalated. Each person gets their own email, greeted by name, from a no-reply sender. Each send is recorded on the alert as sent, skipped or failed.
 - **Accounts:**
   - Email/password sign-up and sign-in, plus Google and GitHub sign-in.
   - Expiring JWT sessions.
@@ -157,7 +157,7 @@ Open http://localhost:3000, create an account, and add a patient whose **device 
 | `ALERT_EMAIL_TO` | no | Extra emails that always get alerts. Every signed-up account already gets them unless it turns them off in Settings |
 | `ALERT_SMS_TO` | no | Comma-separated care-team phone numbers (E.164, e.g. `+919876543210`) |
 | `ALERT_NOTIFY_SEVERITIES` | no | Severities that notify, default `warning,critical` |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `ALERT_EMAIL_FROM` | no | SMTP server for alert emails; email is skipped if `SMTP_HOST` is unset. The sender defaults to "HealthMonitor (No-Reply)" <SMTP_USER> |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `ALERT_EMAIL_FROM` | no | SMTP server for alert emails; email is skipped if `SMTP_HOST` is unset. The sender defaults to "HealthMonitor" <SMTP_USER>; use a dedicated no-reply mailbox. Optional: `ALERT_EMAIL_REPLY_TO`, `ALERT_TIMEZONE` (default Asia/Kolkata) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | no | Twilio credentials and sender number for alert SMS; SMS is skipped if unset |
 
 A patient record can also carry `contactEmail` and `contactPhone`; they are added to that patient's alert recipients.
