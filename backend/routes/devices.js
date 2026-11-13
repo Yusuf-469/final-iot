@@ -81,7 +81,10 @@ router.get('/', async (req, res) => {
         spo2: deviceData.spo2 || null,
         updatedAt: deviceData.updatedAt || deviceData.timestamp || null,
         firmware: deviceData.firmware || '1.0.0',
-        battery: deviceData.battery || deviceData.power?.batteryLevel || 100
+        battery: deviceData.battery || deviceData.power?.batteryLevel || 100,
+        signal: deviceData.signal || null,
+        sensors: deviceData.sensors || null,
+        lastSeen: deviceData.lastSeen || deviceData.updatedAt || null
       });
     }
 
