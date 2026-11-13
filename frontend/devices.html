@@ -160,6 +160,8 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             loadDevicesPage();
+            // Keep readings and Online/Stale status live while the page is open
+            setInterval(loadDevicesPage, 5000);
         });
 
         async function loadDevicesPage() {
@@ -169,7 +171,7 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    devices = data.devices || [];
+                    devices = data.data || data.devices || [];
                 } else {
                     console.warn('Failed to load devices from API, showing empty state');
                 }
@@ -188,7 +190,9 @@
                     const status = d.status || 'offline';
                     const battery = d.power?.batteryLevel || d.battery || 0;
                     const signalStrength = d.connectivity?.signalStrength || d.signal || 'Unknown';
-                    const lastActive = d.lastSeen ? new Date(d.lastSeen).toLocaleString() : (d.lastActive || 'Never');
+                    const seen = d.updatedAt || d.lastSeen;
+                    const lastActive = seen ? new Date(seen).toLocaleString() : (d.lastActive || 'Never');
+                    const fmt = (v, unit) => (v === null || v === undefined) ? '--' : `${v}${unit}`;
 
                     return `
                         <div class="device-full-card ${status}">
@@ -214,6 +218,20 @@
                                 <div class="device-metric">
                                     <i class="fas fa-clock"></i>
                                     <span>${lastActive}</span>
+                                </div>
+                            </div>
+                            <div class="device-metrics">
+                                <div class="device-metric">
+                                    <i class="fas fa-heartbeat"></i>
+                                    <span>${fmt(d.heartRate, ' bpm')}</span>
+                                </div>
+                                <div class="device-metric">
+                                    <i class="fas fa-lungs"></i>
+                                    <span>${fmt(d.spo2, '%')}</span>
+                                </div>
+                                <div class="device-metric">
+                                    <i class="fas fa-thermometer-half"></i>
+                                    <span>${fmt(d.temperature, ' °C')}</span>
                                 </div>
                             </div>
                             <div class="device-actions-row">
