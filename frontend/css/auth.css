@@ -4,27 +4,27 @@
    ========================================================================== */
 
 :root {
-    --bg: #070b16;
-    --bg-elev: #0d1424;
+    --bg: #080e10;
+    --bg-elev: #0f171a;
     --panel: rgba(15, 23, 42, 0.72);
-    --card: #0f172a;
+    --card: #0b1215;
     --card-border: rgba(148, 163, 184, 0.14);
-    --field: #0b1222;
-    --field-border: #1f2a40;
-    --field-focus: #6366f1;
+    --field: #0d1518;
+    --field-border: #24343a;
+    --field-focus: #0f766e;
     --text: #e2e8f0;
     --text-strong: #f8fafc;
-    --muted: #94a3b8;
-    --subtle: #64748b;
-    --primary: #6366f1;
-    --primary-2: #8b5cf6;
-    --cyan: #22d3ee;
+    --muted: #9fb0b5;
+    --subtle: #7a8d92;
+    --primary: #0f766e;
+    --primary-2: #5eaab5;
+    --cyan: #2dd4bf;
     --green: #34d399;
     --red: #f43f5e;
     --amber: #fbbf24;
     --radius: 14px;
-    --ring: 0 0 0 4px rgba(99, 102, 241, 0.22);
-    --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --ring: 0 0 0 4px rgba(45, 212, 191, 0.22);
+    --font: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 }
 
@@ -71,9 +71,9 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     flex-direction: column;
     gap: 40px;
     background:
-        radial-gradient(900px 500px at 10% -10%, rgba(99, 102, 241, 0.28), transparent 60%),
+        radial-gradient(900px 500px at 10% -10%, rgba(45, 212, 191, 0.28), transparent 60%),
         radial-gradient(700px 500px at 110% 110%, rgba(34, 211, 238, 0.16), transparent 60%),
-        linear-gradient(180deg, #0a1020 0%, #070b16 100%);
+        linear-gradient(180deg, #0a1020 0%, #080e10 100%);
     border-right: 1px solid var(--card-border);
 }
 
@@ -109,7 +109,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     display: grid;
     place-items: center;
     background: linear-gradient(135deg, var(--primary), var(--primary-2));
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    box-shadow: 0 8px 24px rgba(45, 212, 191, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     color: #fff;
     font-size: 17px;
 }
@@ -202,8 +202,8 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     place-items: center;
     font-size: 11px;
     font-weight: 700;
-    color: #e0e7ff;
-    background: linear-gradient(135deg, #4338ca, #0e7490);
+    color: #ccfbf1;
+    background: linear-gradient(135deg, #115e59, #0e7490);
 }
 
 .status-pill {
@@ -299,7 +299,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     align-items: center;
     padding: 88px 24px 48px;
     background:
-        radial-gradient(600px 400px at 80% 0%, rgba(139, 92, 246, 0.12), transparent 60%),
+        radial-gradient(600px 400px at 80% 0%, rgba(94, 170, 181, 0.12), transparent 60%),
         var(--bg);
 }
 
@@ -387,7 +387,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s, transform 0.1s;
 }
-.btn-social:hover { border-color: #334155; background: #111a2e; }
+.btn-social:hover { border-color: #24343a; background: #111a2e; }
 .btn-social:active { transform: translateY(1px); }
 .btn-social:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--field-focus); }
 .btn-social:disabled { opacity: 0.6; cursor: progress; }
@@ -447,7 +447,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     font: 500 15px var(--font);
     transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
-.control input::placeholder { color: #475569; }
+.control input::placeholder { color: #33474e; }
 .control input:hover { border-color: #2b3954; }
 .control input:focus { outline: none; border-color: var(--field-focus); box-shadow: var(--ring); background: #0c1528; }
 .control input:focus + i.lead-icon, .control:focus-within > i.lead-icon { color: #a5b4fc; }
@@ -532,7 +532,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     height: 18px;
     margin: 1px 0 0;
     border-radius: 5px;
-    border: 1px solid #334155;
+    border: 1px solid #24343a;
     background: var(--field);
     display: grid;
     place-items: center;
@@ -561,13 +561,13 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     color: #fff;
     cursor: pointer;
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
-    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(45, 212, 191, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     transition: transform 0.12s, box-shadow 0.2s, filter 0.2s;
     overflow: hidden;
 }
-.btn-primary:hover { filter: brightness(1.08); box-shadow: 0 14px 36px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+.btn-primary:hover { filter: brightness(1.08); box-shadow: 0 14px 36px rgba(45, 212, 191, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
 .btn-primary:active { transform: translateY(1px); }
-.btn-primary:focus-visible { outline: none; box-shadow: var(--ring), 0 10px 30px rgba(99, 102, 241, 0.35); }
+.btn-primary:focus-visible { outline: none; box-shadow: var(--ring), 0 10px 30px rgba(45, 212, 191, 0.35); }
 .btn-primary:disabled { cursor: progress; filter: saturate(0.7); }
 
 .btn-primary .label, .btn-primary .spinner { transition: opacity 0.2s; }
@@ -596,7 +596,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     height: 46px;
     margin-top: 12px;
     border-radius: 12px;
-    border: 1px dashed #334155;
+    border: 1px dashed #24343a;
     background: transparent;
     color: #c7d2fe;
     font: 600 14px var(--font);
@@ -607,7 +607,7 @@ a:hover { color: #c7d2fe; text-decoration: underline; }
     gap: 8px;
     transition: border-color 0.2s, background 0.2s;
 }
-.btn-ghost:hover { border-color: #6366f1; background: rgba(99, 102, 241, 0.08); }
+.btn-ghost:hover { border-color: #0f766e; background: rgba(45, 212, 191, 0.08); }
 .btn-ghost:focus-visible { outline: none; box-shadow: var(--ring); }
 .btn-ghost:disabled { opacity: 0.6; cursor: progress; }
 

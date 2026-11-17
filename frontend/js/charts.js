@@ -15,8 +15,8 @@ Chart.defaults.plugins.legend.labels.usePointStyle = true;
 
 // Color palette
 const colors = {
-  primary: '#4f46e5',
-  primaryLight: '#818cf8',
+  primary: '#115e59',
+  primaryLight: '#2dd4bf',
   secondary: '#10b981',
   warning: '#f59e0b',
   danger: '#ef4444',
@@ -24,7 +24,7 @@ const colors = {
   heartRate: '#ef4444',
   temperature: '#f59e0b',
   spo2: '#3b82f6',
-  bloodPressure: '#8b5cf6'
+  bloodPressure: '#5eaab5'
 };
 
 /**

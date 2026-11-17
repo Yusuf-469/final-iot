@@ -392,7 +392,7 @@ const dashboardApp = {
                             color: 'rgba(255, 255, 255, 0.05)'
                         },
                         ticks: {
-                            color: '#64748b'
+                            color: '#7a8d92'
                         }
                     },
                     y: {

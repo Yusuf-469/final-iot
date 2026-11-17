@@ -168,7 +168,7 @@
 .input-wrapper input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1);
 }
 
 .input-wrapper input::placeholder {
@@ -425,7 +425,7 @@
 }
 
 .sidebar-item.active {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(45, 212, 191, 0.1);
     color: var(--primary);
 }
 
@@ -600,7 +600,7 @@
 .signup-preview .preview-header {
     text-align: center;
     padding: 2rem;
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(45, 212, 191, 0.1);
     border-bottom: none;
 }
 

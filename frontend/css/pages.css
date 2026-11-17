@@ -304,7 +304,7 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    background: linear-gradient(135deg, #0b1215 0%, #121b1f 50%, #0b1215 100%);
 }
 
 .dr-ai-header {

@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
@@ -33,7 +33,7 @@
                 <a href="login.html" class="btn btn-outline">Login</a>
                 <a href="signup.html" class="btn btn-primary">Get Started</a>
             </div>
-            <button class="mobile-toggle" id="mobile-toggle">
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Open menu">
                 <span></span>
                 <span></span>
                 <span></span>
@@ -52,42 +52,23 @@
         <div class="hero-content">
             <div class="hero-badge reveal-text">
                 <span class="badge-dot"></span>
-                AI-Powered Healthcare Monitoring
+                Bedside IoT vitals &middot; NEWS2 alerts
             </div>
             <h1 class="hero-title reveal-text">
-                The Future of <span class="gradient-text">Healthcare</span> is Here
+                Catch deterioration <span class="gradient-text">before</span> it becomes an emergency
             </h1>
             <p class="hero-description reveal-text delay-1">
-                Real-time patient monitoring with intelligent health predictions, 
-                instant alerts, and seamless IoT integration for better healthcare outcomes.
+                Sensors stream heart rate, SpO&#8322;, temperature and blood pressure every few seconds.
+                Each patient gets a personal baseline, a live NEWS2 score, and an alert when something drifts.
             </p>
             <div class="hero-actions reveal-text delay-2">
                 <a href="login.html" class="btn btn-primary btn-lg">
                     <span>Start Monitoring</span>
                     <i class="fas fa-arrow-right"></i>
                 </a>
-                <a href="#features" class="btn btn-ghost btn-lg">
-                    <i class="fas fa-play"></i>
-                    <span>Watch Demo</span>
+                <a href="#how-it-works" class="btn btn-ghost btn-lg">
+                    <span>See how it works</span>
                 </a>
-            </div>
-            <div class="hero-stats reveal-text delay-3">
-                <div class="stat-item">
-                    <span class="stat-number" data-count="500">0</span>
-                    <span class="stat-label">+ Patients</span>
-                </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
-                    <span class="stat-number" data-count="99">0</span>
-                    <span class="stat-suffix">%</span>
-                    <span class="stat-label">Uptime</span>
-                </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
-                    <span class="stat-number" data-count="24">0</span>
-                    <span class="stat-suffix">/7</span>
-                    <span class="stat-label">Monitoring</span>
-                </div>
             </div>
         </div>
         <div class="hero-visual reveal-visual">
@@ -459,53 +440,6 @@
         </div>
     </section>
 
-    <!-- Stats Section -->
-    <section class="stats-section">
-        <div class="section-container">
-            <div class="stats-grid">
-                <div class="stat-box reveal-scroll">
-                    <div class="stat-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-number" data-count="500">0</span>
-                        <span class="stat-suffix">+</span>
-                    </div>
-                    <p>Active Patients</p>
-                </div>
-                <div class="stat-box reveal-scroll" data-delay="100">
-                    <div class="stat-icon">
-                        <i class="fas fa-heart"></i>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-number" data-count="99">0</span>
-                        <span class="stat-suffix">%</span>
-                    </div>
-                    <p>Accuracy Rate</p>
-                </div>
-                <div class="stat-box reveal-scroll" data-delay="200">
-                    <div class="stat-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-number" data-count="2500">0</span>
-                        <span class="stat-suffix">+</span>
-                    </div>
-                    <p>Alerts Sent</p>
-                </div>
-                <div class="stat-box reveal-scroll" data-delay="300">
-                    <div class="stat-icon">
-                        <i class="fas fa-globe"></i>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-number" data-count="50">0</span>
-                        <span class="stat-suffix">+</span>
-                    </div>
-                    <p>Countries</p>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- Contact Section -->
     <section class="contact-section" id="contact">
